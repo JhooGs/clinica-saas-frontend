@@ -115,17 +115,45 @@ body { background-color: var(--background); color: var(--foreground); }
   background: linear-gradient(180deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%);
 }
 
+/* Drawer mobile — animação shadcn-style (200ms linear) */
+[data-slot="sheet-content"][data-side="left"] {
+  transition: transform 0.2s linear !important;
+}
+[data-slot="sheet-content"][data-side="left"][data-state="open"] {
+  transform: translateX(0) !important;
+}
+[data-slot="sheet-content"][data-side="left"][data-state="closed"] {
+  transform: translateX(-100%) !important;
+}
+[data-slot="sheet-overlay"] {
+  transition: opacity 0.2s linear !important;
+}
+
 @keyframes page-fade-in {
   from {
     opacity: 0;
-    transform: translateY(50px);
+    transform: translateY(12px);
+    filter: blur(8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    filter: blur(0px);
   }
 }
 
 .page-fade-in {
-  animation: page-fade-in 0.35s ease-out both;
+  animation: page-fade-in 0.4s ease-out both;
+}
+
+/* ── Sonner — botão fechar no canto superior direito ── */
+[data-sonner-toast] {
+  position: relative;
+}
+[data-sonner-toast] [data-close-button] {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  left: auto !important;
+  transform: none !important;
 }

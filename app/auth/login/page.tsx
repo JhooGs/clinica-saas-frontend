@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { ArrowRight, Eye, EyeOff } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Mail, Lock } from 'lucide-react'
 import Image from 'next/image'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,6 +15,9 @@ export default function LoginPage() {
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
 
+  const emailInvalido = email.length > 0 && !email.includes('@')
+  const camposComErro = !!erro
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setErro('')
@@ -22,6 +26,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
     if (error) {
       setErro('E-mail ou senha incorretos.')
+      toast.error('Erro ao entrar', { description: 'E-mail ou senha incorretos.' })
       setCarregando(false)
       return
     }
@@ -54,14 +59,6 @@ export default function LoginPage() {
         {/* Conteúdo central */}
         <div className="relative z-10 space-y-8">
           <div className="space-y-4">
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider uppercase"
-              style={{ backgroundColor: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.35)', color: 'white' }}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-              Plataforma para gerenciar sua Clínica
-            </div>
-
             <h1 className="text-4xl font-bold text-white leading-tight drop-shadow">
               Menos burocracia, mais tempo para{' '}
               <span className="text-white underline decoration-white/40">cuidar</span>
@@ -75,23 +72,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Stats cards */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { value: '100+', label: 'Clínicas' },
-              { value: '5k+', label: 'Pacientes' },
-              { value: '99.9%', label: 'Online' },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-xl p-4"
-                style={{ backgroundColor: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
-              >
-                <p className="text-lg font-bold text-white">{stat.value}</p>
-                <p className="text-xs text-white/70 mt-0.5">{stat.label}</p>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Footer */}
@@ -121,18 +101,23 @@ export default function LoginPage() {
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-white">
+              <label className="block text-sm font-medium text-gray-900">
                 E-mail
               </label>
-              <div className="mt-2">
+              <div className="relative mt-2">
+                <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${emailInvalido || camposComErro ? 'text-violet-500' : 'text-gray-400'}`} />
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setErro('') }}
                   placeholder="seu@email.com"
                   required
                   autoComplete="email"
-                  className="block w-full rounded-md border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb] transition-colors"
+                  className={`block w-full rounded-md border bg-white pl-9 pr-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-colors ${
+                    emailInvalido || camposComErro
+                      ? 'border-violet-500 ring-1 ring-violet-500 focus:border-violet-500 focus:ring-violet-500'
+                      : 'border-gray-300 focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb]'
+                  }`}
                 />
               </div>
             </div>
@@ -140,7 +125,7 @@ export default function LoginPage() {
             {/* Senha */}
             <div>
               <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-900 dark:text-white">
+                <label className="block text-sm font-medium text-gray-900">
                   Senha
                 </label>
                 <button
@@ -152,19 +137,24 @@ export default function LoginPage() {
                 </button>
               </div>
               <div className="relative mt-2">
+                <Lock className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${camposComErro ? 'text-violet-500' : 'text-gray-400'}`} />
                 <input
                   type={showSenha ? 'text' : 'password'}
                   value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
+                  onChange={(e) => { setSenha(e.target.value); setErro('') }}
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="block w-full rounded-md border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 pr-10 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb] transition-colors"
+                  className={`block w-full rounded-md border bg-white pl-9 pr-10 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-colors ${
+                    camposComErro
+                      ? 'border-violet-500 ring-1 ring-violet-500 focus:border-violet-500 focus:ring-violet-500'
+                      : 'border-gray-300 focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb]'
+                  }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowSenha(!showSenha)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   {showSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -173,9 +163,8 @@ export default function LoginPage() {
 
             {/* Erro */}
             {erro && (
-              <div className="flex items-center gap-2 rounded-md border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                <p className="text-xs text-red-600 dark:text-red-400 font-medium">{erro}</p>
+              <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3">
+                <p className="text-sm text-red-600 font-medium">{erro}</p>
               </div>
             )}
 
@@ -184,7 +173,7 @@ export default function LoginPage() {
               type="submit"
               disabled={carregando}
               className="w-full flex items-center justify-center gap-2 rounded-md py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ backgroundColor: '#04c2fb' }}
+              style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >
               {carregando ? (
                 <>

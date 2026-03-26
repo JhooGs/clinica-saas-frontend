@@ -1,8 +1,15 @@
-export default function ConfiguracoesPage() {
-    return (
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Configurações</h1>
-        <p className="text-muted-foreground mt-1">Gerencie as configurações da clínica</p>
-      </div>
-    )
-  }
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
+export default function ConfiguracoesGeralPage() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Informações Gerais</CardTitle>
+        <CardDescription>Configurações básicas da clínica</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">Em breve.</p>
+      </CardContent>
+    </Card>
+  )
+}

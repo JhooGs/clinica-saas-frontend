@@ -10,14 +10,19 @@ export interface Paciente {
   criado_em: string
 }
 
-export interface Prontuario {
+export interface Registro {
   id: string
   paciente_id: string
-  medico_id: string
+  terapeuta_id: string
+  clinica_id: string
   titulo: string
-  conteudo: string
-  especialidade?: string
-  arquivos?: { nome: string; url: string; tipo: string }[]
+  conteudo_json: Record<string, unknown> | null  // JSON do Tiptap
+  numero_sessao?: number
+  presenca: boolean
+  material?: string
+  link_youtube?: string
+  observacao?: string
+  arquivos?: { nome: string; url: string; tipo: string; tamanho: number }[]
   criado_em: string
   atualizado_em: string
 }
@@ -37,7 +42,7 @@ export interface Financeiro {
 
 export interface DashboardResumo {
   pacientes: { total: number; novos_mes: number }
-  prontuarios: { total: number }
+  registros: { total: number }
   financeiro: {
     receita_mes: number
     despesa_mes: number
