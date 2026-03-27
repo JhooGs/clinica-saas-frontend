@@ -5,7 +5,7 @@ import { X, AlertTriangle, Search, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { TIPOS_SESSAO } from '@/lib/mock-registros'
-import { NOMES_PACIENTES_MOCK } from '@/lib/mock-pacientes'
+import { PACIENTES_MOCK, isPausado } from '@/lib/mock-pacientes'
 import { ModalPortal } from '@/components/modal-portal'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 
@@ -137,10 +137,11 @@ function PacienteMultiSelect({
 
   const resultados = useMemo(() => {
     const termo = busca.toLowerCase().trim()
-    return NOMES_PACIENTES_MOCK
-      .filter(n => !selecionados.includes(n))
-      .filter(n => !termo || n.toLowerCase().includes(termo))
-      .slice(0, 6)
+    return PACIENTES_MOCK
+      .filter(p => p.ativo)
+      .filter(p => !selecionados.includes(p.nome))
+      .filter(p => !termo || p.nome.toLowerCase().includes(termo))
+      .slice(0, 8)
   }, [busca, selecionados])
 
   // Fecha dropdown ao clicar fora
@@ -160,6 +161,8 @@ function PacienteMultiSelect({
   }, [resultados.length])
 
   function adicionarPaciente(nome: string) {
+    const pac = PACIENTES_MOCK.find(p => p.nome === nome)
+    if (pac && isPausado(pac)) return
     onChange([...selecionados, nome])
     setBusca('')
     setAberto(false)
@@ -188,7 +191,8 @@ function PacienteMultiSelect({
       setIndiceAtivo(i => (i - 1 + resultados.length) % resultados.length)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      adicionarPaciente(resultados[indiceAtivo])
+      const pac = resultados[indiceAtivo]
+      if (pac && !isPausado(pac)) adicionarPaciente(pac.nome)
     }
   }
 
@@ -251,23 +255,34 @@ function PacienteMultiSelect({
             style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
           >
             {resultados.length > 0 ? (
-              <div className="max-h-36 overflow-y-auto py-1">
-                {resultados.map((nome, i) => (
-                  <button
-                    key={nome}
-                    type="button"
-                    onMouseDown={e => { e.preventDefault(); adicionarPaciente(nome) }}
-                    onMouseEnter={() => setIndiceAtivo(i)}
-                    className={cn(
-                      'w-full px-3 py-2 text-left text-sm transition-colors',
-                      i === indiceAtivo
-                        ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    )}
-                  >
-                    {nome}
-                  </button>
-                ))}
+              <div className="max-h-48 overflow-y-auto py-1">
+                {resultados.map((pac, i) => {
+                  const pausado = isPausado(pac)
+                  return (
+                    <button
+                      key={pac.nome}
+                      type="button"
+                      disabled={pausado}
+                      onMouseDown={e => { e.preventDefault(); if (!pausado) adicionarPaciente(pac.nome) }}
+                      onMouseEnter={() => !pausado && setIndiceAtivo(i)}
+                      className={cn(
+                        'w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between gap-2',
+                        pausado
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : i === indiceAtivo
+                            ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
+                            : 'text-gray-700 hover:bg-gray-50'
+                      )}
+                    >
+                      <span className="truncate">{pac.nome}</span>
+                      {pausado && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-600 shrink-0">
+                          Pausado
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             ) : (
               <div className="px-3 py-3 text-center">

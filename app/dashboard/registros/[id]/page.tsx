@@ -11,6 +11,7 @@ import { uploadImagem, uploadArquivo, removerArquivo } from '@/lib/registro-stor
 import { useRegistroDraft } from '@/hooks/use-registro-draft'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ConfirmDelete } from '@/components/confirm-delete'
+import { chavePauta } from '@/components/modal-pauta'
 import { registrosIniciais, relatoriosPendentesIniciais, TIPOS_SESSAO } from '@/lib/mock-registros'
 
 // ---------------------------------------------------------------------------
@@ -665,7 +666,7 @@ function FormularioSessao({ id }: { id: number }) {
 
   // Carrega pauta pré-sessão do localStorage
   useEffect(() => {
-    const texto = localStorage.getItem(`clinitra:pauta:${id}`)
+    const texto = localStorage.getItem(chavePauta(id))
     if (texto && texto.trim()) setPauta(texto)
   }, [id])
 
@@ -722,7 +723,7 @@ function FormularioSessao({ id }: { id: number }) {
     setSalvando(true)
     try {
       descartarRascunho()
-      localStorage.removeItem(`clinitra:pauta:${id}`)
+      localStorage.removeItem(chavePauta(id))
       toast.success('Registro salvo', { description: 'A sessão foi registrada com sucesso.' })
       router.push('/dashboard/registros')
     } catch {
@@ -773,43 +774,6 @@ function FormularioSessao({ id }: { id: number }) {
           </div>
         )}
       </div>
-
-      {/* Pauta pré-sessão */}
-      {pauta && (
-        <div className="rounded-xl border border-[#04c2fb]/25 bg-[#04c2fb]/4 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setPautaVisivel(v => !v)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#04c2fb]/5 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <NotebookPen className="h-4 w-4 text-[#04c2fb] shrink-0" />
-              <span className="text-sm font-semibold text-[#0094c8]">Pauta desta sessão</span>
-              <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-semibold text-[#04c2fb]">
-                pré-sessão
-              </span>
-            </div>
-            <ChevronDown className={cn('h-4 w-4 text-[#04c2fb] transition-transform shrink-0', pautaVisivel ? 'rotate-180' : '')} />
-          </button>
-          {pautaVisivel && (
-            <div className="px-4 pb-4">
-              <div className="rounded-lg bg-white/70 border border-[#04c2fb]/15 px-4 py-3">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{pauta}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.removeItem(`clinitra:pauta:${id}`)
-                  setPauta(null)
-                }}
-                className="mt-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
-              >
-                Descartar pauta
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Card de contexto */}
       <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 space-y-3">
@@ -1013,6 +977,46 @@ function FormularioSessao({ id }: { id: number }) {
             Pressione <kbd className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[10px] font-mono">Enter</kbd> para adicionar cada link
           </p>
         </div>
+
+        {/* Pauta pré-sessão — visível junto ao editor para consulta rápida */}
+        {pauta && (
+          <div className="rounded-xl border border-[#04c2fb]/25 bg-gradient-to-b from-[#04c2fb]/[0.06] to-[#04c2fb]/[0.02] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setPautaVisivel(v => !v)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#04c2fb]/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <NotebookPen className="h-4 w-4 text-[#04c2fb] shrink-0" />
+                <span className="text-sm font-semibold text-[#0094c8]">Pauta desta sessão</span>
+                <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-semibold text-[#04c2fb]">
+                  pré-sessão
+                </span>
+              </div>
+              <ChevronDown className={cn('h-4 w-4 text-[#04c2fb] transition-transform shrink-0', pautaVisivel ? 'rotate-180' : '')} />
+            </button>
+            {pautaVisivel && (
+              <div className="px-4 pb-4">
+                <div className="rounded-lg bg-white/70 border border-[#04c2fb]/15 px-4 py-3">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{pauta}</p>
+                </div>
+                <div className="flex items-center justify-between mt-2.5">
+                  <p className="text-[10px] text-muted-foreground/60 italic">Consulte a pauta enquanto redige suas notas abaixo</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem(chavePauta(id))
+                      setPauta(null)
+                    }}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
+                  >
+                    Descartar pauta
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Notas da sessão</label>

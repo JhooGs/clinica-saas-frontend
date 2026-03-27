@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, User, CheckCircle2, XCircle,
   Pencil, Save, Hash, Activity, DollarSign, TrendingUp,
-  ChevronDown, ChevronUp, FileText, ExternalLink, CreditCard,
+  ChevronDown, ChevronUp, FileText, ExternalLink, CreditCard, Pause, AlertTriangle,
 } from 'lucide-react'
 import { cn, extractTiptapText } from '@/lib/utils'
 import { ConfirmDiscard } from '@/components/confirm-discard'
@@ -87,6 +87,33 @@ function isoToBr(d: string): string {
   if (!d) return '-'
   const [y, m, day] = d.split('-')
   return `${day}/${m}/${y}`
+}
+
+function isGratuitoVigente(gratuito: boolean, inicio: string, fim: string): boolean {
+  if (!gratuito) return false
+  if (!inicio && !fim) return true
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  if (inicio) {
+    const d = new Date(inicio + 'T00:00:00')
+    if (hoje < d) return false
+  }
+  if (fim) {
+    const d = new Date(fim + 'T00:00:00')
+    if (hoje > d) return false
+  }
+  return true
+}
+
+function isPacientePausadoCompleto(p: { ativo: boolean; gratuito: boolean; gratuitoFim: string; valorSessao: string }): boolean {
+  if (!p.ativo || !p.gratuito) return false
+  const fim = p.gratuitoFim
+  if (!fim || fim === '-' || fim === '—') return false
+  const [d, m, y] = fim.split('/')
+  const dataFim = new Date(+y, +m - 1, +d, 23, 59, 59)
+  if (new Date() <= dataFim) return false
+  const val = p.valorSessao.replace(/[^\d]/g, '')
+  return !val || val === '0' || val === '00' || val === '000'
 }
 
 function calcularIdade(dataNascBR: string): number {
@@ -213,6 +240,9 @@ const pacientesData: PacienteCompleto[] = [
     plano: PLANO_PADRAO },
   { id: 10, ativo: false, nome: 'Arthur Henrique',          dataNascimento: '23/03/2022', responsavel: 'Jaqueline e Bernardo', dataAnamnese: '14/02/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',           dataInicio: '18/02/2025', dataFim: '26/03/2025', totalSessoes: 12,  presencas: 11,  faltas: 1,
     historicoValores: [{ mesAno: 'fev/2025', valor: 160 }],
+    plano: PLANO_PADRAO },
+  { id: 11, ativo: true,  nome: 'Felipe Konik Pertele',     dataNascimento: '05/07/2015', responsavel: 'Fernanda e Konik',    dataAnamnese: '10/01/2026', valorSessao: '',            gratuito: true,  gratuitoInicio: '10/01/2026', gratuitoFim: '10/03/2026', dataInicio: '10/01/2026', dataFim: null,         totalSessoes: 18,  presencas: 16,  faltas: 2,
+    historicoValores: [{ mesAno: 'jan/2026', valor: 0 }, { mesAno: 'fev/2026', valor: 0 }, { mesAno: 'mar/2026', valor: 0 }],
     plano: PLANO_PADRAO },
 ]
 
@@ -881,7 +911,12 @@ function CardPlano({
 
   function setStatus(tipo: string, status: StatusTipo) {
     setForm(prev => ({
-      tipos: prev.tipos.map(t => t.tipo === tipo ? { ...t, status } : t),
+      tipos: prev.tipos.map(t => {
+        if (t.tipo !== tipo) return t
+        // Ao selecionar "à parte", preenche com valorSessao como padrão
+        const valor = status === 'cobradaAParte' ? (t.valor || valorSessao) : t.valor
+        return { ...t, status, valor }
+      }),
     }))
   }
 
@@ -900,7 +935,20 @@ function CardPlano({
     }))
   }
 
+  function parseBRL(v: string): number {
+    const limpo = v.replace(/[^\d,]/g, '')
+    if (!limpo) return 0
+    return parseFloat(limpo.replace(',', '.')) || 0
+  }
+
   function salvar() {
+    const invalido = form.tipos.find(t => t.status === 'cobradaAParte' && parseBRL(t.valor) < 1)
+    if (invalido) {
+      toast.error('Valor inválido', {
+        description: `"${invalido.tipo}" precisa ter valor mínimo de R$ 1,00.`,
+      })
+      return
+    }
     onSalvar(form)
     setEditando(false)
     toast.success('Plano atualizado', {
@@ -922,8 +970,6 @@ function CardPlano({
       return `${n} ${labels[s]}`
     })
     .join(' · ')
-
-  const inputCls = 'w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40 transition-all'
 
   return (
     <div className="rounded-xl border bg-card shadow-sm">
@@ -1009,15 +1055,23 @@ function CardPlano({
                   {status === 'cobradaAParte' && (
                     <div className="space-y-1 pt-0.5">
                       <label className="text-xs font-medium text-muted-foreground">
-                        Valor <span className="font-normal text-muted-foreground/70">(deixe em branco para &ldquo;a combinar&rdquo;)</span>
+                        Valor cobrado <span className="font-normal text-muted-foreground/70">(mínimo R$ 1,00)</span>
                       </label>
                       <input
                         value={valor}
                         onChange={e => setValor(tipo, e.target.value)}
                         onBlur={() => formatarValor(tipo)}
-                        placeholder="Ex: R$ 200,00"
-                        className={inputCls}
+                        placeholder={valorSessao}
+                        className={cn(
+                          'w-full rounded-lg border bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 transition-all',
+                          valor && parseBRL(valor) < 1
+                            ? 'border-red-300 focus:ring-red-400/40'
+                            : 'border-gray-200 focus:ring-[#04c2fb]/40',
+                        )}
                       />
+                      {valor && parseBRL(valor) < 1 && (
+                        <p className="text-[11px] text-red-500">O valor deve ser no mínimo R$ 1,00</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1081,11 +1135,7 @@ function CardPlano({
                   {tiposPorStatus('cobradaAParte').map(({ tipo, valor }) => (
                     <div key={tipo} className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50/60 border border-amber-100">
                       <span className="text-sm text-gray-800">{tipo}</span>
-                      {valor ? (
-                        <span className="text-sm font-semibold text-amber-700">{valor}</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">A combinar</span>
-                      )}
+                      <span className="text-sm font-semibold text-amber-700">{valor || valorSessao}</span>
                     </div>
                   ))}
                 </div>
@@ -1136,6 +1186,12 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     ? Math.round((paciente.presencas / paciente.totalSessoes) * 100)
     : 0
 
+  const gratuitoVigente = isGratuitoVigente(
+    form.gratuito,
+    form.gratuitoInicio,
+    form.gratuitoFim,
+  )
+
   // Snapshot do form no momento em que o usuário clicou em "Editar"
   function formOriginal() {
     return {
@@ -1170,7 +1226,20 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     })
   }
 
+  function valorNumerico(raw: string): number {
+    const limpo = raw.replace(/[^\d,]/g, '').replace(',', '.')
+    return limpo ? parseFloat(limpo) : 0
+  }
+
+  const valorInsuficiente = !gratuitoVigente && form.ativo && (
+    form.valorSessao.trim() === '' || valorNumerico(form.valorSessao) < 1
+  )
+
   function salvarEdicao() {
+    if (valorInsuficiente) {
+      toast.error('Valor da sessão inválido', { description: 'O valor deve ser no mínimo R$ 1,00.' })
+      return
+    }
     setPaciente(prev => ({
       ...prev,
       nome: form.nome,
@@ -1235,19 +1304,41 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-semibold tracking-tight truncate">{paciente.nome}</h1>
-            <span className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0',
-              paciente.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500',
-            )}>
-              <span className={cn('h-1.5 w-1.5 rounded-full', paciente.ativo ? 'bg-green-500' : 'bg-gray-400')} />
-              {paciente.ativo ? 'Ativo' : 'Inativo'}
-            </span>
+            {isPacientePausadoCompleto(paciente) ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-medium text-amber-600 shrink-0">
+                <Pause className="h-3 w-3" />
+                Pausado
+              </span>
+            ) : (
+              <span className={cn(
+                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0',
+                paciente.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500',
+              )}>
+                <span className={cn('h-1.5 w-1.5 rounded-full', paciente.ativo ? 'bg-green-500' : 'bg-gray-400')} />
+                {paciente.ativo ? 'Ativo' : 'Inativo'}
+              </span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
             {idade} anos · Responsável: {paciente.responsavel}
           </p>
         </div>
       </div>
+
+      {/* ── Alerta de pausado ──────────────────── */}
+      {isPacientePausadoCompleto(paciente) && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:px-5 sm:py-3.5 flex items-start gap-3">
+          <div className="rounded-lg p-2 bg-amber-100 shrink-0 mt-0.5">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800">Paciente pausado</p>
+            <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
+              O periodo gratuito deste paciente expirou e nenhum valor de sessao foi definido. Clique em <strong>Editar</strong> e defina o valor da sessao para reativar os agendamentos.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Cards de resumo ──────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
@@ -1322,13 +1413,22 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   <DatePicker value={form.dataAnamnese} onChange={v => f('dataAnamnese', v)} placeholder="Selecionar data" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Valor da Sessão</label>
+                  <label className={cn('text-xs font-medium', valorInsuficiente ? 'text-red-500' : 'text-muted-foreground')}>
+                    Valor da Sessão <span className="text-red-400">*</span>
+                  </label>
                   <input
-                    value={form.valorSessao}
+                    value={gratuitoVigente ? 'R$ 0,00' : form.valorSessao}
                     onChange={e => f('valorSessao', e.target.value)}
                     onBlur={() => { if (form.valorSessao.trim()) f('valorSessao', formatValorBRL(form.valorSessao)) }}
-                    className={inputCls}
+                    disabled={gratuitoVigente}
+                    placeholder="R$ 0,00"
+                    className={cn(inputCls, gratuitoVigente ? 'opacity-50 cursor-not-allowed' : valorInsuficiente ? 'border-red-300 bg-red-50/50 focus:ring-red-400/40' : '')}
                   />
+                  {gratuitoVigente ? (
+                    <p className="text-[11px] text-muted-foreground">Valor zerado durante o período gratuito</p>
+                  ) : valorInsuficiente ? (
+                    <p className="text-[11px] text-red-500">Valor mínimo: R$ 1,00</p>
+                  ) : null}
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Data de Início</label>
@@ -1396,7 +1496,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 <InfoItem label="Responsável" value={paciente.responsavel} />
                 <InfoItem label="Data de Nascimento" value={`${paciente.dataNascimento} (${idade} anos)`} />
                 <InfoItem label="Data da Anamnese" value={paciente.dataAnamnese} />
-                <InfoItem label="Valor da Sessão" value={paciente.valorSessao} highlight />
+                <InfoItem label="Valor da Sessão" value={gratuitoVigente ? 'R$ 0,00' : paciente.valorSessao} highlight />
                 <InfoItem label="Data de Início" value={paciente.dataInicio} />
                 {paciente.dataFim && <InfoItem label="Data de Fim" value={paciente.dataFim} />}
                 {paciente.gratuito && (
@@ -1413,13 +1513,13 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       {/* ── Plano ────────────────────────────────── */}
       <CardPlano
         planoInicial={plano}
-        valorSessao={paciente.valorSessao}
+        valorSessao={gratuitoVigente ? 'R$ 0,00' : paciente.valorSessao}
         onSalvar={setPlano}
       />
 
       {/* ── Gráficos lado a lado ─────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ValorSessaoChart historico={paciente.historicoValores} valorAtual={paciente.valorSessao} />
+        <ValorSessaoChart historico={paciente.historicoValores} valorAtual={gratuitoVigente ? 'R$ 0,00' : paciente.valorSessao} />
         <TotalGanhoChart historico={paciente.historicoValores} presencas={paciente.presencas} />
       </div>
 

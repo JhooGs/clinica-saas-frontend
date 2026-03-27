@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { contarPausados } from '@/lib/mock-pacientes'
 
 const navMain = [
   { title: 'Início',      href: '/dashboard',             icon: Home },
@@ -29,17 +30,19 @@ function NavItem({
   item,
   active,
   collapsed,
+  badge,
 }: {
   item: { title: string; href: string; icon: React.ElementType }
   active: boolean
   collapsed: boolean
+  badge?: number
 }) {
   return (
     <Link
       href={item.href}
       title={collapsed ? item.title : undefined}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+        'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
         collapsed && 'justify-center px-0',
         active
           ? 'text-white border border-white/30'
@@ -52,7 +55,19 @@ function NavItem({
         active ? 'text-white' : 'text-white/60'
       )} />
       {!collapsed && (
-        <span className="truncate">{item.title}</span>
+        <>
+          <span className="truncate flex-1">{item.title}</span>
+          {!!badge && badge > 0 && (
+            <span className="flex items-center justify-center h-5 min-w-5 rounded-full bg-amber-400 text-[10px] font-bold text-amber-950 px-1.5 shrink-0">
+              {badge}
+            </span>
+          )}
+        </>
+      )}
+      {collapsed && !!badge && badge > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 w-4 rounded-full bg-amber-400 text-[9px] font-bold text-amber-950">
+          {badge}
+        </span>
       )}
     </Link>
   )
@@ -64,6 +79,7 @@ export function AppSidebar() {
   const [email, setEmail] = useState('')
   const [initials, setInitials] = useState('CL')
   const [collapsed, setCollapsed] = useState(false)
+  const pausados = contarPausados()
 
   useEffect(() => {
     const supabase = createClient()
@@ -155,7 +171,13 @@ export function AppSidebar() {
             </p>
           )}
           {navMain.map((item) => (
-            <NavItem key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
+            <NavItem
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              collapsed={collapsed}
+              badge={item.href === '/dashboard/pacientes' ? pausados : undefined}
+            />
           ))}
         </div>
 

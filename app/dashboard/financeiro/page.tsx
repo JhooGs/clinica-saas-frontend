@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { TrendingUp, TrendingDown, Clock, Plus, X } from 'lucide-react'
+import { TrendingUp, TrendingDown, Clock, Plus, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn, hoje } from '@/lib/utils'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ModalPortal } from '@/components/modal-portal'
@@ -21,6 +21,9 @@ type Transacao = {
   valor: number
   status: Status
 }
+
+type SortKey = 'data' | 'descricao' | 'tipo' | 'valor' | 'status'
+type SortDir = 'asc' | 'desc'
 
 const transacoesIniciais: Transacao[] = [
   { id: 1, data: '03/03/2026', descricao: 'Sessão - Bernardo',         tipo: 'receita', valor: 120.00, status: 'pago'     },
@@ -175,6 +178,17 @@ export default function FinanceiroPage() {
   const [abrirModal, setAbrirModal] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState<'todos' | Tipo>('todos')
   const [filtroPeriodo, setFiltroPeriodo] = useState<DateRange | undefined>(undefined)
+  const [sortKey, setSortKey] = useState<SortKey>('data')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   const resumo = useMemo(() => {
     const receitaMes = transacoes.filter(t => t.tipo === 'receita').reduce((s, t) => s + t.valor, 0)
@@ -193,16 +207,42 @@ export default function FinanceiroPage() {
   const filtroInicio = filtroPeriodo?.from
   const filtroFim    = filtroPeriodo?.to
 
-  const lista = transacoes.filter(t => {
-    if (filtroTipo !== 'todos' && t.tipo !== filtroTipo) return false
-    if (filtroInicio || filtroFim) {
-      const dt = parseDateBR(t.data)
-      if (!dt) return true
-      if (filtroInicio && dt < filtroInicio) return false
-      if (filtroFim   && dt > filtroFim)    return false
-    }
-    return true
-  })
+  const lista = useMemo(() => {
+    const filtered = transacoes.filter(t => {
+      if (filtroTipo !== 'todos' && t.tipo !== filtroTipo) return false
+      if (filtroInicio || filtroFim) {
+        const dt = parseDateBR(t.data)
+        if (!dt) return true
+        if (filtroInicio && dt < filtroInicio) return false
+        if (filtroFim   && dt > filtroFim)    return false
+      }
+      return true
+    })
+
+    return [...filtered].sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'data': {
+          const da = parseDateBR(a.data), db = parseDateBR(b.data)
+          cmp = (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
+          break
+        }
+        case 'descricao':
+          cmp = a.descricao.localeCompare(b.descricao, 'pt-BR')
+          break
+        case 'tipo':
+          cmp = a.tipo.localeCompare(b.tipo)
+          break
+        case 'valor':
+          cmp = a.valor - b.valor
+          break
+        case 'status':
+          cmp = a.status.localeCompare(b.status)
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [transacoes, filtroTipo, filtroInicio, filtroFim, sortKey, sortDir])
 
   function salvar(form: ReturnType<typeof formInicial>) {
     const nova: Transacao = {
@@ -220,6 +260,13 @@ export default function FinanceiroPage() {
     toast.success('Transação registrada', {
       description: `${nova.tipo === 'receita' ? 'Entrada' : 'Saída'} de ${formatBRL(nova.valor)} adicionada.`,
     })
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
+    return sortDir === 'asc'
+      ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
+      : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />
   }
 
   return (
@@ -324,11 +371,21 @@ export default function FinanceiroPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Data</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Descrição</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Tipo</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Valor</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
+                <th onClick={() => handleSort('data')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data" /></span>
+                </th>
+                <th onClick={() => handleSort('descricao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Descrição <SortIcon col="descricao" /></span>
+                </th>
+                <th onClick={() => handleSort('tipo')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="tipo" /></span>
+                </th>
+                <th onClick={() => handleSort('valor')} className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5 justify-end">Valor <SortIcon col="valor" /></span>
+                </th>
+                <th onClick={() => handleSort('status')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Status <SortIcon col="status" /></span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y">

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Lock, Plus, Pencil, Trash2, Save, X, Tag, Info,
-  AlertTriangle,
+  AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -13,7 +13,6 @@ import { toast } from 'sonner'
 type TipoCustomizado = {
   id: string
   nome: string
-  valorSugerido: string
 }
 
 type ModalMode = 'criar' | 'editar'
@@ -31,18 +30,8 @@ const TIPOS_SISTEMA = [
 ]
 
 const MOCK_CUSTOM: TipoCustomizado[] = [
-  { id: 'c1', nome: 'Orientação parental', valorSugerido: 'R$ 180,00' },
+  { id: 'c1', nome: 'Orientação parental' },
 ]
-
-/* ── Helpers ──────────────────────────────────────── */
-
-function formatBRL(raw: string): string {
-  const limpo = raw.replace(/[^\d,]/g, '')
-  if (!limpo) return ''
-  const num = parseFloat(limpo.replace(',', '.'))
-  if (isNaN(num)) return raw
-  return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 
 /* ── Modal glassmorphism criar/editar ─────────────── */
 
@@ -60,7 +49,6 @@ function ModalTipo({
   onFechar: () => void
 }) {
   const [nome, setNome] = useState(inicial?.nome ?? '')
-  const [valor, setValor] = useState(inicial?.valorSugerido ?? '')
   const [erroNome, setErroNome] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -76,7 +64,7 @@ function ModalTipo({
     if (isDup && nomeTrim.toLowerCase() !== (inicial?.nome ?? '').toLowerCase()) {
       setErroNome('Já existe um tipo com esse nome.'); return
     }
-    onSalvar({ nome: nomeTrim, valorSugerido: valor })
+    onSalvar({ nome: nomeTrim })
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -109,7 +97,7 @@ function ModalTipo({
                 {modo === 'criar' ? 'Novo tipo de sessão' : 'Editar tipo de sessão'}
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {modo === 'criar' ? 'Defina nome e valor sugerido' : 'Altere os dados do tipo'}
+                {modo === 'criar' ? 'Defina o nome do tipo' : 'Altere o nome do tipo'}
               </p>
             </div>
           </div>
@@ -145,24 +133,6 @@ function ModalTipo({
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {erroNome}
               </p>
             )}
-          </div>
-
-          {/* Valor sugerido */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              Valor sugerido <span className="font-normal text-muted-foreground normal-case">(opcional)</span>
-            </label>
-            <input
-              value={valor}
-              onChange={e => setValor(e.target.value)}
-              onBlur={() => { if (valor.trim()) setValor(formatBRL(valor)) }}
-              placeholder="Ex: R$ 200,00  —  deixe vazio se não cobrado"
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/30 focus:border-[#04c2fb]/60 transition-all"
-            />
-            <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-relaxed">
-              <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              Sugestão ao configurar o plano de cada paciente. Pode ser ajustado individualmente.
-            </p>
           </div>
 
           {modo === 'editar' && (
@@ -263,11 +233,19 @@ export default function TiposSessaoPage() {
   const [personalizados, setPersonalizados] = useState<TipoCustomizado[]>(MOCK_CUSTOM)
   const [modal, setModal] = useState<{ modo: ModalMode; tipo?: TipoCustomizado } | null>(null)
   const [excluindo, setExcluindo] = useState<TipoCustomizado | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const nomesExistentes = [
     ...TIPOS_SISTEMA,
     ...personalizados.map(t => t.nome),
   ]
+
+  const listaOrdenada = useMemo(() =>
+    [...personalizados].sort((a, b) => {
+      const cmp = a.nome.localeCompare(b.nome, 'pt-BR')
+      return sortDir === 'asc' ? cmp : -cmp
+    }),
+  [personalizados, sortDir])
 
   function criarTipo(dados: Omit<TipoCustomizado, 'id'>) {
     const novo: TipoCustomizado = { id: `c${Date.now()}`, ...dados }
@@ -399,34 +377,30 @@ export default function TiposSessaoPage() {
         ) : (
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             {/* Cabeçalho da tabela */}
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2.5 bg-muted/40 border-b">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Nome</span>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">Valor sugerido</span>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-2.5 bg-muted/40 border-b">
+              <button
+                onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+              >
+                Nome
+                {sortDir === 'asc'
+                  ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
+                  : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />}
+              </button>
               <span className="w-16" />
             </div>
 
             {/* Linhas */}
             <div className="divide-y">
-              {personalizados.map(tipo => (
+              {listaOrdenada.map(tipo => (
                 <div
                   key={tipo.id}
-                  className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-4 hover:bg-muted/20 transition-colors group"
+                  className="grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 hover:bg-muted/20 transition-colors group"
                 >
                   {/* Nome */}
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="h-2 w-2 rounded-full bg-[#04c2fb] shrink-0" />
                     <span className="text-sm font-medium text-gray-800 truncate">{tipo.nome}</span>
-                  </div>
-
-                  {/* Valor */}
-                  <div className="text-right">
-                    {tipo.valorSugerido ? (
-                      <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                        {tipo.valorSugerido}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">Sem valor padrão</span>
-                    )}
                   </div>
 
                   {/* Ações */}

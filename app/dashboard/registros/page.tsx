@@ -2,12 +2,14 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil } from 'lucide-react'
+import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn, extractTiptapText } from '@/lib/utils'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { registrosIniciais, type Registro } from '@/lib/mock-registros'
 
+type SortKey = 'paciente' | 'data' | 'tipoSessao' | 'presenca'
+type SortDir = 'asc' | 'desc'
 
 function formatDataBR(iso: string) {
   if (!iso) return '-'
@@ -39,24 +41,61 @@ export default function RegistrosPage() {
   const [busca, setBusca] = useState('')
   const inputBuscaRef = useRef<HTMLInputElement>(null)
   const [expandidoId, setExpandidoId] = useState<number | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>('data')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   const filtroDataInicio = filtroPeriodo?.from?.toISOString().slice(0, 10) ?? ''
   const filtroDataFim    = filtroPeriodo?.to?.toISOString().slice(0, 10) ?? ''
 
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase()
-    return registros.filter(r => {
+    const filtered = registros.filter(r => {
       if (filtroDataInicio && r.data < filtroDataInicio) return false
       if (filtroDataFim   && r.data > filtroDataFim)   return false
       if (termo && !r.paciente.toLowerCase().includes(termo)) return false
       return true
-    }).sort((a, b) => b.data.localeCompare(a.data))
-  }, [registros, filtroDataInicio, filtroDataFim, busca])
+    })
+
+    return [...filtered].sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'paciente':
+          cmp = a.paciente.localeCompare(b.paciente, 'pt-BR')
+          break
+        case 'data':
+          cmp = a.data.localeCompare(b.data)
+          break
+        case 'tipoSessao':
+          cmp = a.tipoSessao.localeCompare(b.tipoSessao, 'pt-BR')
+          break
+        case 'presenca':
+          cmp = (a.presenca === b.presenca) ? 0 : a.presenca ? -1 : 1
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [registros, filtroDataInicio, filtroDataFim, busca, sortKey, sortDir])
 
   const temFiltro = filtroPeriodo?.from || busca.trim()
 
   function toggleExpansao(id: number) {
     setExpandidoId(prev => (prev === id ? null : id))
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
+    return sortDir === 'asc'
+      ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
+      : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />
   }
 
   return (
@@ -139,10 +178,18 @@ export default function RegistrosPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Paciente</th>
-                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Data</th>
-                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Tipo</th>
-                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Presença</th>
+                <th onClick={() => handleSort('paciente')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Paciente <SortIcon col="paciente" /></span>
+                </th>
+                <th onClick={() => handleSort('data')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data" /></span>
+                </th>
+                <th onClick={() => handleSort('tipoSessao')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="tipoSessao" /></span>
+                </th>
+                <th onClick={() => handleSort('presenca')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Presença <SortIcon col="presenca" /></span>
+                </th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Material</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground w-20">Ações</th>
                 <th className="px-4 py-3 w-10" />

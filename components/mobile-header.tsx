@@ -5,13 +5,15 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Menu, X, Home, Users, ClipboardList, CalendarDays,
+  Menu, X as XIcon, Home, Users, ClipboardList, CalendarDays,
   DollarSign, BarChart2, Settings, LogOut,
 } from 'lucide-react'
+import { NotificationsBell } from '@/components/notifications-bell'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { contarPausados } from '@/lib/mock-pacientes'
 
 const navItems = [
   { title: 'Início',        href: '/dashboard',                icon: Home },
@@ -29,6 +31,7 @@ export function MobileHeader() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [initials, setInitials] = useState('CL')
+  const pausados = contarPausados()
 
   useEffect(() => {
     const supabase = createClient()
@@ -64,11 +67,13 @@ export function MobileHeader() {
           </div>
           <span className="text-sm font-bold tracking-widest uppercase text-[#04c2fb]">Clinitra</span>
         </div>
-        <button
-          onClick={() => setOpen(v => !v)}
-          aria-label={open ? 'Fechar menu' : 'Abrir menu'}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-900 hover:bg-gray-100 active:bg-gray-200 transition-colors duration-150"
-        >
+        <div className="flex items-center gap-1">
+          <NotificationsBell />
+          <button
+            onClick={() => setOpen(v => !v)}
+            aria-label={open ? 'Fechar menu' : 'Abrir menu'}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-900 hover:bg-gray-100 active:bg-gray-200 transition-colors duration-150"
+          >
           <span
             className="relative flex h-5 w-5 items-center justify-center"
             style={{ transition: 'transform 0.2s linear' }}
@@ -77,12 +82,13 @@ export function MobileHeader() {
               className="absolute h-5 w-5 transition-all duration-200 linear"
               style={{ opacity: open ? 0 : 1, transform: open ? 'rotate(90deg) scale(0.7)' : 'rotate(0deg) scale(1)' }}
             />
-            <X
+            <XIcon
               className="absolute h-5 w-5 transition-all duration-200 linear"
               style={{ opacity: open ? 1 : 0, transform: open ? 'rotate(0deg) scale(1)' : 'rotate(-90deg) scale(0.7)' }}
             />
           </span>
-        </button>
+          </button>
+        </div>
       </header>
 
       {/* Drawer lateral para mobile */}
@@ -129,7 +135,12 @@ export function MobileHeader() {
                     'h-5 w-5 shrink-0',
                     isActive(item.href) ? 'text-white' : 'text-white/60',
                   )} />
-                  {item.title}
+                  <span className="flex-1">{item.title}</span>
+                  {item.href === '/dashboard/pacientes' && pausados > 0 && (
+                    <span className="flex items-center justify-center h-5 min-w-5 rounded-full bg-amber-400 text-[10px] font-bold text-amber-950 px-1.5 shrink-0">
+                      {pausados}
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>

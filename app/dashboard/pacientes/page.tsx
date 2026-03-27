@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Search, History } from 'lucide-react'
+import { Users, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Search, History, AlertTriangle, Pause } from 'lucide-react'
 import { cn, hoje } from '@/lib/utils'
 import { registrosIniciais } from '@/lib/mock-registros'
 import { ConfirmDiscard } from '@/components/confirm-discard'
@@ -36,6 +36,7 @@ const pacientesIniciais: Paciente[] = [
   { id: 8,  ativo: true,  nome: 'Moysés Costa de Almeida',    dataNascimento: '23/07/2010', responsavel: 'Renata e Marcos',     dataAnamnese: '17/02/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',         dataInicio: '28/02/2025', dataFim: null         },
   { id: 9,  ativo: true,  nome: 'Isadora Furman',             dataNascimento: '11/12/2019', responsavel: 'Louise e Rafael',     dataAnamnese: '20/05/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',         dataInicio: '28/05/2025', dataFim: null         },
   { id: 10, ativo: false, nome: 'Arthur Henrique',            dataNascimento: '23/03/2022', responsavel: 'Jaqueline e Bernardo', dataAnamnese: '14/02/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',        dataInicio: '18/02/2025', dataFim: '26/03/2025' },
+  { id: 11, ativo: true,  nome: 'Felipe Konik Pertele',       dataNascimento: '05/07/2015', responsavel: 'Fernanda e Konik',     dataAnamnese: '10/01/2026', valorSessao: '',            gratuito: true,  gratuitoInicio: '10/01/2026', gratuitoFim: '10/03/2026', dataInicio: '10/01/2026', dataFim: null         },
 ]
 
 type FormState = {
@@ -73,6 +74,57 @@ function parseDateBR(d: string | null): number {
 function parseValor(v: string): number {
   if (!v || v === '-') return 0
   return parseFloat(v.replace(/[^\d,]/g, '').replace(',', '.'))
+}
+
+function isGratuitoVigenteBR(gratuito: boolean, inicio: string, fim: string): boolean {
+  if (!gratuito) return false
+  if (!inicio || inicio === '-' || inicio === '—') return true
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  if (inicio && inicio !== '-' && inicio !== '—') {
+    const [d, m, y] = inicio.split('/')
+    const di = new Date(+y, +m - 1, +d)
+    if (hoje < di) return false
+  }
+  if (fim && fim !== '-' && fim !== '—') {
+    const [d, m, y] = fim.split('/')
+    const df = new Date(+y, +m - 1, +d)
+    if (hoje > df) return false
+  }
+  return true
+}
+
+function isGratuitoVigenteISO(gratuito: boolean, inicio: string, fim: string): boolean {
+  if (!gratuito) return false
+  if (!inicio) return true
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  if (inicio) {
+    const d = new Date(inicio + 'T00:00:00')
+    if (hoje < d) return false
+  }
+  if (fim) {
+    const d = new Date(fim + 'T00:00:00')
+    if (hoje > d) return false
+  }
+  return true
+}
+
+/** Gratuidade expirou (data fim ja passou) */
+function gratuidadeExpirouBR(gratuito: boolean, gratuitoFim: string): boolean {
+  if (!gratuito) return false
+  if (!gratuitoFim || gratuitoFim === '-' || gratuitoFim === '—') return false
+  const [d, m, y] = gratuitoFim.split('/')
+  const fim = new Date(+y, +m - 1, +d, 23, 59, 59)
+  return new Date() > fim
+}
+
+/** Paciente pausado: ativo + gratuidade expirou + sem valor de sessao definido */
+function isPacientePausado(p: Paciente): boolean {
+  if (!p.ativo) return false
+  if (!gratuidadeExpirouBR(p.gratuito, p.gratuitoFim)) return false
+  const val = p.valorSessao.replace(/[^\d]/g, '')
+  return !val || val === '0' || val === '00' || val === '000'
 }
 
 function formatValorBRL(raw: string): string {
@@ -119,20 +171,39 @@ function ModalNovoPaciente({
     { key: 'dataInicio', label: 'Data de Início' },
   ]
 
+  const gratuitoVigente = isGratuitoVigenteISO(form.gratuito, form.gratuitoInicio, form.gratuitoFim)
+
+  function valorNumerico(raw: string): number {
+    const limpo = raw.replace(/[^\d,]/g, '').replace(',', '.')
+    return limpo ? parseFloat(limpo) : 0
+  }
+
+  const valorInsuficiente = !gratuitoVigente && form.valorSessao.trim() !== '' && valorNumerico(form.valorSessao) < 1
+
   function campoVazio(key: keyof FormState): boolean {
+    if (key === 'valorSessao' && gratuitoVigente) return false
     const v = form[key]
     if (typeof v === 'string') return v.trim() === ''
     return false
   }
 
+  function erroValorSessao(): boolean {
+    if (!tentouSalvar) return false
+    if (gratuitoVigente) return false
+    if (form.valorSessao.trim() === '') return true
+    return valorInsuficiente
+  }
+
   function erroVisivel(key: keyof FormState): boolean {
+    if (key === 'valorSessao') return erroValorSessao()
     return tentouSalvar && campoVazio(key)
   }
 
   const dataFimObrigatoria = !form.ativo
   const formularioValido =
     camposObrigatorios.every(c => !campoVazio(c.key)) &&
-    (!dataFimObrigatoria || form.dataFim.trim() !== '')
+    (!dataFimObrigatoria || form.dataFim.trim() !== '') &&
+    !valorInsuficiente
 
   const temDados = Object.entries(form).some(([k, v]) =>
     k !== 'ativo' && k !== 'gratuito' && typeof v === 'string' && v !== ''
@@ -142,6 +213,7 @@ function ModalNovoPaciente({
     ? [
         ...camposObrigatorios.filter(c => campoVazio(c.key)).map(c => c.label),
         ...(dataFimObrigatoria && form.dataFim.trim() === '' ? ['Data de Fim'] : []),
+        ...(valorInsuficiente ? ['Valor da Sessão deve ser no mínimo R$ 1,00'] : []),
       ]
     : []
 
@@ -239,14 +311,20 @@ function ModalNovoPaciente({
                 Valor da Sessão <span className="text-red-400">*</span>
               </label>
               <input
-                value={form.valorSessao}
+                value={gratuitoVigente ? 'R$ 0,00' : form.valorSessao}
                 onChange={e => f('valorSessao', e.target.value)}
                 onBlur={() => {
                   if (form.valorSessao.trim()) f('valorSessao', formatValorBRL(form.valorSessao))
                 }}
+                disabled={gratuitoVigente}
                 placeholder="R$ 0,00"
-                className={cn(inputBase, erroVisivel('valorSessao') ? inputErro : inputOk)}
+                className={cn(inputBase, gratuitoVigente ? 'opacity-50 cursor-not-allowed' : '', erroVisivel('valorSessao') ? inputErro : inputOk)}
               />
+              {gratuitoVigente ? (
+                <p className="text-[11px] text-muted-foreground">Valor zerado durante o período gratuito</p>
+              ) : tentouSalvar && valorInsuficiente ? (
+                <p className="text-[11px] text-red-500">Valor mínimo: R$ 1,00</p>
+              ) : null}
             </div>
             <div className="space-y-1">
               <label className={cn('text-xs font-medium', erroVisivel('dataInicio') ? 'text-red-500' : 'text-muted-foreground')}>
@@ -397,17 +475,39 @@ function HighlightMatch({ texto, busca }: { texto: string; busca: string }) {
   )
 }
 
+function StatusBadge({ paciente }: { paciente: Paciente }) {
+  const pausado = isPacientePausado(paciente)
+  if (pausado) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-600">
+        <Pause className="h-2.5 w-2.5" />
+        Pausado
+      </span>
+    )
+  }
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+      paciente.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+    )}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', paciente.ativo ? 'bg-green-500' : 'bg-gray-400')} />
+      {paciente.ativo ? 'Ativo' : 'Inativo'}
+    </span>
+  )
+}
+
 export default function PacientesPage() {
   const router = useRouter()
   const [pacientes, setPacientes] = useState<Paciente[]>(pacientesIniciais)
   const [abrirModal, setAbrirModal] = useState(false)
-  const [filtroAtivo, setFiltroAtivo] = useState<'todos' | 'ativos' | 'inativos'>('ativos')
+  const [filtroAtivo, setFiltroAtivo] = useState<'todos' | 'ativos' | 'pausados' | 'inativos'>('ativos')
   const [sortKey, setSortKey] = useState<SortKey>('nome')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [busca, setBusca] = useState('')
   const inputBuscaRef = useRef<HTMLInputElement>(null)
 
   const totalAtivos = pacientes.filter(p => p.ativo).length
+  const totalPausados = pacientes.filter(p => isPacientePausado(p)).length
   const totalAtendidos = new Set(registrosIniciais.map(r => r.paciente)).size
 
   function handleSort(key: SortKey) {
@@ -422,7 +522,8 @@ export default function PacientesPage() {
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     const filtered = pacientes.filter(p => {
-      if (filtroAtivo === 'ativos')   return p.ativo
+      if (filtroAtivo === 'ativos')   return p.ativo && !isPacientePausado(p)
+      if (filtroAtivo === 'pausados') return isPacientePausado(p)
       if (filtroAtivo === 'inativos') return !p.ativo
       return true
     }).filter(p =>
@@ -531,6 +632,26 @@ export default function PacientesPage() {
         </div>
       </div>
 
+      {/* Alerta de pacientes pausados */}
+      {totalPausados > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:px-5 sm:py-3.5 flex items-start gap-3">
+          <div className="rounded-lg p-2 bg-amber-100 shrink-0 mt-0.5">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">
+              {totalPausados} paciente{totalPausados > 1 ? 's' : ''} pausado{totalPausados > 1 ? 's' : ''}
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
+              {totalPausados > 1
+                ? 'O periodo gratuito desses pacientes expirou e nenhum valor de sessao foi definido. Nenhum agendamento pode ser criado ate que os valores sejam configurados. Caso o paciente não continue o tratamento desative ele.'
+                : 'O periodo gratuito deste paciente expirou e nenhum valor de sessao foi definido. Nenhum agendamento pode ser criado ate que o valor seja configurado. Caso o paciente não continue o tratamento desative ele.'
+              }
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Pesquisa + Filtros */}
       <div className="flex flex-col sm:flex-row gap-3">
         {/* Campo de pesquisa */}
@@ -555,19 +676,29 @@ export default function PacientesPage() {
 
         {/* Filtros de status */}
         <div className="flex items-center gap-2 flex-wrap">
-          {(['todos', 'ativos', 'inativos'] as const).map(f => (
+          {(['todos', 'ativos', 'pausados', 'inativos'] as const).filter(f => f !== 'pausados' || totalPausados > 0).map(f => (
             <button
               key={f}
               onClick={() => setFiltroAtivo(f)}
               className={cn(
-                'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors inline-flex items-center gap-1.5',
                 filtroAtivo === f
                   ? 'text-white'
-                  : 'border bg-background text-muted-foreground hover:bg-muted'
+                  : f === 'pausados' && totalPausados > 0
+                    ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    : 'border bg-background text-muted-foreground hover:bg-muted'
               )}
-              style={filtroAtivo === f ? { background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' } : undefined}
+              style={filtroAtivo === f ? { background: f === 'pausados' ? 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)' : 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' } : undefined}
             >
-              {f === 'todos' ? 'Todos' : f === 'ativos' ? 'Ativos' : 'Inativos'}
+              {f === 'todos' ? 'Todos' : f === 'ativos' ? 'Ativos' : f === 'pausados' ? 'Pausados' : 'Inativos'}
+              {f === 'pausados' && totalPausados > 0 && (
+                <span className={cn(
+                  'flex items-center justify-center h-4 min-w-4 rounded-full text-[10px] font-bold px-1',
+                  filtroAtivo === 'pausados' ? 'bg-white/30 text-white' : 'bg-amber-500 text-white',
+                )}>
+                  {totalPausados}
+                </span>
+              )}
             </button>
           ))}
 
@@ -622,28 +753,16 @@ export default function PacientesPage() {
                       <HighlightMatch texto={p.nome} busca={busca} />
                     </div>
                     <div className="flex items-center gap-2 mt-1 md:hidden">
-                      <span className={cn(
-                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                        p.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
-                      )}>
-                        <span className={cn('h-1.5 w-1.5 rounded-full', p.ativo ? 'bg-green-500' : 'bg-gray-400')} />
-                        {p.ativo ? 'Ativo' : 'Inativo'}
-                      </span>
+                      <StatusBadge paciente={p} />
                       <span className="text-[11px] text-muted-foreground">{p.responsavel}</span>
                     </div>
                   </td>
                   {/* Colunas apenas desktop */}
                   <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.responsavel}</td>
                   <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.dataNascimento}</td>
-                  <td className="hidden md:table-cell px-4 py-3 font-medium">{p.valorSessao}</td>
+                  <td className="hidden md:table-cell px-4 py-3 font-medium">{isGratuitoVigenteBR(p.gratuito, p.gratuitoInicio, p.gratuitoFim) ? 'R$ 0,00' : p.valorSessao}</td>
                   <td className="hidden md:table-cell px-4 py-3">
-                    <span className={cn(
-                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                      p.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
-                    )}>
-                      <span className={cn('h-1.5 w-1.5 rounded-full', p.ativo ? 'bg-green-500' : 'bg-gray-400')} />
-                      {p.ativo ? 'Ativo' : 'Inativo'}
-                    </span>
+                    <StatusBadge paciente={p} />
                   </td>
                   <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.dataInicio}</td>
                   <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.dataFim ?? '—'}</td>

@@ -18,6 +18,7 @@ import {
   Pencil,
   Trash2,
   AlertTriangle,
+  NotebookPen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relatoriosPendentesIniciais } from '@/lib/mock-registros'
@@ -25,6 +26,7 @@ import { useGoogleCalendar } from '@/hooks/use-google-calendar'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { ModalNovoAgendamento } from '@/components/modal-novo-agendamento'
 import { ModalPortal } from '@/components/modal-portal'
+import { ModalPauta, chavePauta } from '@/components/modal-pauta'
 
 const LS_EXPORTED_KEY = 'clinitra_gcal_exported_ids'
 
@@ -134,6 +136,8 @@ export default function AgendaPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [agendamentoEditando, setAgendamentoEditando] = useState<AgendamentoComSource | undefined>()
   const [confirmarDeletar, setConfirmarDeletar] = useState<AgendamentoComSource | null>(null)
+  const [pautaAberta, setPautaAberta] = useState<AgendamentoComSource | null>(null)
+  const [comPauta, setComPauta] = useState<Set<string>>(new Set())
 
   // Todos os agendamentos, filtrados à semana atual (seg–dom)
   // agendamentosExtra pode conter overrides de itens base (edição)
@@ -146,6 +150,27 @@ export default function AgendaPage() {
       .filter(a => !deletedIds.has(String(a.id)))
       .filter(a => a.data >= SEMANA.inicio && a.data <= SEMANA.fim)
   }, [agendamentosExtra, googleEvents, deletedIds])
+
+  // Carrega quais agendamentos já têm pauta salva
+  useEffect(() => {
+    const ids = todosAgendamentos
+      .filter(ag => {
+        const v = localStorage.getItem(chavePauta(ag.id))
+        return v && v.trim().length > 0
+      })
+      .map(ag => String(ag.id))
+    setComPauta(new Set(ids))
+  }, [todosAgendamentos])
+
+  function handlePautaSalva(atendId: number | string, texto: string) {
+    const key = String(atendId)
+    setComPauta(prev => {
+      const next = new Set(prev)
+      if (texto.trim()) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
 
   // Marca como exportado no estado + localStorage
   function marcarExportado(id: string | number) {
@@ -515,6 +540,26 @@ export default function AgendaPage() {
 
                   {/* Ações */}
                   <div className="shrink-0 flex items-center gap-1.5">
+                    {/* Pauta — só para agendamentos Clinitra */}
+                    {ag.source !== 'google' && (
+                      <button
+                        onClick={() => setPautaAberta(ag)}
+                        title={comPauta.has(String(ag.id)) ? 'Ver/editar pauta' : 'Adicionar pauta'}
+                        className={cn(
+                          'relative flex items-center gap-1 rounded-lg border bg-white p-1.5 transition-all duration-200',
+                          comPauta.has(String(ag.id))
+                            ? 'border-[#04c2fb]/30 bg-[#04c2fb]/5 text-[#04c2fb] hover:bg-[#04c2fb]/10'
+                            : 'border-gray-200 text-muted-foreground hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 hover:text-[#04c2fb]',
+                        )}
+                      >
+                        <NotebookPen className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline text-[11px] font-medium">Pauta</span>
+                        {comPauta.has(String(ag.id)) && (
+                          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#04c2fb] ring-2 ring-white" />
+                        )}
+                      </button>
+                    )}
+
                     {/* Editar */}
                     <button
                       onClick={() => abrirEdicao(ag)}
@@ -550,6 +595,20 @@ export default function AgendaPage() {
           </div>
         ))}
       </div>
+
+      {/* Modal Pauta */}
+      {pautaAberta && (
+        <ModalPauta
+          atendimento={{
+            id: pautaAberta.id,
+            nome: pautaAberta.paciente,
+            horario: pautaAberta.horario,
+            tipo: pautaAberta.tipo,
+          }}
+          onFechar={() => setPautaAberta(null)}
+          onPautaSalva={handlePautaSalva}
+        />
+      )}
 
     </div>
   )
