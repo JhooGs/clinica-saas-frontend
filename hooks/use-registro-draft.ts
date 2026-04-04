@@ -18,7 +18,7 @@ type DraftData = {
   savedAt: string
 }
 
-function chave(agendamentoId: number) {
+function chave(agendamentoId: string) {
   return `clinitra:registro-draft:${agendamentoId}`
 }
 
@@ -26,7 +26,7 @@ function chave(agendamentoId: number) {
 // Hook — autosave de rascunho no localStorage com debounce de 1,5s
 // ---------------------------------------------------------------------------
 
-export function useRegistroDraft(agendamentoId: number) {
+export function useRegistroDraft(agendamentoId: string) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastMostradoRef = useRef(false)
 

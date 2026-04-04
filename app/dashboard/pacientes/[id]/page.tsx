@@ -2,44 +2,283 @@
 
 import { useState, useMemo, Fragment } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { usePaciente, useAtualizarPaciente } from '@/hooks/use-pacientes'
 import {
   ArrowLeft, User, CheckCircle2, XCircle,
-  Pencil, Save, Hash, Activity, DollarSign, TrendingUp,
-  ChevronDown, ChevronUp, FileText, ExternalLink, CreditCard, Pause, AlertTriangle,
+  Pencil, Save, Hash, Activity,
+  ChevronDown, ChevronUp, FileText, ExternalLink, CreditCard,
+  Package, CalendarDays, Check, Ban, Receipt, Repeat2,
+  Clock, X, Sparkles, PowerOff, CalendarRange, Loader2,
 } from 'lucide-react'
 import { cn, extractTiptapText } from '@/lib/utils'
+import { AGENDAMENTOS_BASE } from '@/lib/mock-agenda'
+import { usePacotes, useTiposSessao, useSalvarPlanoAtendimento } from '@/hooks/use-planos'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { DatePicker } from '@/components/ui/date-picker'
+import { ModalHorarioRecorrente } from '@/components/modal-horario-recorrente'
 import { toast } from 'sonner'
+import type { Pacote, TipoSessao } from '@/lib/types/planos'
 
 /* ── Types ─────────────────────────────────────────── */
 
-const TIPOS_SESSAO = [
-  'Sessão',
-  'Sessão família',
-  'Sessão em grupo',
-  'Anamnese',
-  'Devolutiva família',
-  'Reunião com a escola',
-  'Reunião multidisciplinar',
-] as const
+type Recorrencia = 'semanal' | 'quinzenal' | 'mensal'
 
-type StatusTipo = 'valorSessao' | 'inclusa' | 'cobradaAParte'
+type ModoCobranca = 'por_atendimento' | 'mensal'
 
-type TipoSessaoPlano = { tipo: string; status: StatusTipo; valor: string }
+type SlotAgendamento = {
+  diaSemana?: number   // 0=Dom 1=Seg…6=Sáb (semanal e quinzenal)
+  diaMes?: number      // 1-31 (mensal)
+  horario: string      // "HH:MM"
+}
 
-type PlanoData = { tipos: TipoSessaoPlano[] }
+type AgendaRecorrente = {
+  slots: SlotAgendamento[]
+}
 
-const PLANO_PADRAO: PlanoData = {
-  tipos: TIPOS_SESSAO.map(t => {
-    const status: StatusTipo =
-      t === 'Devolutiva família'
-        ? 'inclusa'
-        : ['Reunião com a escola', 'Reunião multidisciplinar'].includes(t)
-          ? 'cobradaAParte'
-          : 'valorSessao'
-    return { tipo: t, status, valor: '' }
-  }),
+type PlanoAtendimento = {
+  pacoteId: string | null
+  recorrencia: Recorrencia | null
+  vezesPorSemana: number | null
+  cobranca: ModoCobranca | null
+  agenda: AgendaRecorrente | null
+  sessoEmGrupo: boolean
+  vigenciaInicio?: string | null  // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
+  vigenciaFim?: string | null     // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
+}
+
+const RECORRENCIAS: { id: Recorrencia; label: string; desc: string }[] = [
+  { id: 'semanal',   label: 'Semanal',   desc: 'Por semana'        },
+  { id: 'quinzenal', label: 'Quinzenal', desc: 'A cada 2 semanas'  },
+  { id: 'mensal',    label: 'Mensal',    desc: '1× por mês'        },
+]
+
+const VEZES_POR_SEMANA = [1, 2, 3, 4, 5]
+
+const DIAS_SEMANA = [
+  { id: 1, label: 'Seg', nome: 'Segunda-feira'  },
+  { id: 2, label: 'Ter', nome: 'Terça-feira'    },
+  { id: 3, label: 'Qua', nome: 'Quarta-feira'   },
+  { id: 4, label: 'Qui', nome: 'Quinta-feira'   },
+  { id: 5, label: 'Sex', nome: 'Sexta-feira'    },
+  { id: 6, label: 'Sáb', nome: 'Sábado'         },
+  { id: 0, label: 'Dom', nome: 'Domingo'         },
+]
+
+
+function isoToBR(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function todayIso(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function formatarAgenda(agenda: AgendaRecorrente | null, recorrencia: Recorrencia | null): string {
+  if (!agenda || agenda.slots.length === 0) return ''
+  if (recorrencia === 'mensal') {
+    const s = agenda.slots[0]
+    return `Dia ${s.diaMes} às ${s.horario}`
+  }
+  const ordem = [1, 2, 3, 4, 5, 6, 0]
+  return agenda.slots
+    .slice()
+    .sort((a, b) => ordem.indexOf(a.diaSemana ?? 0) - ordem.indexOf(b.diaSemana ?? 0))
+    .map(s => {
+      const d = DIAS_SEMANA.find(d => d.id === s.diaSemana)
+      return `${d?.label ?? '?'} ${s.horario}`
+    })
+    .join(' · ')
+}
+
+const MODOS_COBRANCA: {
+  id: ModoCobranca
+  label: string
+  tagPreco: (valor: string) => string   // ex: "R$ 1.800 / sessão"
+  descInclusos: string                  // o que acontece com tipos do plano
+  descForaDoPlan: string                // o que acontece com tipos fora do plano
+  icon: typeof Receipt
+  cor: string
+  corBg: string
+  corBorder: string
+  corActive: string
+  corTag: string                        // cor do badge de preço
+}[] = [
+  {
+    id: 'por_atendimento',
+    label: 'Por sessão realizada',
+    tagPreco: v => `R$ ${v} / sessão`,
+    descInclusos: 'Cada sessão do plano é cobrada por este valor, independente do tipo.',
+    descForaDoPlan: 'Tipos fora do plano são cobrados pelo valor individual definido em Tipos de Atendimento.',
+    icon: Receipt,
+    cor: 'text-emerald-600',
+    corBg: 'bg-emerald-50',
+    corBorder: 'border-emerald-200',
+    corActive: 'border-emerald-400 bg-emerald-50',
+    corTag: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  },
+  {
+    id: 'mensal',
+    label: 'Mensalidade',
+    tagPreco: v => `R$ ${v} / mês`,
+    descInclusos: 'Todos os tipos do plano estão inclusos. Cobrado 1× por mês, independente de quantas sessões ocorreram.',
+    descForaDoPlan: 'Tipos fora do plano são cobrados separadamente pelo valor individual.',
+    icon: Repeat2,
+    cor: 'text-violet-600',
+    corBg: 'bg-violet-50',
+    corBorder: 'border-violet-200',
+    corActive: 'border-violet-400 bg-violet-50',
+    corTag: 'bg-violet-100 text-violet-700 border-violet-200',
+  },
+]
+
+/* ── Helpers de sessões recorrentes ──────────────────── */
+
+const LS_RECORRENTES = 'clinitra_agenda_recorrentes'
+
+type SessaoGerada = {
+  id: string
+  pacienteId: string  // UUID
+  paciente: string
+  tipo: string
+  data: string
+  horario: string
+  source: 'recorrente'
+  recorrente: true
+  geradoEm: string
+  sessoEmGrupo: boolean
+}
+
+function _toISO(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+type ResultadoGeracao = {
+  salvas: SessaoGerada[]
+  conflitos: { data: string; horario: string; pacienteExistente: string }[]
+  conflitosGrupo: { data: string; horario: string; pacienteExistente: string }[]
+}
+
+function gerarSessoesRecorrentes(
+  pacienteId: string,
+  pacienteNome: string,
+  plano: PlanoAtendimento,
+): ResultadoGeracao {
+  if (!plano.agenda || !plano.recorrencia || plano.agenda.slots.length === 0) {
+    return { salvas: [], conflitos: [], conflitosGrupo: [] }
+  }
+  const slots = plano.agenda.slots.filter(s => s.horario)
+  if (slots.length === 0) return { salvas: [], conflitos: [], conflitosGrupo: [] }
+
+  const sessoEmGrupo = plano.sessoEmGrupo ?? false
+
+  // Mapa de horários ocupados: "data_horario" → { paciente, ehGrupo }
+  const ocupados = new Map<string, { paciente: string; ehGrupo: boolean }>()
+  for (const ag of AGENDAMENTOS_BASE) {
+    ocupados.set(`${ag.data}_${ag.horario}`, {
+      paciente: ag.paciente,
+      ehGrupo: ag.tipo === 'Sessão em grupo',
+    })
+  }
+  try {
+    const raw = localStorage.getItem(LS_RECORRENTES)
+    const outrasRecorrentes: SessaoGerada[] = raw ? JSON.parse(raw) : []
+    for (const ag of outrasRecorrentes) {
+      if (ag.pacienteId !== pacienteId) {
+        ocupados.set(`${ag.data}_${ag.horario}`, {
+          paciente: ag.paciente,
+          ehGrupo: ag.sessoEmGrupo ?? false,
+        })
+      }
+    }
+  } catch {}
+
+  const salvas: SessaoGerada[] = []
+  const conflitos: ResultadoGeracao['conflitos'] = []
+  const conflitosGrupo: ResultadoGeracao['conflitosGrupo'] = []
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const agora = new Date().toISOString()
+
+  for (let d = 0; d <= 56; d++) {
+    const data = new Date(hoje)
+    data.setDate(hoje.getDate() + d)
+    const dow = data.getDay()
+    const diaMes = data.getDate()
+    const dataISO = _toISO(data)
+    const semanaIdx = Math.floor(d / 7)
+
+    for (const slot of slots) {
+      let incluir = false
+      if (plano.recorrencia === 'semanal' && slot.diaSemana === dow) incluir = true
+      else if (plano.recorrencia === 'quinzenal' && slot.diaSemana === dow && semanaIdx % 2 === 0) incluir = true
+      else if (plano.recorrencia === 'mensal' && slot.diaMes === diaMes) incluir = true
+
+      if (!incluir) continue
+
+      const chave = `${dataISO}_${slot.horario}`
+      const ocupacao = ocupados.get(chave)
+
+      if (ocupacao) {
+        // Grupo + grupo → aviso mas salva mesmo assim
+        if (sessoEmGrupo && ocupacao.ehGrupo) {
+          conflitosGrupo.push({ data: dataISO, horario: slot.horario, pacienteExistente: ocupacao.paciente })
+          salvas.push({
+            id: `rec_${pacienteId}_${dataISO}_${slot.horario.replace(':', '')}`,
+            pacienteId,
+            paciente: pacienteNome,
+            tipo: 'Sessão em grupo',
+            data: dataISO,
+            horario: slot.horario,
+            source: 'recorrente',
+            recorrente: true,
+            geradoEm: agora,
+            sessoEmGrupo: true,
+          })
+        } else {
+          // Solo+solo, solo+grupo ou grupo+solo → bloqueia
+          conflitos.push({ data: dataISO, horario: slot.horario, pacienteExistente: ocupacao.paciente })
+        }
+      } else {
+        salvas.push({
+          id: `rec_${pacienteId}_${dataISO}_${slot.horario.replace(':', '')}`,
+          pacienteId,
+          paciente: pacienteNome,
+          tipo: sessoEmGrupo ? 'Sessão em grupo' : 'Sessão',
+          data: dataISO,
+          horario: slot.horario,
+          source: 'recorrente',
+          recorrente: true,
+          geradoEm: agora,
+          sessoEmGrupo,
+        })
+      }
+    }
+  }
+  return { salvas, conflitos, conflitosGrupo }
+}
+
+function salvarSessoesLocalStorage(pacienteId: string, sessoes: SessaoGerada[]) {
+  try {
+    const raw = localStorage.getItem(LS_RECORRENTES)
+    const existentes: SessaoGerada[] = raw ? JSON.parse(raw) : []
+    const semPaciente = existentes.filter(s => s.pacienteId !== pacienteId)
+    localStorage.setItem(LS_RECORRENTES, JSON.stringify([...semPaciente, ...sessoes]))
+  } catch {}
+}
+
+function descRecorrencia(recorrencia: Recorrencia | null, vezesPorSemana: number | null): string {
+  if (!recorrencia) return '—'
+  if (recorrencia === 'semanal') {
+    const v = vezesPorSemana ?? 1
+    return `${v}× por semana`
+  }
+  return RECORRENCIAS.find(r => r.id === recorrencia)?.desc ?? recorrencia
 }
 
 type Sessao = {
@@ -53,26 +292,19 @@ type Sessao = {
   notasSessaoJson: Record<string, unknown> | null
 }
 
-type ValorHistorico = { mesAno: string; valor: number }
-
 type PacienteCompleto = {
-  id: number
+  id: string  // UUID
   ativo: boolean
   nome: string
   dataNascimento: string
   responsavel: string
   dataAnamnese: string
-  valorSessao: string
-  gratuito: boolean
-  gratuitoInicio: string
-  gratuitoFim: string
   dataInicio: string
   dataFim: string | null
   totalSessoes: number
   presencas: number
   faltas: number
-  historicoValores: ValorHistorico[]
-  plano: PlanoData
+  plano: PlanoAtendimento
 }
 
 /* ── Helpers ───────────────────────────────────────── */
@@ -89,33 +321,6 @@ function isoToBr(d: string): string {
   return `${day}/${m}/${y}`
 }
 
-function isGratuitoVigente(gratuito: boolean, inicio: string, fim: string): boolean {
-  if (!gratuito) return false
-  if (!inicio && !fim) return true
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
-  if (inicio) {
-    const d = new Date(inicio + 'T00:00:00')
-    if (hoje < d) return false
-  }
-  if (fim) {
-    const d = new Date(fim + 'T00:00:00')
-    if (hoje > d) return false
-  }
-  return true
-}
-
-function isPacientePausadoCompleto(p: { ativo: boolean; gratuito: boolean; gratuitoFim: string; valorSessao: string }): boolean {
-  if (!p.ativo || !p.gratuito) return false
-  const fim = p.gratuitoFim
-  if (!fim || fim === '-' || fim === '—') return false
-  const [d, m, y] = fim.split('/')
-  const dataFim = new Date(+y, +m - 1, +d, 23, 59, 59)
-  if (new Date() <= dataFim) return false
-  const val = p.valorSessao.replace(/[^\d]/g, '')
-  return !val || val === '0' || val === '00' || val === '000'
-}
-
 function calcularIdade(dataNascBR: string): number {
   const [d, m, y] = dataNascBR.split('/').map(Number)
   const nasc = new Date(y, m - 1, d)
@@ -123,15 +328,6 @@ function calcularIdade(dataNascBR: string): number {
   let idade = hoje.getFullYear() - nasc.getFullYear()
   if (hoje.getMonth() < m - 1 || (hoje.getMonth() === m - 1 && hoje.getDate() < d)) idade--
   return idade
-}
-
-function formatValorBRL(raw: string): string {
-  const limpo = raw.replace(/[^\d,]/g, '')
-  if (!limpo) return ''
-  const num = parseFloat(limpo.replace(',', '.'))
-  if (isNaN(num)) return raw
-  const formatted = num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `R$ ${formatted}`
 }
 
 /* ── Notas mock para sessões ──────────────────────── */
@@ -208,651 +404,46 @@ function gerarSessoes(totalSessoes: number, totalFaltas: number): Sessao[] {
   return sessoes
 }
 
-/* ── Dados fake (espelho do cadastro) ─────────────── */
+/* ── Mapper API → PacienteCompleto ────────────────── */
 
-const pacientesData: PacienteCompleto[] = [
-  { id: 1,  ativo: true,  nome: 'Bernardo Antonio L.F.',    dataNascimento: '15/10/2019', responsavel: 'Bruna e Maikal',       dataAnamnese: '19/05/2023', valorSessao: 'R$ 120,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '25/05/2023', dataFim: null,         totalSessoes: 111, presencas: 106, faltas: 5,
-    historicoValores: [{ mesAno: 'mai/2023', valor: 80 }, { mesAno: 'jan/2024', valor: 100 }, { mesAno: 'set/2024', valor: 120 }],
-    plano: PLANO_PADRAO },
-  { id: 2,  ativo: true,  nome: 'Angelo Gustavo P. Holub',  dataNascimento: '24/03/2017', responsavel: 'Cristiane e Anderson', dataAnamnese: '15/02/2024', valorSessao: 'R$ 100,00', gratuito: true,  gratuitoInicio: '16/02/2024', gratuitoFim: '16/05/2024', dataInicio: '16/02/2024', dataFim: null,         totalSessoes: 77,  presencas: 74,  faltas: 3,
-    historicoValores: [{ mesAno: 'fev/2024', valor: 0 }, { mesAno: 'mai/2024', valor: 80 }, { mesAno: 'nov/2024', valor: 100 }],
-    plano: PLANO_PADRAO },
-  { id: 3,  ativo: true,  nome: 'Lorenzo de Souza Bueno',   dataNascimento: '15/04/2017', responsavel: 'Micheli e Marcelo',   dataAnamnese: '09/05/2024', valorSessao: 'R$ 150,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '16/05/2024', dataFim: null,         totalSessoes: 74,  presencas: 70,  faltas: 4,
-    historicoValores: [{ mesAno: 'mai/2024', valor: 120 }, { mesAno: 'nov/2024', valor: 150 }],
-    plano: PLANO_PADRAO },
-  { id: 4,  ativo: false, nome: 'Gabriel Fernandes B.C.',   dataNascimento: '10/08/2019', responsavel: 'Aline',               dataAnamnese: '19/05/2023', valorSessao: 'R$ 80,00',  gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '25/05/2023', dataFim: '08/03/2024', totalSessoes: 35,  presencas: 33,  faltas: 2,
-    historicoValores: [{ mesAno: 'mai/2023', valor: 80 }],
-    plano: PLANO_PADRAO },
-  { id: 5,  ativo: true,  nome: 'Pietro Bizinelli Amorim',  dataNascimento: '17/03/2016', responsavel: 'Giovana e Marco',     dataAnamnese: '13/09/2024', valorSessao: 'R$ 150,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '20/09/2024', dataFim: null,         totalSessoes: 36,  presencas: 30,  faltas: 6,
-    historicoValores: [{ mesAno: 'set/2024', valor: 120 }, { mesAno: 'jan/2025', valor: 150 }],
-    plano: PLANO_PADRAO },
-  { id: 6,  ativo: true,  nome: 'Rafaela de Souza Bueno',   dataNascimento: '26/11/2013', responsavel: 'Micheli e Marcelo',   dataAnamnese: '16/10/2024', valorSessao: 'R$ 120,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '03/10/2024', dataFim: null,         totalSessoes: 55,  presencas: 53,  faltas: 2,
-    historicoValores: [{ mesAno: 'out/2024', valor: 100 }, { mesAno: 'fev/2025', valor: 120 }],
-    plano: PLANO_PADRAO },
-  { id: 7,  ativo: true,  nome: 'Vinícius Augusto Padilha', dataNascimento: '09/08/2012', responsavel: 'Rosilane',            dataAnamnese: '17/02/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '28/02/2025', dataFim: null,         totalSessoes: 38,  presencas: 37,  faltas: 1,
-    historicoValores: [{ mesAno: 'fev/2025', valor: 160 }],
-    plano: PLANO_PADRAO },
-  { id: 8,  ativo: true,  nome: 'Moysés Costa de Almeida',  dataNascimento: '23/07/2010', responsavel: 'Renata e Marcos',     dataAnamnese: '17/02/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '28/02/2025', dataFim: null,         totalSessoes: 41,  presencas: 39,  faltas: 2,
-    historicoValores: [{ mesAno: 'fev/2025', valor: 160 }],
-    plano: PLANO_PADRAO },
-  { id: 9,  ativo: true,  nome: 'Isadora Furman',           dataNascimento: '11/12/2019', responsavel: 'Louise e Rafael',     dataAnamnese: '20/05/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',            dataInicio: '28/05/2025', dataFim: null,         totalSessoes: 29,  presencas: 26,  faltas: 3,
-    historicoValores: [{ mesAno: 'mai/2025', valor: 160 }],
-    plano: PLANO_PADRAO },
-  { id: 10, ativo: false, nome: 'Arthur Henrique',          dataNascimento: '23/03/2022', responsavel: 'Jaqueline e Bernardo', dataAnamnese: '14/02/2025', valorSessao: 'R$ 160,00', gratuito: false, gratuitoInicio: '-', gratuitoFim: '-',           dataInicio: '18/02/2025', dataFim: '26/03/2025', totalSessoes: 12,  presencas: 11,  faltas: 1,
-    historicoValores: [{ mesAno: 'fev/2025', valor: 160 }],
-    plano: PLANO_PADRAO },
-  { id: 11, ativo: true,  nome: 'Felipe Konik Pertele',     dataNascimento: '05/07/2015', responsavel: 'Fernanda e Konik',    dataAnamnese: '10/01/2026', valorSessao: '',            gratuito: true,  gratuitoInicio: '10/01/2026', gratuitoFim: '10/03/2026', dataInicio: '10/01/2026', dataFim: null,         totalSessoes: 18,  presencas: 16,  faltas: 2,
-    historicoValores: [{ mesAno: 'jan/2026', valor: 0 }, { mesAno: 'fev/2026', valor: 0 }, { mesAno: 'mar/2026', valor: 0 }],
-    plano: PLANO_PADRAO },
-]
-
-/* ── Helpers do gráfico de valor ──────────────────── */
-
-const mesesAbrev = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
-
-function parseMesAno(ma: string): Date {
-  const [mes, ano] = ma.split('/')
-  return new Date(parseInt(ano), mesesAbrev.indexOf(mes))
+function _isoToBrFmt(iso: string | null | undefined): string {
+  if (!iso) return '-'
+  const clean = (iso as string).split('T')[0]
+  const [y, m, d] = clean.split('-')
+  return `${d}/${m}/${y}`
 }
 
-function niceStep(min: number, max: number): number {
-  const range = max - min || max || 50
-  const rough = range / 4
-  const pow = Math.pow(10, Math.floor(Math.log10(rough)))
-  const norm = rough / pow
-  if (norm <= 1.5) return pow
-  if (norm <= 3.5) return 2 * pow
-  if (norm <= 7.5) return 5 * pow
-  return 10 * pow
+const _PLANO_VAZIO: PlanoAtendimento = {
+  pacoteId: null,
+  recorrencia: null,
+  vezesPorSemana: null,
+  cobranca: null,
+  agenda: null,
+  sessoEmGrupo: false,
 }
 
-function smoothLinePath(pts: { x: number; y: number }[]): string {
-  if (pts.length < 2) return `M ${pts[0]?.x ?? 0} ${pts[0]?.y ?? 0}`
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
-  for (let i = 1; i < pts.length; i++) {
-    const p = pts[i - 1]
-    const c = pts[i]
-    const cpx = (p.x + c.x) / 2
-    d += ` C ${cpx.toFixed(1)} ${p.y.toFixed(1)}, ${cpx.toFixed(1)} ${c.y.toFixed(1)}, ${c.x.toFixed(1)} ${c.y.toFixed(1)}`
+function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
+  const extras = (p.dados_extras ?? {}) as Record<string, unknown>
+  return {
+    id: String(p.id),
+    ativo: p.ativo,
+    nome: p.nome,
+    dataNascimento: _isoToBrFmt(p.data_nascimento),
+    responsavel: (extras.responsavel as string) || '-',
+    dataAnamnese: _isoToBrFmt(extras.data_anamnese as string | undefined),
+    dataInicio: _isoToBrFmt(extras.data_inicio as string | undefined),
+    dataFim: null,
+    totalSessoes: 0,  // será preenchido via API de registros
+    presencas: 0,
+    faltas: 0,
+    plano: (p.plano_atendimento as PlanoAtendimento | null) ?? (extras.plano as PlanoAtendimento | null) ?? _PLANO_VAZIO,
   }
-  return d
 }
 
-/* ── Gráfico de evolução do valor (curva suave) ──── */
+/* ── Info Item (view mode) ────────────────────────── */
 
-function ValorSessaoChart({ historico, valorAtual }: { historico: ValorHistorico[]; valorAtual: string }) {
-  if (historico.length === 0) return null
 
-  const agora: ValorHistorico = { mesAno: 'mar/2026', valor: historico[historico.length - 1].valor }
-  const lastIsNow = historico[historico.length - 1].mesAno === agora.mesAno
-  const pontos = lastIsNow ? [...historico] : [...historico, agora]
 
-  const dates = pontos.map(p => parseMesAno(p.mesAno))
-  const valores = pontos.map(p => p.valor)
-
-  const W = 560
-  const H = 280
-  const padL = 62
-  const padR = 32
-  const padT = 52
-  const padB = 48
-  const plotW = W - padL - padR  // 466
-  const plotH = H - padT - padB  // 180
-
-  const minTime = dates[0].getTime()
-  const maxTime = dates[dates.length - 1].getTime()
-  const timeRange = maxTime - minTime || 1
-
-  const minV = Math.min(...valores)
-  const maxV = Math.max(...valores)
-  const margin = (maxV - minV) * 0.35 || maxV * 0.35 || 40
-  const yMin = Math.max(0, minV - margin)
-  const yMax = maxV + margin
-  const yRange = yMax - yMin || 1
-
-  function xPos(d: Date) { return padL + ((d.getTime() - minTime) / timeRange) * plotW }
-  function yPos(v: number) { return padT + plotH - ((v - yMin) / yRange) * plotH }
-
-  // Pontos para a curva
-  const curvePts = pontos.map((_, i) => ({ x: xPos(dates[i]), y: yPos(valores[i]) }))
-  const linePath = smoothLinePath(curvePts)
-
-  // Área preenchida (fecha o path na base)
-  const lastPt = curvePts[curvePts.length - 1]
-  const firstPt = curvePts[0]
-  const fillPath = linePath + ` L ${lastPt.x.toFixed(1)} ${(padT + plotH).toFixed(1)} L ${firstPt.x.toFixed(1)} ${(padT + plotH).toFixed(1)} Z`
-
-  // Grid
-  const step = niceStep(yMin, yMax)
-  const gridVals: number[] = []
-  let gv = Math.ceil(yMin / step) * step
-  while (gv <= yMax) { gridVals.push(gv); gv += step }
-
-  // Porcentagem: pega o primeiro valor NÃO zero como base
-  const teveAlteracao = historico.length > 1
-  const primeiroNaoZero = historico.find(h => h.valor > 0)
-  const ultimoValor = historico[historico.length - 1].valor
-  const variacaoNum = teveAlteracao && primeiroNaoZero && primeiroNaoZero !== historico[historico.length - 1]
-    ? Math.round(((ultimoValor - primeiroNaoZero.valor) / primeiroNaoZero.valor) * 100)
-    : null
-
-  return (
-    <div className="rounded-xl border bg-card shadow-sm flex flex-col">
-      {/* Header */}
-      <div className="px-5 py-4 border-b">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="rounded-lg p-2 bg-[#04c2fb]/10 shrink-0">
-              <DollarSign className="h-4 w-4 text-[#04c2fb]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold leading-snug">Evolução do Valor da Sessão</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Histórico desde {historico[0].mesAno}
-              </p>
-            </div>
-          </div>
-          <div className="shrink-0 text-right">
-            <span className="text-lg sm:text-2xl font-bold tracking-tight text-gray-800">{valorAtual}</span>
-            {variacaoNum !== null && (
-              <div className="mt-1">
-                <span className={cn(
-                  'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold',
-                  variacaoNum >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600',
-                )}>
-                  {variacaoNum >= 0 ? '↑' : '↓'} {Math.abs(variacaoNum)}% total
-                </span>
-              </div>
-            )}
-            {!teveAlteracao && (
-              <p className="text-xs text-muted-foreground mt-1">sem alterações</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Gráfico */}
-      <div className="p-4 pt-2">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            {/* Gradiente de área principal */}
-            <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="#04c2fb" stopOpacity="0.32" />
-              <stop offset="35%"  stopColor="#04c2fb" stopOpacity="0.14" />
-              <stop offset="70%"  stopColor="#04c2fb" stopOpacity="0.05" />
-              <stop offset="100%" stopColor="#04c2fb" stopOpacity="0.00" />
-            </linearGradient>
-            {/* Gradiente horizontal para shimmer sutil na linha */}
-            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%"   stopColor="#0094c8" />
-              <stop offset="50%"  stopColor="#04c2fb" />
-              <stop offset="100%" stopColor="#00d5f5" />
-            </linearGradient>
-            {/* Glow da linha */}
-            <filter id="lineGlow" x="-5%" y="-50%" width="110%" height="200%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            {/* Glow dos pontos */}
-            <filter id="dotGlow" x="-100%" y="-100%" width="300%" height="300%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            {/* Clip da área do plot */}
-            <clipPath id="valPlotArea">
-              <rect x={padL} y={padT} width={plotW} height={plotH} />
-            </clipPath>
-          </defs>
-
-          {/* Grid horizontal com linhas tracejadas suaves */}
-          {gridVals.map(v => (
-            <g key={v}>
-              <line
-                x1={padL} y1={yPos(v)} x2={W - padR} y2={yPos(v)}
-                stroke="#e8f0f8" strokeWidth="1" strokeDasharray="4 4"
-              />
-              <text
-                x={padL - 10} y={yPos(v)}
-                textAnchor="end" dominantBaseline="middle"
-                fontSize="13" fill="#94a3b8" fontWeight="600" fontFamily="Montserrat, sans-serif"
-              >
-                R${v}
-              </text>
-            </g>
-          ))}
-
-          {/* Linhas verticais suaves para cada ponto de dado */}
-          {historico.map((_, i) => (
-            <line
-              key={`vline-${i}`}
-              x1={xPos(dates[i])} y1={padT}
-              x2={xPos(dates[i])} y2={padT + plotH}
-              stroke="#f1f5f9" strokeWidth="1"
-            />
-          ))}
-
-          {/* Eixo inferior */}
-          <line
-            x1={padL} y1={padT + plotH} x2={W - padR} y2={padT + plotH}
-            stroke="#cbd5e1" strokeWidth="1.5"
-          />
-
-          {/* Área preenchida */}
-          <path d={fillPath} fill="url(#valGrad)" clipPath="url(#valPlotArea)" />
-
-          {/* Sombra difusa da linha (layer mais abaixo) */}
-          <path
-            d={linePath} fill="none"
-            stroke="#04c2fb" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"
-            opacity="0.12"
-          />
-          {/* Sombra próxima */}
-          <path
-            d={linePath} fill="none"
-            stroke="#04c2fb" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
-            opacity="0.18"
-            transform="translate(0, 1.5)"
-          />
-          {/* Linha principal com gradiente */}
-          <path
-            d={linePath} fill="none"
-            stroke="url(#lineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-          />
-
-          {/* Pontos do histórico real */}
-          {historico.map((p, i) => {
-            const cx = xPos(dates[i])
-            const cy = yPos(p.valor)
-            const isLast = i === historico.length - 1
-            const isZero = p.valor === 0
-            const prevValor = i > 0 ? historico[i - 1].valor : null
-            const prevCx = i > 0 ? xPos(dates[i - 1]) : null
-            const labelY = (prevCx !== null && cx - prevCx < 80) ? padT + plotH + 32 : padT + plotH + 18
-
-            return (
-              <g key={i}>
-                {/* Halo externo suave */}
-                <circle cx={cx} cy={cy} r="18" fill="#04c2fb" opacity="0.05" />
-                {/* Anel médio */}
-                <circle cx={cx} cy={cy} r="11" fill="#04c2fb" opacity="0.10" />
-                {/* Anel interno */}
-                <circle cx={cx} cy={cy} r="7"  fill="#04c2fb" opacity="0.18" />
-                {/* Ponto principal */}
-                <circle
-                  cx={cx} cy={cy}
-                  r={isLast ? '6' : '5'}
-                  fill="white" stroke="#04c2fb" strokeWidth="2.5"
-                  filter={isLast ? 'url(#dotGlow)' : undefined}
-                />
-                {/* Centro colorido no último ponto */}
-                {isLast && <circle cx={cx} cy={cy} r="2.5" fill="#04c2fb" />}
-
-                {/* Label do valor (pill badge) */}
-                {isZero ? (
-                  <g>
-                    <rect
-                      x={cx - 30} y={cy - 32} width="60" height="20" rx="10"
-                      fill="#fef3c7" stroke="#fde68a" strokeWidth="1"
-                    />
-                    <text
-                      x={cx} y={cy - 19}
-                      textAnchor="middle" dominantBaseline="middle"
-                      fontSize="12" fontWeight="700" fill="#92400e" fontFamily="Montserrat, sans-serif"
-                    >
-                      Gratuito
-                    </text>
-                  </g>
-                ) : (
-                  <g>
-                    <rect
-                      x={cx - 38} y={cy - 34} width="76" height="22" rx="11"
-                      fill={isLast ? '#04c2fb' : 'white'}
-                      stroke={isLast ? 'transparent' : '#e2e8f0'}
-                      strokeWidth="1.2"
-                      filter={isLast ? 'url(#dotGlow)' : undefined}
-                    />
-                    <text
-                      x={cx} y={cy - 20}
-                      textAnchor="middle" dominantBaseline="middle"
-                      fontSize="13" fontWeight="700"
-                      fill={isLast ? 'white' : '#1f2937'}
-                      fontFamily="Montserrat, sans-serif"
-                    >
-                      R$ {p.valor}
-                    </text>
-                  </g>
-                )}
-
-                {/* Badge variação entre pontos (só se anterior > 0) */}
-                {prevValor !== null && prevValor > 0 && (
-                  (() => {
-                    const pct = Math.round(((p.valor - prevValor) / prevValor) * 100)
-                    const up = pct >= 0
-                    return (
-                      <g>
-                        <rect
-                          x={cx - 25} y={cy - 58} width="50" height="17" rx="8.5"
-                          fill={up ? '#ecfdf5' : '#fef2f2'}
-                          stroke={up ? '#86efac' : '#fca5a5'} strokeWidth="0.8"
-                        />
-                        <text
-                          x={cx} y={cy - 48}
-                          textAnchor="middle" dominantBaseline="middle"
-                          fontSize="11" fontWeight="700"
-                          fill={up ? '#059669' : '#dc2626'}
-                          fontFamily="Montserrat, sans-serif"
-                        >
-                          {up ? '↑' : '↓'} {Math.abs(pct)}%
-                        </text>
-                      </g>
-                    )
-                  })()
-                )}
-
-                {/* Data abaixo do eixo */}
-                <text
-                  x={cx} y={labelY}
-                  textAnchor="middle" fontSize="12" fill="#64748b" fontWeight="600"
-                  fontFamily="Montserrat, sans-serif"
-                >
-                  {p.mesAno}
-                </text>
-              </g>
-            )
-          })}
-
-          {/* Marcador "atual" projetado */}
-          {!lastIsNow && (
-            <g>
-              <line
-                x1={xPos(dates[dates.length - 1])}
-                y1={padT}
-                x2={xPos(dates[dates.length - 1])}
-                y2={padT + plotH}
-                stroke="#04c2fb" strokeWidth="1.5" strokeDasharray="5 4" opacity="0.35"
-              />
-              <circle
-                cx={xPos(dates[dates.length - 1])}
-                cy={yPos(valores[valores.length - 1])}
-                r="4" fill="#04c2fb" opacity="0.5"
-              />
-              <text
-                x={xPos(dates[dates.length - 1])}
-                y={padT + plotH + 20}
-                textAnchor="middle" fontSize="11" fill="#04c2fb" fontWeight="700"
-                letterSpacing="0.8" fontFamily="Montserrat, sans-serif"
-              >
-                ATUAL
-              </text>
-            </g>
-          )}
-        </svg>
-      </div>
-    </div>
-  )
-}
-
-/* ── Cálculo do total ganho ───────────────────────── */
-
-function calcularTotalGanho(
-  historico: ValorHistorico[],
-  presencas: number,
-): { mesAno: string; total: number }[] {
-  if (historico.length === 0) return []
-
-  const hoje = 'mar/2026'
-  const lastH = historico[historico.length - 1]
-  const lastIsNow = lastH.mesAno === hoje
-  const pontos = lastIsNow
-    ? [...historico]
-    : [...historico, { mesAno: hoje, valor: lastH.valor }]
-
-  if (pontos.length < 2) return [{ mesAno: pontos[0].mesAno, total: 0 }]
-
-  const duracoes = pontos.slice(0, -1).map((p, i) => {
-    const start = parseMesAno(p.mesAno)
-    const end = parseMesAno(pontos[i + 1].mesAno)
-    return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
-  })
-
-  const totalMeses = duracoes.reduce((a, b) => a + b, 0) || 1
-
-  let restante = presencas
-  const presencasPorPeriodo = duracoes.map((dur, i) => {
-    if (i === duracoes.length - 1) return restante
-    const p = Math.round(presencas * dur / totalMeses)
-    restante -= p
-    return p
-  })
-
-  let acum = 0
-  const result: { mesAno: string; total: number }[] = [{ mesAno: pontos[0].mesAno, total: 0 }]
-  presencasPorPeriodo.forEach((p, i) => {
-    acum += p * historico[i].valor
-    result.push({ mesAno: pontos[i + 1].mesAno, total: acum })
-  })
-  return result
-}
-
-/* ── Gráfico de total ganho (curva esmeralda) ─────── */
-
-function TotalGanhoChart({ historico, presencas }: { historico: ValorHistorico[]; presencas: number }) {
-  if (historico.length === 0) return null
-
-  const dadosGanho = calcularTotalGanho(historico, presencas)
-  if (dadosGanho.length === 0) return null
-
-  const totalFinal = dadosGanho[dadosGanho.length - 1].total
-
-  const W = 560
-  const H = 280
-  const padL = 62
-  const padR = 52
-  const padT = 52
-  const padB = 48
-  const plotW = W - padL - padR
-  const plotH = H - padT - padB
-
-  const dates = dadosGanho.map(d => parseMesAno(d.mesAno))
-  const totais = dadosGanho.map(d => d.total)
-
-  const minTime = dates[0].getTime()
-  const maxTime = dates[dates.length - 1].getTime()
-  const timeRange = maxTime - minTime || 1
-
-  const maxV = Math.max(...totais)
-  const margin = maxV * 0.25 || 200
-  const yMax = maxV + margin
-  const yRange = yMax || 1
-
-  function xPos(d: Date) { return padL + ((d.getTime() - minTime) / timeRange) * plotW }
-  function yPos(v: number) { return padT + plotH - (v / yRange) * plotH }
-
-  const curvePts = dadosGanho.map((_, i) => ({ x: xPos(dates[i]), y: yPos(totais[i]) }))
-  const linePath = smoothLinePath(curvePts)
-
-  const lastPt = curvePts[curvePts.length - 1]
-  const firstPt = curvePts[0]
-  const fillPath = linePath + ` L ${lastPt.x.toFixed(1)} ${(padT + plotH).toFixed(1)} L ${firstPt.x.toFixed(1)} ${(padT + plotH).toFixed(1)} Z`
-
-  const step = niceStep(0, yMax)
-  const gridVals: number[] = []
-  let gv = 0
-  while (gv <= yMax) { gridVals.push(gv); gv += step }
-
-  function formatGrid(v: number) {
-    if (v === 0) return 'R$0'
-    if (v >= 1000) return `R$${(v / 1000).toFixed(0)}k`
-    return `R$${v}`
-  }
-
-  return (
-    <div className="rounded-xl border bg-card shadow-sm flex flex-col">
-      {/* Header */}
-      <div className="px-5 py-4 border-b">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="rounded-lg p-2 bg-emerald-500/10 shrink-0">
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold leading-snug">Total Ganho com o Paciente</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Apenas presenças contabilizadas</p>
-            </div>
-          </div>
-          <span className="shrink-0 text-lg sm:text-2xl font-bold tracking-tight text-emerald-800 text-right">
-            {totalFinal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          </span>
-        </div>
-      </div>
-
-      {/* Gráfico */}
-      <div className="p-4 pt-2">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            <linearGradient id="totGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="#10b981" stopOpacity="0.28" />
-              <stop offset="35%"  stopColor="#10b981" stopOpacity="0.12" />
-              <stop offset="70%"  stopColor="#10b981" stopOpacity="0.04" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
-            </linearGradient>
-            <linearGradient id="totLineGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%"   stopColor="#059669" />
-              <stop offset="50%"  stopColor="#10b981" />
-              <stop offset="100%" stopColor="#34d399" />
-            </linearGradient>
-            <filter id="totLineGlow" x="-5%" y="-50%" width="110%" height="200%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="totDotGlow" x="-100%" y="-100%" width="300%" height="300%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <clipPath id="totPlotArea">
-              <rect x={padL} y={padT} width={plotW} height={plotH} />
-            </clipPath>
-          </defs>
-
-          {/* Grid horizontal */}
-          {gridVals.map(v => (
-            <g key={v}>
-              <line
-                x1={padL} y1={yPos(v)} x2={W - padR} y2={yPos(v)}
-                stroke="#e8f0f8" strokeWidth="1" strokeDasharray="4 4"
-              />
-              <text
-                x={padL - 10} y={yPos(v)}
-                textAnchor="end" dominantBaseline="middle"
-                fontSize="13" fill="#94a3b8" fontWeight="600" fontFamily="Montserrat, sans-serif"
-              >
-                {formatGrid(v)}
-              </text>
-            </g>
-          ))}
-
-          {/* Linhas verticais para cada ponto */}
-          {dadosGanho.map((_, i) => (
-            <line
-              key={`tvline-${i}`}
-              x1={xPos(dates[i])} y1={padT}
-              x2={xPos(dates[i])} y2={padT + plotH}
-              stroke="#f1f5f9" strokeWidth="1"
-            />
-          ))}
-
-          {/* Eixo inferior */}
-          <line
-            x1={padL} y1={padT + plotH} x2={W - padR} y2={padT + plotH}
-            stroke="#cbd5e1" strokeWidth="1.5"
-          />
-
-          {/* Área preenchida */}
-          <path d={fillPath} fill="url(#totGrad)" clipPath="url(#totPlotArea)" />
-
-          {/* Sombra difusa */}
-          <path d={linePath} fill="none" stroke="#10b981" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" opacity="0.12" />
-          <path d={linePath} fill="none" stroke="#10b981" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" opacity="0.18" transform="translate(0, 1.5)" />
-          {/* Linha principal */}
-          <path d={linePath} fill="none" stroke="url(#totLineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Pontos */}
-          {dadosGanho.map((d, i) => {
-            const cx = xPos(dates[i])
-            const cy = yPos(d.total)
-            const isLast = i === dadosGanho.length - 1
-            const prevCx = i > 0 ? xPos(dates[i - 1]) : null
-            const labelY = (prevCx !== null && cx - prevCx < 80) ? padT + plotH + 32 : padT + plotH + 18
-
-            return (
-              <g key={i}>
-                <circle cx={cx} cy={cy} r="18" fill="#10b981" opacity="0.05" />
-                <circle cx={cx} cy={cy} r="11" fill="#10b981" opacity="0.10" />
-                <circle cx={cx} cy={cy} r="7"  fill="#10b981" opacity="0.18" />
-                <circle
-                  cx={cx} cy={cy}
-                  r={isLast ? '6' : '5'}
-                  fill="white" stroke="#10b981" strokeWidth="2.5"
-                  filter={isLast ? 'url(#totDotGlow)' : undefined}
-                />
-                {isLast && <circle cx={cx} cy={cy} r="2.5" fill="#10b981" />}
-
-                {/* Badge do valor */}
-                {d.total > 0 && (() => {
-                  const badgeW = 92
-                  const halfBadge = badgeW / 2
-                  // Clamp badge para não sair do viewBox
-                  const badgeCx = Math.min(Math.max(cx, padL + halfBadge), W - padR)
-                  return (
-                    <g>
-                      <rect
-                        x={badgeCx - halfBadge} y={cy - 34} width={badgeW} height="22" rx="11"
-                        fill={isLast ? '#10b981' : 'white'}
-                        stroke={isLast ? 'transparent' : '#e2e8f0'}
-                        strokeWidth="1.2"
-                        filter={isLast ? 'url(#totDotGlow)' : undefined}
-                      />
-                      <text
-                        x={badgeCx} y={cy - 20}
-                        textAnchor="middle" dominantBaseline="middle"
-                        fontSize="12" fontWeight="700"
-                        fill={isLast ? 'white' : '#1f2937'}
-                        fontFamily="Montserrat, sans-serif"
-                      >
-                        {d.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </text>
-                    </g>
-                  )
-                })()}
-
-                {/* Label mês/ano */}
-                <text
-                  x={cx} y={labelY}
-                  textAnchor="middle" fontSize="12" fill="#64748b" fontWeight="600"
-                  fontFamily="Montserrat, sans-serif"
-                >
-                  {d.mesAno}
-                </text>
-              </g>
-            )
-          })}
-        </svg>
-      </div>
-    </div>
-  )
-}
 
 /* ── Info Item (view mode) ────────────────────────── */
 
@@ -867,93 +458,76 @@ function InfoItem({ label, value, highlight }: { label: string; value: string; h
 
 /* ── Card de Plano ────────────────────────────────── */
 
-const STATUS_META: Record<StatusTipo, {
-  label: string
-  labelEdit: string
-  dotColor: string
-  rowCls: string
-  activeCls: string
-}> = {
-  valorSessao: {
-    label: 'Valor da sessão',
-    labelEdit: 'Valor da sessão',
-    dotColor: 'bg-emerald-500',
-    rowCls: 'bg-emerald-50/70 border-emerald-100',
-    activeCls: 'bg-emerald-500 text-white',
-  },
-  inclusa: {
-    label: 'Inclusa no plano',
-    labelEdit: 'Inclusa',
-    dotColor: 'bg-[#04c2fb]',
-    rowCls: 'bg-[#04c2fb]/5 border-[#04c2fb]/20',
-    activeCls: 'bg-[#04c2fb] text-white',
-  },
-  cobradaAParte: {
-    label: 'Cobrado à parte',
-    labelEdit: 'À parte',
-    dotColor: 'bg-amber-500',
-    rowCls: 'bg-amber-50/60 border-amber-100',
-    activeCls: 'bg-amber-500 text-white',
-  },
-}
-
 function CardPlano({
   planoInicial,
-  valorSessao,
   onSalvar,
+  pacienteId,
+  pacienteNome,
+  pacienteAtivo,
+  pacotesDisponiveis,
+  tiposDisponiveis,
 }: {
-  planoInicial: PlanoData
-  valorSessao: string
-  onSalvar: (novoPlano: PlanoData) => void
+  planoInicial: PlanoAtendimento
+  onSalvar: (novoPlano: PlanoAtendimento) => void
+  pacienteId: string  // UUID
+  pacienteNome: string
+  pacienteAtivo: boolean
+  pacotesDisponiveis: Pacote[]
+  tiposDisponiveis: TipoSessao[]
 }) {
+  const router = useRouter()
   const [editando, setEditando] = useState(false)
-  const [form, setForm] = useState<PlanoData>(planoInicial)
+  const [form, setForm] = useState<PlanoAtendimento>(planoInicial)
+  const [modalHorarioAberto, setModalHorarioAberto] = useState(false)
+  const [confirmarNavPlanos, setConfirmarNavPlanos] = useState(false)
 
-  function setStatus(tipo: string, status: StatusTipo) {
-    setForm(prev => ({
-      tipos: prev.tipos.map(t => {
-        if (t.tipo !== tipo) return t
-        // Ao selecionar "à parte", preenche com valorSessao como padrão
-        const valor = status === 'cobradaAParte' ? (t.valor || valorSessao) : t.valor
-        return { ...t, status, valor }
-      }),
-    }))
+  function planoFoiAlterado(): boolean {
+    return JSON.stringify(form) !== JSON.stringify(planoInicial)
   }
 
-  function setValor(tipo: string, valor: string) {
-    setForm(prev => ({
-      tipos: prev.tipos.map(t => t.tipo === tipo ? { ...t, valor } : t),
-    }))
+  function handleNavPlanos() {
+    if (editando && planoFoiAlterado()) {
+      setConfirmarNavPlanos(true)
+    } else {
+      router.push('/dashboard/planos')
+    }
   }
 
-  function formatarValor(tipo: string) {
-    setForm(prev => ({
-      tipos: prev.tipos.map(t => {
-        if (t.tipo !== tipo || !t.valor.trim()) return t
-        return { ...t, valor: formatValorBRL(t.valor) }
-      }),
-    }))
+  const pacoteSelecionado = pacotesDisponiveis.find(p => p.id === planoInicial.pacoteId) ?? null
+  const recorrenciaSelecionada = RECORRENCIAS.find(r => r.id === planoInicial.recorrencia) ?? null
+  const cobrancaSelecionada = MODOS_COBRANCA.find(c => c.id === planoInicial.cobranca) ?? null
+  const descRec = descRecorrencia(planoInicial.recorrencia, planoInicial.vezesPorSemana)
+
+  function nomeTipo(tipoSessaoId: string): string {
+    return tiposDisponiveis.find(t => t.id === tipoSessaoId)?.nome ?? tipoSessaoId
   }
 
-  function parseBRL(v: string): number {
-    const limpo = v.replace(/[^\d,]/g, '')
-    if (!limpo) return 0
-    return parseFloat(limpo.replace(',', '.')) || 0
-  }
+  // Detecta conflito de horário entre slots do mesmo plano (dois slots com mesmo horário)
+  const temConflitoHorario = (() => {
+    const slots = form.agenda?.slots ?? []
+    const horarios = slots.map(s => s.horario).filter(Boolean)
+    return new Set(horarios).size < horarios.length
+  })()
 
   function salvar() {
-    const invalido = form.tipos.find(t => t.status === 'cobradaAParte' && parseBRL(t.valor) < 1)
-    if (invalido) {
-      toast.error('Valor inválido', {
-        description: `"${invalido.tipo}" precisa ter valor mínimo de R$ 1,00.`,
-      })
+    if (temConflitoHorario) {
+      toast.error('Conflito de horário', { description: 'Dois slots não podem ter o mesmo horário. Ajuste antes de salvar.' })
       return
     }
     onSalvar(form)
     setEditando(false)
-    toast.success('Plano atualizado', {
-      description: 'As alterações valem apenas para sessões registradas a partir de agora.',
-    })
+
+    const { salvas } = gerarSessoesRecorrentes(pacienteId, pacienteNome, form)
+    salvarSessoesLocalStorage(pacienteId, salvas)
+
+    if (salvas.length > 0) {
+      const fmt = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
+      toast.success('Plano salvo', {
+        description: `Sessões agendadas de ${fmt(salvas[0].data)} a ${fmt(salvas[salvas.length - 1].data)}.`,
+      })
+    } else {
+      toast.success('Plano salvo', { description: 'Alterações salvas com sucesso.' })
+    }
   }
 
   function cancelar() {
@@ -961,52 +535,93 @@ function CardPlano({
     setEditando(false)
   }
 
-  const tiposPorStatus = (s: StatusTipo) => planoInicial.tipos.filter(t => t.status === s)
-  const resumo = (['valorSessao', 'inclusa', 'cobradaAParte'] as StatusTipo[])
-    .filter(s => tiposPorStatus(s).length > 0)
-    .map(s => {
-      const n = tiposPorStatus(s).length
-      const labels: Record<StatusTipo, string> = { valorSessao: 'no valor', inclusa: 'inclusa', cobradaAParte: 'à parte' }
-      return `${n} ${labels[s]}`
-    })
-    .join(' · ')
-
   return (
-    <div className="rounded-xl border bg-card shadow-sm">
+    <>
+    {confirmarNavPlanos && (
+      <ConfirmDiscard
+        onConfirmar={() => {
+          setConfirmarNavPlanos(false)
+          router.push('/dashboard/planos')
+        }}
+        onCancelar={() => setConfirmarNavPlanos(false)}
+      />
+    )}
+    <div className={cn(
+      'rounded-xl border bg-card shadow-sm transition-all duration-300',
+      !pacienteAtivo && 'opacity-60',
+    )}>
+      {/* Banner inativo */}
+      {!pacienteAtivo && (
+        <div className="flex items-center gap-2.5 rounded-t-xl border-b border-gray-200 bg-gray-100/80 px-4 sm:px-5 py-2.5">
+          <PowerOff className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+          <p className="text-xs font-medium text-gray-500">
+            Paciente inativo · plano suspenso
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-4 sm:p-5 border-b flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="rounded-lg p-2 bg-[#04c2fb]/10 shrink-0">
-            <CreditCard className="h-4 w-4 text-[#04c2fb]" />
+          <div className={cn(
+            'rounded-lg p-2 shrink-0 transition-colors',
+            pacienteAtivo ? 'bg-[#04c2fb]/10' : 'bg-gray-100',
+          )}>
+            <CreditCard className={cn('h-4 w-4', pacienteAtivo ? 'text-[#04c2fb]' : 'text-gray-400')} />
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold">Plano de atendimento</p>
-            {!editando && resumo && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">{resumo}</p>
-            )}
-            {editando && (
-              <p className="text-xs text-muted-foreground mt-0.5">Defina a cobrança de cada tipo de sessão</p>
-            )}
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {editando
+                ? 'Selecione o pacote e a recorrência'
+                : pacoteSelecionado
+                  ? `${pacoteSelecionado.nome} · ${descRec}`
+                  : 'Consultas pontuais'
+              }
+            </p>
           </div>
         </div>
+
         {!editando ? (
           <button
-            onClick={() => { setForm(planoInicial); setEditando(true) }}
-            className="group/edit shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200 border hover:border-[#04c2fb]/30"
+            disabled={!pacienteAtivo}
+            onClick={() => {
+              const f = { ...planoInicial }
+              // Inicializa slots se recorrência definida mas agenda ainda não foi configurada
+              if (f.pacoteId && f.recorrencia && (!f.agenda || f.agenda.slots.length === 0)) {
+                const numSlots = f.recorrencia === 'semanal' ? (f.vezesPorSemana ?? 1) : 1
+                f.agenda = {
+                  slots: Array.from({ length: numSlots }, () =>
+                    f.recorrencia === 'mensal'
+                      ? { diaMes: 10, horario: '08:00' }
+                      : { diaSemana: 1, horario: '08:00' }
+                  ),
+                }
+              }
+              setForm(f)
+              setEditando(true)
+            }}
+            className={cn(
+              'group/edit shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 border',
+              pacienteAtivo
+                ? 'text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] hover:border-[#04c2fb]/30'
+                : 'text-gray-300 border-gray-200 cursor-not-allowed',
+            )}
           >
             <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" /> Editar
           </button>
         ) : (
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={cancelar}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border"
-            >
+            <button onClick={cancelar} className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border">
               Cancelar
             </button>
             <button
               onClick={salvar}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110"
+              disabled={temConflitoHorario}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors',
+                temConflitoHorario ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',
+              )}
               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >
               <Save className="h-3.5 w-3.5" /> Salvar
@@ -1018,133 +633,543 @@ function CardPlano({
       {/* Body */}
       <div className="p-4 sm:p-5">
         {editando ? (
-          <div className="space-y-3">
-            {/* Legenda dos 3 estados */}
-            <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/40 border p-3">
-              {(['valorSessao', 'inclusa', 'cobradaAParte'] as StatusTipo[]).map(s => (
-                <div key={s} className="flex flex-col items-center gap-1 text-center">
-                  <span className={cn('inline-block h-2 w-2 rounded-full', STATUS_META[s].dotColor)} />
-                  <span className="text-[10px] font-medium text-muted-foreground leading-tight">
-                    {s === 'valorSessao' ? `${STATUS_META[s].label} (${valorSessao})` : STATUS_META[s].label}
-                  </span>
+          <div className="space-y-5">
+
+            {/* Seleção de pacote */}
+            <div className="space-y-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Pacote
+              </p>
+
+              {/* Opção: Nenhum plano */}
+              <button
+                type="button"
+                onClick={() => setForm({ pacoteId: null, recorrencia: null, vezesPorSemana: null, cobranca: null, agenda: null, sessoEmGrupo: false })}
+                className={cn(
+                  'w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all',
+                  form.pacoteId === null
+                    ? 'border-slate-400 bg-slate-50'
+                    : 'border-gray-200 bg-white/50 hover:border-gray-300',
+                )}
+              >
+                <div className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+                  form.pacoteId === null ? 'bg-slate-200' : 'bg-gray-100',
+                )}>
+                  <Ban className="h-4 w-4 text-slate-500" />
                 </div>
-              ))}
+                <div className="min-w-0 flex-1">
+                  <p className={cn(
+                    'text-sm font-medium',
+                    form.pacoteId === null ? 'text-slate-800' : 'text-gray-500',
+                  )}>
+                    Nenhum plano ativo
+                  </p>
+                  <p className="text-xs text-muted-foreground">Consultas pontuais, sem pacote associado</p>
+                </div>
+                {form.pacoteId === null && (
+                  <Check className="h-4 w-4 text-slate-600 shrink-0" />
+                )}
+              </button>
+
+              {/* Pacotes disponíveis */}
+              {pacotesDisponiveis.map(pacote => {
+                const selecionado = form.pacoteId === pacote.id
+                return (
+                  <button
+                    key={pacote.id}
+                    type="button"
+                    onClick={() => setForm(prev => ({
+                      ...prev,
+                      pacoteId: pacote.id,
+                      vigenciaInicio: pacote.sistema ? (prev.vigenciaInicio ?? todayIso()) : null,
+                      vigenciaFim:    pacote.sistema ? (prev.vigenciaFim ?? null) : null,
+                    }))}
+                    className={cn(
+                      'w-full flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all',
+                      selecionado
+                        ? 'border-[#04c2fb]/40 bg-[#04c2fb]/5'
+                        : 'border-gray-200 bg-white/50 hover:border-gray-300',
+                    )}
+                  >
+                    <div className={cn(
+                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5 transition-all',
+                    )}
+                      style={selecionado
+                        ? { background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }
+                        : { background: '#f1f5f9' }
+                      }
+                    >
+                      <Package className={cn('h-4 w-4', selecionado ? 'text-white' : 'text-gray-400')} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className={cn(
+                          'text-sm font-medium',
+                          selecionado ? 'text-gray-800' : 'text-gray-500',
+                        )}>
+                          {pacote.nome}
+                        </p>
+                        {(pacote.valor || pacote.sistema) && (
+                          <span className="text-xs font-semibold text-emerald-600">R$ {pacote.valor || '0,00'}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {pacote.sessoes.map(s => (
+                          <span key={s.tipoSessaoId} className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                            <span className="h-1 w-1 rounded-full bg-[#04c2fb] shrink-0" />
+                            {nomeTipo(s.tipoSessaoId)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {selecionado && (
+                      <Check className="h-4 w-4 text-[#04c2fb] shrink-0 mt-0.5" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
 
-            <div className="space-y-2">
-              {form.tipos.map(({ tipo, status, valor }) => (
-                <div key={tipo} className="rounded-lg border bg-white/50 p-3 space-y-2">
-                  <p className="text-sm font-medium text-gray-800">{tipo}</p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {(['valorSessao', 'inclusa', 'cobradaAParte'] as StatusTipo[]).map(s => (
+            {/* Vigência do plano gratuito */}
+            {form.pacoteId != null && form.pacoteId === pacotesDisponiveis.find(p => p.sistema)?.id && (
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <CalendarRange className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Vigência do plano gratuito
+                  </p>
+                </div>
+                <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        Início
+                      </label>
+                      <DatePicker
+                        value={form.vigenciaInicio ?? ''}
+                        onChange={v => setForm(prev => ({ ...prev, vigenciaInicio: v || null }))}
+                        placeholder="Selecionar início"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        Fim <span className="text-muted-foreground font-normal normal-case">(opcional)</span>
+                      </label>
+                      <DatePicker
+                        value={form.vigenciaFim ?? ''}
+                        onChange={v => setForm(prev => ({ ...prev, vigenciaFim: v || null }))}
+                        placeholder="Selecionar fim"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 pt-0.5">
+                    <CalendarRange className="h-3.5 w-3.5 text-violet-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-violet-700 leading-relaxed">
+                      O plano gratuito ficará ativo para este paciente dentro deste período.
+                      Sem data de fim, permanece aberto indefinidamente.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Seleção de recorrência (só quando há pacote) */}
+            {form.pacoteId !== null && (
+              <div className="space-y-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Recorrência
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {RECORRENCIAS.map(rec => {
+                    const ativo = form.recorrencia === rec.id
+                    return (
                       <button
-                        key={s}
+                        key={rec.id}
                         type="button"
-                        onClick={() => setStatus(tipo, s)}
+                        onClick={() => setForm(prev => {
+                          const numSlots = rec.id === 'semanal' ? (prev.vezesPorSemana ?? 1) : 1
+                          const mkSlot = (i: number): SlotAgendamento =>
+                            rec.id === 'mensal'
+                              ? { diaMes: prev.agenda?.slots[i]?.diaMes ?? 10, horario: prev.agenda?.slots[i]?.horario ?? '08:00' }
+                              : { diaSemana: prev.agenda?.slots[i]?.diaSemana ?? (i + 1), horario: prev.agenda?.slots[i]?.horario ?? '08:00' }
+                          return {
+                            ...prev,
+                            recorrencia: rec.id,
+                            vezesPorSemana: rec.id === 'semanal' ? (prev.vezesPorSemana ?? 1) : null,
+                            agenda: { slots: Array.from({ length: numSlots }, (_, i) => mkSlot(i)) },
+                          }
+                        })}
                         className={cn(
-                          'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                          status === s
-                            ? STATUS_META[s].activeCls
-                            : 'border text-muted-foreground hover:bg-muted',
+                          'flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-center transition-all',
+                          ativo
+                            ? 'border-[#04c2fb]/40 bg-[#04c2fb]/5'
+                            : 'border-gray-200 bg-white/50 hover:border-gray-300',
                         )}
                       >
-                        {STATUS_META[s].labelEdit}
+                        <CalendarDays className={cn('h-4 w-4', ativo ? 'text-[#04c2fb]' : 'text-gray-400')} />
+                        <p className={cn('text-xs font-semibold', ativo ? 'text-gray-800' : 'text-gray-500')}>
+                          {rec.label}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground leading-tight">{rec.desc}</p>
                       </button>
-                    ))}
-                  </div>
-                  {status === 'cobradaAParte' && (
-                    <div className="space-y-1 pt-0.5">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        Valor cobrado <span className="font-normal text-muted-foreground/70">(mínimo R$ 1,00)</span>
-                      </label>
-                      <input
-                        value={valor}
-                        onChange={e => setValor(tipo, e.target.value)}
-                        onBlur={() => formatarValor(tipo)}
-                        placeholder={valorSessao}
-                        className={cn(
-                          'w-full rounded-lg border bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 transition-all',
-                          valor && parseBRL(valor) < 1
-                            ? 'border-red-300 focus:ring-red-400/40'
-                            : 'border-gray-200 focus:ring-[#04c2fb]/40',
-                        )}
-                      />
-                      {valor && parseBRL(valor) < 1 && (
-                        <p className="text-[11px] text-red-500">O valor deve ser no mínimo R$ 1,00</p>
-                      )}
+                    )
+                  })}
+                </div>
+
+                {/* Sub-seletor de vezes por semana */}
+                {form.recorrencia === 'semanal' && (
+                  <div className="rounded-xl border border-[#04c2fb]/20 bg-[#04c2fb]/5 px-4 py-3 space-y-2.5">
+                    <p className="text-xs font-medium text-gray-600">Quantas vezes por semana?</p>
+                    <div className="flex gap-2">
+                      {VEZES_POR_SEMANA.map(v => {
+                        const ativo = (form.vezesPorSemana ?? 1) === v
+                        return (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setForm(prev => {
+                              const currentSlots = prev.agenda?.slots ?? []
+                              const newSlots = v > currentSlots.length
+                                ? [...currentSlots, ...Array.from({ length: v - currentSlots.length }, (_, i) => ({ diaSemana: (currentSlots.length + i + 1) % 7 || 1, horario: '08:00' }))]
+                                : currentSlots.slice(0, v)
+                              return { ...prev, vezesPorSemana: v, agenda: { slots: newSlots } }
+                            })}
+                            className={cn(
+                              'flex-1 rounded-lg border py-2 text-sm font-semibold transition-all',
+                              ativo
+                                ? 'border-[#04c2fb] bg-[#04c2fb] text-white shadow-sm'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-[#04c2fb]/40 hover:text-[#04c2fb]',
+                            )}
+                          >
+                            {v}×
+                          </button>
+                        )
+                      })}
                     </div>
+                  </div>
+                )}
+              </div>
+
+            )}
+
+            {/* Horário de atendimento (só quando há recorrência) */}
+            {form.pacoteId !== null && form.recorrencia !== null && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Horário de Atendimento
+                </p>
+
+                {/* ── Painel de status do horário ── */}
+                <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2.5 min-h-[2.5rem]">
+                  <Clock className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />
+                  {form.agenda && form.agenda.slots.length > 0 ? (
+                    <>
+                      <span className="flex-1 text-xs font-medium text-gray-800 truncate">
+                        {formatarAgenda(form.agenda, form.recorrencia)}
+                      </span>
+                      {form.sessoEmGrupo && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 shrink-0">
+                          <Sparkles className="h-2.5 w-2.5" /> Em grupo
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sem horário definido</span>
                   )}
                 </div>
-              ))}
-            </div>
+
+                {/* ── Botão de configurar em destaque ── */}
+                <button
+                  type="button"
+                  onClick={() => setModalHorarioAberto(true)}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[#04c2fb]/20 hover:brightness-105 active:scale-[0.99] transition-all"
+                  style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Configurar horário
+                </button>
+
+                {temConflitoHorario && (
+                  <p className="text-xs text-red-500 font-medium flex items-center gap-1.5">
+                    <X className="h-3.5 w-3.5 shrink-0" />
+                    Dois slots com o mesmo horário. Ajuste antes de salvar.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Seleção de cobrança (só quando há pacote) */}
+            {form.pacoteId !== null && (() => {
+              const pacoteForm = pacotesDisponiveis.find(p => p.id === form.pacoteId) ?? null
+              return (
+                <div className="space-y-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Cobrança
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {MODOS_COBRANCA.map(modo => {
+                      const ativo = form.cobranca === modo.id
+                      const Icon = modo.icon
+                      return (
+                        <button
+                          key={modo.id}
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, cobranca: modo.id }))}
+                          className={cn(
+                            'relative flex flex-col gap-2.5 rounded-xl border-2 px-4 py-4 text-left transition-all duration-200',
+                            ativo ? modo.corActive : 'border-gray-200 bg-white/60 hover:border-gray-300',
+                          )}
+                        >
+                          {/* Check mark quando ativo */}
+                          {ativo && (
+                            <span className={cn(
+                              'absolute top-3 right-3 flex h-5 w-5 items-center justify-center rounded-full',
+                              modo.id === 'por_atendimento' ? 'bg-emerald-500' : 'bg-violet-500',
+                            )}>
+                              <Check className="h-3 w-3 text-white" />
+                            </span>
+                          )}
+
+                          {/* Ícone + label + badge de preço */}
+                          <div className="flex items-center gap-2.5 pr-6">
+                            <div className={cn(
+                              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors',
+                              ativo ? cn(modo.corBg, modo.corBorder) : 'bg-gray-50 border-gray-200',
+                            )}>
+                              <Icon className={cn('h-4 w-4', ativo ? modo.cor : 'text-gray-400')} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className={cn(
+                                'text-sm font-semibold leading-tight',
+                                ativo ? 'text-gray-900' : 'text-gray-600',
+                              )}>
+                                {modo.label}
+                              </p>
+                              {pacoteForm && (
+                                <span className={cn(
+                                  'inline-block mt-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-bold leading-none',
+                                  ativo ? modo.corTag : 'bg-gray-100 text-gray-500 border-gray-200',
+                                )}>
+                                  {modo.tagPreco(pacoteForm.valor || '0,00')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Bloco: inclusos no plano */}
+                          <div className="flex items-start gap-2 rounded-lg bg-white/70 border border-gray-100 px-3 py-2">
+                            <span className="text-emerald-500 text-[13px] leading-snug shrink-0 mt-px">✓</span>
+                            <p className="text-[11px] text-gray-600 leading-snug">
+                              <span className="font-semibold text-gray-700">Tipos do plano</span>
+                              {': '}{modo.descInclusos}
+                            </p>
+                          </div>
+
+                          {/* Bloco: fora do plano */}
+                          <div className="flex items-start gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2">
+                            <span className="text-amber-400 text-[13px] leading-snug shrink-0 mt-px">⚡</span>
+                            <p className="text-[11px] text-amber-800 leading-snug">
+                              {modo.id === 'por_atendimento' ? (
+                                <>
+                                  Tipos fora do plano são cobrados pelo valor individual definido em{' '}
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={e => { e.stopPropagation(); handleNavPlanos() }}
+                                    onKeyDown={e => e.key === 'Enter' && handleNavPlanos()}
+                                    className="font-semibold underline underline-offset-2 decoration-amber-500 hover:text-amber-900 transition-colors cursor-pointer"
+                                  >
+                                    Tipos de Atendimento
+                                  </span>.
+                                </>
+                              ) : (
+                                modo.descForaDoPlan
+                              )}
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
+
         ) : (
-          <div className="space-y-4">
-            {/* Valor da sessão */}
-            {tiposPorStatus('valorSessao').length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Valor da sessão
-                  </p>
+          /* ── View mode ── */
+          pacoteSelecionado ? (
+            <div className="space-y-4">
+              {/* Pacote */}
+              <div className="flex items-start gap-3 rounded-xl border border-[#04c2fb]/20 bg-[#04c2fb]/5 px-4 py-3.5">
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
+                  style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                >
+                  <Package className="h-4 w-4 text-white" />
                 </div>
-                <div className="space-y-1">
-                  {tiposPorStatus('valorSessao').map(({ tipo }) => (
-                    <div key={tipo} className="flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-50/70 border border-emerald-100">
-                      <span className="text-sm text-gray-800">{tipo}</span>
-                      <span className="text-sm font-semibold text-emerald-700">{valorSessao}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Inclusa no plano */}
-            {tiposPorStatus('inclusa').length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#04c2fb]" />
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Inclusa no plano
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  {tiposPorStatus('inclusa').map(({ tipo }) => (
-                    <div key={tipo} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#04c2fb]/5 border border-[#04c2fb]/20">
-                      <span className="text-sm text-gray-800">{tipo}</span>
-                      <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 px-2 py-0.5 text-[11px] font-semibold text-[#0094c8]">
-                        Sem cobrança adicional
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-gray-800">{pacoteSelecionado.nome}</p>
+                    {(pacoteSelecionado.valor || pacoteSelecionado.sistema) && (
+                      <span className="text-sm font-bold text-emerald-600">R$ {pacoteSelecionado.valor || '0,00'}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {pacoteSelecionado.sessoes.map(s => (
+                      <span key={s.tipoSessaoId} className="inline-flex items-center gap-1 rounded-md bg-white border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
+                        {nomeTipo(s.tipoSessaoId)}
                       </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Cobrado à parte */}
-            {tiposPorStatus('cobradaAParte').length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cobrado à parte
-                  </p>
+              {/* Vigência do plano gratuito — view mode */}
+              {pacoteSelecionado.sistema && (planoInicial.vigenciaInicio || planoInicial.vigenciaFim) && (
+                <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/50 px-4 py-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100">
+                    <CalendarRange className="h-4 w-4 text-violet-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vigência</p>
+                    <p className="text-sm font-semibold text-violet-700 mt-0.5">
+                      {planoInicial.vigenciaInicio && planoInicial.vigenciaFim
+                        ? `${isoToBR(planoInicial.vigenciaInicio)} a ${isoToBR(planoInicial.vigenciaFim)}`
+                        : planoInicial.vigenciaInicio
+                          ? `A partir de ${isoToBR(planoInicial.vigenciaInicio)}`
+                          : `Até ${isoToBR(planoInicial.vigenciaFim)}`
+                      }
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  {tiposPorStatus('cobradaAParte').map(({ tipo, valor }) => (
-                    <div key={tipo} className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50/60 border border-amber-100">
-                      <span className="text-sm text-gray-800">{tipo}</span>
-                      <span className="text-sm font-semibold text-amber-700">{valor || valorSessao}</span>
+              )}
+
+              {/* Recorrência + Cobrança lado a lado */}
+              {(recorrenciaSelecionada || cobrancaSelecionada) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Recorrência */}
+                  {recorrenciaSelecionada && (
+                    <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                        <CalendarDays className="h-4 w-4 text-slate-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Recorrência</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{recorrenciaSelecionada.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{descRec}</p>
+                        {planoInicial.agenda && planoInicial.agenda.slots.length > 0 && (
+                          <p className="text-xs text-[#04c2fb] font-medium mt-1 flex items-center gap-1 flex-wrap">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            {formatarAgenda(planoInicial.agenda, planoInicial.recorrencia)}
+                          </p>
+                        )}
+                        {planoInicial.sessoEmGrupo && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 mt-1.5">
+                            <Sparkles className="h-2.5 w-2.5" /> Em grupo
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Cobrança */}
+                  {cobrancaSelecionada && (() => {
+                    const Icon = cobrancaSelecionada.icon
+                    return (
+                      <div className={cn(
+                        'flex flex-col gap-2.5 rounded-xl border px-4 py-3.5',
+                        cobrancaSelecionada.corBg, cobrancaSelecionada.corBorder,
+                      )}>
+                        {/* Header */}
+                        <div className="flex items-center gap-2.5">
+                          <div className={cn(
+                            'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border',
+                            cobrancaSelecionada.corBg, cobrancaSelecionada.corBorder,
+                          )}>
+                            <Icon className={cn('h-3.5 w-3.5', cobrancaSelecionada.cor)} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground leading-none">Cobrança</p>
+                            <p className={cn('text-sm font-bold leading-tight mt-0.5', cobrancaSelecionada.cor)}>
+                              {cobrancaSelecionada.label}
+                            </p>
+                          </div>
+                          {pacoteSelecionado && (
+                            <span className={cn(
+                              'ml-auto shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-bold',
+                              cobrancaSelecionada.corTag,
+                            )}>
+                              {cobrancaSelecionada.tagPreco(pacoteSelecionado.valor || '0,00')}
+                            </span>
+                          )}
+                        </div>
+                        {/* Resumo inclusos */}
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-emerald-500 text-[12px] leading-snug shrink-0">✓</span>
+                          <p className="text-[11px] text-gray-600 leading-snug">{cobrancaSelecionada.descInclusos}</p>
+                        </div>
+                        {/* Resumo fora do plano */}
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-amber-400 text-[12px] leading-snug shrink-0">⚡</span>
+                          <p className="text-[11px] text-gray-500 leading-snug">
+                            {cobrancaSelecionada.id === 'por_atendimento' ? (
+                              <>
+                                Tipos fora do plano são cobrados pelo valor individual definido em{' '}
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={handleNavPlanos}
+                                  onKeyDown={e => e.key === 'Enter' && handleNavPlanos()}
+                                  className="font-semibold underline underline-offset-2 decoration-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                                >
+                                  Tipos de Atendimento
+                                </span>.
+                              </>
+                            ) : (
+                              cobrancaSelecionada.descForaDoPlan
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-4 py-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                <Ban className="h-4 w-4 text-slate-400" />
               </div>
-            )}
-          </div>
+              <div>
+                <p className="text-sm font-medium text-slate-700">Consultas pontuais</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Sem pacote ativo associado ao paciente</p>
+              </div>
+            </div>
+          )
         )}
       </div>
+
+      {/* Modal de horário recorrente */}
+      {modalHorarioAberto && (
+        <ModalHorarioRecorrente
+          open={modalHorarioAberto}
+          onClose={() => setModalHorarioAberto(false)}
+          onConfirmar={(slots, sessoEmGrupo) => {
+            setForm(prev => ({ ...prev, agenda: { slots }, sessoEmGrupo }))
+            setModalHorarioAberto(false)
+          }}
+          pacienteId={pacienteId}
+          pacienteNome={pacienteNome}
+          planoAtual={form}
+          agendamentosBase={AGENDAMENTOS_BASE}
+        />
+      )}
     </div>
+    </>
   )
 }
 
@@ -1152,9 +1177,15 @@ function CardPlano({
 
 function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: PacienteCompleto }) {
   const router = useRouter()
+  const atualizarPaciente = useAtualizarPaciente()
 
   const [paciente, setPaciente] = useState(pacienteInicial)
-  const [plano, setPlano] = useState<PlanoData>(pacienteInicial.plano)
+  const [plano, setPlano] = useState<PlanoAtendimento>(pacienteInicial.plano)
+  const salvarPlanoMutation = useSalvarPlanoAtendimento(pacienteInicial.id)
+  const { data: pacotesData } = usePacotes()
+  const { data: tiposData } = useTiposSessao()
+  const pacotesDisponiveis = pacotesData?.items ?? []
+  const tiposDisponiveis = tiposData?.items ?? []
   const [editando, setEditando] = useState(false)
   const [confirmarDescartar, setConfirmarDescartar] = useState<'cancelar' | 'voltar' | null>(null)
   const [form, setForm] = useState({
@@ -1162,10 +1193,6 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     responsavel: paciente.responsavel,
     dataNascimento: brToIso(paciente.dataNascimento),
     dataAnamnese: brToIso(paciente.dataAnamnese),
-    valorSessao: paciente.valorSessao,
-    gratuito: paciente.gratuito,
-    gratuitoInicio: brToIso(paciente.gratuitoInicio),
-    gratuitoFim: brToIso(paciente.gratuitoFim),
     dataInicio: brToIso(paciente.dataInicio),
     dataFim: paciente.dataFim ? brToIso(paciente.dataFim) : '',
     ativo: paciente.ativo,
@@ -1186,12 +1213,6 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     ? Math.round((paciente.presencas / paciente.totalSessoes) * 100)
     : 0
 
-  const gratuitoVigente = isGratuitoVigente(
-    form.gratuito,
-    form.gratuitoInicio,
-    form.gratuitoFim,
-  )
-
   // Snapshot do form no momento em que o usuário clicou em "Editar"
   function formOriginal() {
     return {
@@ -1199,10 +1220,6 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       responsavel: paciente.responsavel,
       dataNascimento: brToIso(paciente.dataNascimento),
       dataAnamnese: brToIso(paciente.dataAnamnese),
-      valorSessao: paciente.valorSessao,
-      gratuito: paciente.gratuito,
-      gratuitoInicio: brToIso(paciente.gratuitoInicio),
-      gratuitoFim: brToIso(paciente.gratuitoFim),
       dataInicio: brToIso(paciente.dataInicio),
       dataFim: paciente.dataFim ? brToIso(paciente.dataFim) : '',
       ativo: paciente.ativo,
@@ -1218,44 +1235,44 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     setForm(prev => {
       const next = { ...prev, [field]: value }
       if (field === 'ativo' && value === true) next.dataFim = ''
-      if (field === 'gratuito' && value === false) {
-        next.gratuitoInicio = ''
-        next.gratuitoFim = ''
-      }
       return next
     })
   }
 
-  function valorNumerico(raw: string): number {
-    const limpo = raw.replace(/[^\d,]/g, '').replace(',', '.')
-    return limpo ? parseFloat(limpo) : 0
-  }
-
-  const valorInsuficiente = !gratuitoVigente && form.ativo && (
-    form.valorSessao.trim() === '' || valorNumerico(form.valorSessao) < 1
-  )
-
   function salvarEdicao() {
-    if (valorInsuficiente) {
-      toast.error('Valor da sessão inválido', { description: 'O valor deve ser no mínimo R$ 1,00.' })
-      return
-    }
-    setPaciente(prev => ({
-      ...prev,
-      nome: form.nome,
-      responsavel: form.responsavel,
-      dataNascimento: form.dataNascimento ? isoToBr(form.dataNascimento) : prev.dataNascimento,
-      dataAnamnese: form.dataAnamnese ? isoToBr(form.dataAnamnese) : prev.dataAnamnese,
-      valorSessao: form.valorSessao ? formatValorBRL(form.valorSessao) : prev.valorSessao,
-      gratuito: form.gratuito,
-      gratuitoInicio: form.gratuito && form.gratuitoInicio ? isoToBr(form.gratuitoInicio) : '-',
-      gratuitoFim: form.gratuito && form.gratuitoFim ? isoToBr(form.gratuitoFim) : '-',
-      dataInicio: form.dataInicio ? isoToBr(form.dataInicio) : prev.dataInicio,
-      dataFim: !form.ativo && form.dataFim ? isoToBr(form.dataFim) : null,
-      ativo: form.ativo,
-    }))
-    setEditando(false)
-    toast.success('Alterações salvas', { description: 'Os dados do paciente foram atualizados.' })
+    atualizarPaciente.mutate(
+      {
+        id: paciente.id,
+        payload: {
+          nome: form.nome,
+          ativo: form.ativo,
+          dados_extras: {
+            ...(form.responsavel && { responsavel: form.responsavel }),
+            ...(form.dataAnamnese && { data_anamnese: form.dataAnamnese }),
+            ...(form.dataInicio && { data_inicio: form.dataInicio }),
+          },
+        },
+      },
+      {
+        onSuccess: () => {
+          setPaciente(prev => ({
+            ...prev,
+            nome: form.nome,
+            responsavel: form.responsavel,
+            dataNascimento: form.dataNascimento ? isoToBr(form.dataNascimento) : prev.dataNascimento,
+            dataAnamnese: form.dataAnamnese ? isoToBr(form.dataAnamnese) : prev.dataAnamnese,
+            dataInicio: form.dataInicio ? isoToBr(form.dataInicio) : prev.dataInicio,
+            dataFim: !form.ativo && form.dataFim ? isoToBr(form.dataFim) : null,
+            ativo: form.ativo,
+          }))
+          setEditando(false)
+          toast.success('Alterações salvas', { description: 'Os dados do paciente foram atualizados.' })
+        },
+        onError: (err) => {
+          toast.error('Erro ao salvar', { description: err.message })
+        },
+      }
+    )
   }
 
   function resetarForm() {
@@ -1280,6 +1297,37 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     if (acao === 'voltar') router.push('/dashboard/pacientes')
   }
 
+  function toggleAtivo() {
+    const novoAtivo = !paciente.ativo
+    const hoje = new Date()
+    const dataFimStr = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`
+    atualizarPaciente.mutate(
+      { id: paciente.id, payload: { ativo: novoAtivo } },
+      {
+        onSuccess: () => {
+          setPaciente(prev => ({
+            ...prev,
+            ativo: novoAtivo,
+            dataFim: novoAtivo ? null : dataFimStr,
+          }))
+          setForm(prev => ({
+            ...prev,
+            ativo: novoAtivo,
+            dataFim: novoAtivo ? '' : brToIso(dataFimStr),
+          }))
+          if (novoAtivo) {
+            toast.success('Paciente reativado', { description: 'O paciente foi marcado como ativo.' })
+          } else {
+            toast.info('Paciente desativado', { description: 'O plano de atendimento foi suspenso.' })
+          }
+        },
+        onError: (err) => {
+          toast.error('Erro ao alterar status', { description: err.message })
+        },
+      }
+    )
+  }
+
   const inputCls = 'w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40 transition-all'
 
   return (
@@ -1294,51 +1342,54 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       )}
 
       {/* ── Header ───────────────────────────────── */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <button
           onClick={tentarVoltar}
-          className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted transition-colors"
+          className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted transition-colors shrink-0"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
+
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-semibold tracking-tight truncate">{paciente.nome}</h1>
-            {isPacientePausadoCompleto(paciente) ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-medium text-amber-600 shrink-0">
-                <Pause className="h-3 w-3" />
-                Pausado
-              </span>
-            ) : (
-              <span className={cn(
-                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0',
-                paciente.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500',
-              )}>
-                <span className={cn('h-1.5 w-1.5 rounded-full', paciente.ativo ? 'bg-green-500' : 'bg-gray-400')} />
-                {paciente.ativo ? 'Ativo' : 'Inativo'}
-              </span>
-            )}
-          </div>
+          <h1 className="text-xl font-semibold tracking-tight truncate">{paciente.nome}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {idade} anos · Responsável: {paciente.responsavel}
           </p>
         </div>
-      </div>
 
-      {/* ── Alerta de pausado ──────────────────── */}
-      {isPacientePausadoCompleto(paciente) && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:px-5 sm:py-3.5 flex items-start gap-3">
-          <div className="rounded-lg p-2 bg-amber-100 shrink-0 mt-0.5">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
+        {/* Toggle ativo / inativo */}
+        <button
+          type="button"
+          onClick={toggleAtivo}
+          title={paciente.ativo ? 'Desativar paciente' : 'Reativar paciente'}
+          className="group flex items-center gap-2.5 rounded-xl border px-3 py-2 transition-all duration-200 shrink-0 hover:shadow-sm"
+          style={{
+            borderColor: paciente.ativo ? 'rgba(34,197,94,0.3)' : 'rgba(156,163,175,0.4)',
+            backgroundColor: paciente.ativo ? 'rgba(240,253,244,0.8)' : 'rgba(249,250,251,0.8)',
+          }}
+        >
+          {/* Pill switch */}
+          <div
+            className={cn(
+              'relative h-5 w-9 rounded-full transition-colors duration-300 shrink-0',
+              paciente.ativo ? 'bg-emerald-500' : 'bg-gray-300',
+            )}
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-md transition-all duration-300 ease-in-out',
+                paciente.ativo ? 'left-[18px]' : 'left-0.5',
+              )}
+            />
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-800">Paciente pausado</p>
-            <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
-              O periodo gratuito deste paciente expirou e nenhum valor de sessao foi definido. Clique em <strong>Editar</strong> e defina o valor da sessao para reativar os agendamentos.
-            </p>
-          </div>
-        </div>
-      )}
+          <span className={cn(
+            'text-xs font-semibold tracking-wide transition-colors duration-200 select-none',
+            paciente.ativo ? 'text-emerald-700' : 'text-gray-400',
+          )}>
+            {paciente.ativo ? 'Ativo' : 'Inativo'}
+          </span>
+        </button>
+      </div>
 
       {/* ── Cards de resumo ──────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
@@ -1413,81 +1464,9 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   <DatePicker value={form.dataAnamnese} onChange={v => f('dataAnamnese', v)} placeholder="Selecionar data" />
                 </div>
                 <div className="space-y-1">
-                  <label className={cn('text-xs font-medium', valorInsuficiente ? 'text-red-500' : 'text-muted-foreground')}>
-                    Valor da Sessão <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    value={gratuitoVigente ? 'R$ 0,00' : form.valorSessao}
-                    onChange={e => f('valorSessao', e.target.value)}
-                    onBlur={() => { if (form.valorSessao.trim()) f('valorSessao', formatValorBRL(form.valorSessao)) }}
-                    disabled={gratuitoVigente}
-                    placeholder="R$ 0,00"
-                    className={cn(inputCls, gratuitoVigente ? 'opacity-50 cursor-not-allowed' : valorInsuficiente ? 'border-red-300 bg-red-50/50 focus:ring-red-400/40' : '')}
-                  />
-                  {gratuitoVigente ? (
-                    <p className="text-[11px] text-muted-foreground">Valor zerado durante o período gratuito</p>
-                  ) : valorInsuficiente ? (
-                    <p className="text-[11px] text-red-500">Valor mínimo: R$ 1,00</p>
-                  ) : null}
-                </div>
-                <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Data de Início</label>
                   <DatePicker value={form.dataInicio} onChange={v => f('dataInicio', v)} placeholder="Selecionar data" />
                 </div>
-
-                {/* Gratuito */}
-                <div className="space-y-3 sm:col-span-2">
-                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                    <div
-                      className={cn(
-                        'flex h-5 w-5 items-center justify-center rounded border-2 transition-colors',
-                        form.gratuito ? 'border-[#04c2fb] bg-[#04c2fb]' : 'border-gray-300 bg-white hover:border-gray-400',
-                      )}
-                      onClick={() => f('gratuito', !form.gratuito)}
-                    >
-                      {form.gratuito && (
-                        <svg viewBox="0 0 12 10" className="h-3 w-3 text-white" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M1 5l3 3 7-7" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">Período gratuito</span>
-                  </label>
-                  {form.gratuito && (
-                    <div className="grid grid-cols-1 gap-3 pl-7 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Início</label>
-                        <DatePicker value={form.gratuitoInicio} onChange={v => f('gratuitoInicio', v)} placeholder="Selecionar data" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Fim</label>
-                        <DatePicker value={form.gratuitoFim} onChange={v => f('gratuitoFim', v)} placeholder="Selecionar data" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Status */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Status</label>
-                  <button
-                    type="button"
-                    onClick={() => f('ativo', !form.ativo)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
-                      form.ativo ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-500',
-                    )}
-                  >
-                    <span className={cn('h-2 w-2 rounded-full', form.ativo ? 'bg-green-500' : 'bg-gray-400')} />
-                    {form.ativo ? 'Ativo' : 'Inativo'}
-                  </button>
-                </div>
-                {!form.ativo && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Data de Fim</label>
-                    <DatePicker value={form.dataFim} onChange={v => f('dataFim', v)} placeholder="Selecionar data" />
-                  </div>
-                )}
               </div>
             </div>
           ) : (
@@ -1496,15 +1475,8 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 <InfoItem label="Responsável" value={paciente.responsavel} />
                 <InfoItem label="Data de Nascimento" value={`${paciente.dataNascimento} (${idade} anos)`} />
                 <InfoItem label="Data da Anamnese" value={paciente.dataAnamnese} />
-                <InfoItem label="Valor da Sessão" value={gratuitoVigente ? 'R$ 0,00' : paciente.valorSessao} highlight />
                 <InfoItem label="Data de Início" value={paciente.dataInicio} />
                 {paciente.dataFim && <InfoItem label="Data de Fim" value={paciente.dataFim} />}
-                {paciente.gratuito && (
-                  <>
-                    <InfoItem label="Início Gratuidade" value={paciente.gratuitoInicio} />
-                    <InfoItem label="Fim Gratuidade" value={paciente.gratuitoFim} />
-                  </>
-                )}
               </div>
             </div>
           )}
@@ -1513,15 +1485,18 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       {/* ── Plano ────────────────────────────────── */}
       <CardPlano
         planoInicial={plano}
-        valorSessao={gratuitoVigente ? 'R$ 0,00' : paciente.valorSessao}
-        onSalvar={setPlano}
+        onSalvar={(novoPlano) => {
+          salvarPlanoMutation.mutate(novoPlano, {
+            onSuccess: () => setPlano(novoPlano),
+            onError: (err) => toast.error('Erro ao salvar plano', { description: err.message }),
+          })
+        }}
+        pacienteId={paciente.id}
+        pacienteNome={paciente.nome}
+        pacienteAtivo={paciente.ativo}
+        pacotesDisponiveis={pacotesDisponiveis}
+        tiposDisponiveis={tiposDisponiveis}
       />
-
-      {/* ── Gráficos lado a lado ─────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ValorSessaoChart historico={paciente.historicoValores} valorAtual={gratuitoVigente ? 'R$ 0,00' : paciente.valorSessao} />
-        <TotalGanhoChart historico={paciente.historicoValores} presencas={paciente.presencas} />
-      </div>
 
       {/* ── Tabela de sessões ────────────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -1698,11 +1673,20 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
 export default function PacienteDetalhePage() {
   const params = useParams()
   const router = useRouter()
-  const id = Number(params.id)
+  const id = params.id as string
 
-  const paciente = pacientesData.find(p => p.id === id)
+  const { data: apiPaciente, isLoading, isError } = usePaciente(id)
 
-  if (!paciente) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground max-w-7xl mx-auto">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span className="text-sm">Carregando paciente...</span>
+      </div>
+    )
+  }
+
+  if (isError || !apiPaciente) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 max-w-7xl mx-auto">
         <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
@@ -1721,5 +1705,5 @@ export default function PacienteDetalhePage() {
     )
   }
 
-  return <PacienteDetalheContent pacienteInicial={paciente} />
+  return <PacienteDetalheContent pacienteInicial={apiParaCompleto(apiPaciente)} />
 }

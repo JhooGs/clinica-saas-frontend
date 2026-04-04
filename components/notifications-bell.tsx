@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Bell, X, Gift, ChevronRight, Clock, AlertTriangle, Pause } from 'lucide-react'
+import { Bell, X, ChevronRight, CalendarRange } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { PACIENTES_MOCK, isPausado } from '@/lib/mock-pacientes'
+import { useVigenciasGratuito } from '@/hooks/use-planos'
+import type { VigenciaGratuitoRead } from '@/lib/types/planos'
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -12,82 +13,74 @@ type Urgencia = 'hoje' | '1semana' | '2semanas'
 
 type Notificacao = {
   id: string
-  tipo: 'gratuidade_expirando' | 'paciente_pausado'
-  pacienteId: number
+  tipo: string
+  pacienteId: string
   pacienteNome: string
   urgencia: Urgencia
-  diasRestantes: number
-  dataFim: string
+  mensagem: string
   lida: boolean
 }
 
-/* ── Mock: pacientes com gratuidade ────────────────── */
+/* ── Gerador de notificações ───────────────────────── */
 
-const PACIENTES_GRATUIDADE = [
-  { id: 2,  nome: 'Angelo Gustavo P. Holub', gratuitoFim: diasAPartirDeHoje(0) },
-  { id: 11, nome: 'Laura Mendes Silva',      gratuitoFim: diasAPartirDeHoje(5) },
-  { id: 12, nome: 'Theo Oliveira Santos',    gratuitoFim: diasAPartirDeHoje(13) },
-]
-
-function diasAPartirDeHoje(dias: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + dias)
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-}
-
-function parseDateBR(d: string): Date {
-  const [day, month, year] = d.split('/')
-  return new Date(+year, +month - 1, +day)
-}
-
-function diasAte(dataBR: string): number {
+function diasAte(isoFim: string): number {
+  const [y, m, d] = isoFim.split('-').map(Number)
+  const fim = new Date(y, m - 1, d)
+  fim.setHours(0, 0, 0, 0)
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
-  const alvo = parseDateBR(dataBR)
-  alvo.setHours(0, 0, 0, 0)
-  return Math.ceil((alvo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.round((fim.getTime() - hoje.getTime()) / 86_400_000)
 }
 
-function classificarUrgencia(dias: number): Urgencia | null {
-  if (dias <= 0) return 'hoje'
-  if (dias <= 7) return '1semana'
-  if (dias <= 14) return '2semanas'
-  return null
+function formatarDataBR(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
 }
 
-function gerarNotificacoes(): Notificacao[] {
+function vigenciasParaNotificacoes(vigencias: VigenciaGratuitoRead[]): Notificacao[] {
   const notifs: Notificacao[] = []
-  for (const p of PACIENTES_GRATUIDADE) {
-    const dias = diasAte(p.gratuitoFim)
-    const urgencia = classificarUrgencia(dias)
-    if (!urgencia) continue
+
+  for (const v of vigencias) {
+    const dias = diasAte(v.vigencia_fim)
+
+    // Fora da janela de alerta (mais de 14 dias ou já encerrado há mais de 1 dia)
+    if (dias > 14 || dias < -1) continue
+
+    const dataFim = formatarDataBR(v.vigencia_fim)
+    let urgencia: Urgencia
+    let mensagem: string
+
+    if (dias <= 0) {
+      urgencia = 'hoje'
+      mensagem = dias === 0
+        ? `O plano gratuito encerra hoje (${dataFim}). Defina um novo plano para o paciente.`
+        : `O plano gratuito encerrou em ${dataFim}. Atualize o plano do paciente.`
+    } else if (dias === 1) {
+      urgencia = 'hoje'
+      mensagem = `O plano gratuito encerra amanhã (${dataFim}). Prepare a renovação.`
+    } else if (dias <= 7) {
+      urgencia = '1semana'
+      mensagem = `O plano gratuito encerra em ${dias} dias, em ${dataFim}.`
+    } else {
+      urgencia = '2semanas'
+      mensagem = `O plano gratuito encerra em ${dias} dias, em ${dataFim}.`
+    }
+
     notifs.push({
-      id: `grat-${p.id}`,
-      tipo: 'gratuidade_expirando',
-      pacienteId: p.id,
-      pacienteNome: p.nome,
+      id: `vigencia-gratuito-${v.paciente_id}`,
+      tipo: 'vigencia_gratuito',
+      pacienteId: v.paciente_id,
+      pacienteNome: v.paciente_nome,
       urgencia,
-      diasRestantes: Math.max(0, dias),
-      dataFim: p.gratuitoFim,
+      mensagem,
       lida: false,
     })
   }
-  // Pacientes pausados (gratuidade expirou + sem valor)
-  PACIENTES_MOCK.forEach((p, i) => {
-    if (isPausado(p)) {
-      notifs.push({
-        id: `pausado-${i}`,
-        tipo: 'paciente_pausado',
-        pacienteId: i + 1,
-        pacienteNome: p.nome,
-        urgencia: 'hoje',
-        diasRestantes: 0,
-        dataFim: p.gratuitoFim,
-        lida: false,
-      })
-    }
+
+  return notifs.sort((a, b) => {
+    const ordem: Urgencia[] = ['hoje', '1semana', '2semanas']
+    return ordem.indexOf(a.urgencia) - ordem.indexOf(b.urgencia)
   })
-  return notifs.sort((a, b) => a.diasRestantes - b.diasRestantes)
 }
 
 /* ── Metadata por urgência ─────────────────────────── */
@@ -102,7 +95,7 @@ const URGENCIA_META: Record<Urgencia, {
   ring: string
 }> = {
   hoje: {
-    label: 'Hoje',
+    label: 'Urgente',
     cor: 'text-red-600',
     bg: 'bg-red-50',
     border: 'border-red-100',
@@ -111,7 +104,7 @@ const URGENCIA_META: Record<Urgencia, {
     ring: 'ring-red-500/20',
   },
   '1semana': {
-    label: 'Esta semana',
+    label: 'Em breve',
     cor: 'text-amber-600',
     bg: 'bg-amber-50',
     border: 'border-amber-100',
@@ -130,12 +123,6 @@ const URGENCIA_META: Record<Urgencia, {
   },
 }
 
-function labelDias(dias: number): string {
-  if (dias === 0) return 'Expira hoje'
-  if (dias === 1) return 'Expira amanha'
-  return `Expira em ${dias} dias`
-}
-
 /* ── Componente principal ──────────────────────────── */
 
 export function NotificationsBell() {
@@ -144,7 +131,12 @@ export function NotificationsBell() {
   const [dispensadas, setDispensadas] = useState<Set<string>>(new Set())
   const ref = useRef<HTMLDivElement>(null)
 
-  const todasNotificacoes = useMemo(() => gerarNotificacoes(), [])
+  const { data: vigenciasData } = useVigenciasGratuito()
+
+  const todasNotificacoes = useMemo(
+    () => vigenciasParaNotificacoes(vigenciasData?.items ?? []),
+    [vigenciasData],
+  )
 
   const notificacoes = useMemo(
     () => todasNotificacoes.filter(n => !dispensadas.has(n.id)),
@@ -254,7 +246,7 @@ export function NotificationsBell() {
                 <Bell className="h-4 w-4 text-[#04c2fb]" />
               </div>
               <div>
-                <p className="text-sm font-semibold leading-none">Notificacoes</p>
+                <p className="text-sm font-semibold leading-none">Notificações</p>
                 <p className="text-[11px] text-muted-foreground mt-1">
                   {naoLidas > 0 ? `${naoLidas} nao lida${naoLidas > 1 ? 's' : ''}` : 'Tudo em dia'}
                 </p>
@@ -277,8 +269,8 @@ export function NotificationsBell() {
                 <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center">
                   <Bell className="h-5 w-5 text-green-500" />
                 </div>
-                <p className="text-sm font-medium text-gray-700">Nenhuma notificacao</p>
-                <p className="text-xs text-muted-foreground">Voce esta em dia!</p>
+                <p className="text-sm font-medium text-gray-700">Nenhuma notificação</p>
+                <p className="text-xs text-muted-foreground">Você esta em dia!</p>
               </div>
             ) : (
               <div className="py-1">
@@ -349,8 +341,6 @@ function NotificacaoItem({
   onFecharPainel: () => void
 }) {
   const meta = URGENCIA_META[n.urgencia]
-  const isPaused = n.tipo === 'paciente_pausado'
-  const IconeUrgencia = isPaused ? Pause : n.urgencia === 'hoje' ? AlertTriangle : Clock
 
   return (
     <div
@@ -368,13 +358,10 @@ function NotificacaoItem({
       {/* Icone */}
       <div className={cn(
         'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border',
-        isPaused ? 'bg-amber-50 border-amber-200' : meta.bg,
-        !isPaused && meta.border,
+        meta.bg,
+        meta.border,
       )}>
-        {isPaused
-          ? <Pause className="h-4 w-4 text-amber-500" />
-          : <Gift className={cn('h-4 w-4', meta.icon)} />
-        }
+        <CalendarRange className={cn('h-4 w-4', meta.icon)} />
       </div>
 
       {/* Conteudo */}
@@ -392,35 +379,9 @@ function NotificacaoItem({
           </button>
         </div>
 
-        {isPaused ? (
-          <>
-            <div className="flex items-center gap-1.5 mt-1">
-              <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
-              <span className="text-[11px] font-semibold text-amber-600">
-                Paciente pausado
-              </span>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-              O periodo gratuito expirou e nenhum valor de sessao foi definido. Este paciente nao pode ser agendado.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-1.5 mt-1">
-              <IconeUrgencia className={cn('h-3 w-3 shrink-0', meta.icon)} />
-              <span className={cn('text-[11px] font-semibold', meta.cor)}>
-                {labelDias(n.diasRestantes)}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                ({n.dataFim})
-              </span>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-              O periodo gratuito deste paciente esta {n.diasRestantes === 0 ? 'expirando hoje' : 'proximo do fim'}.
-              Revise o plano e defina o valor da sessao.
-            </p>
-          </>
-        )}
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          {n.mensagem}
+        </p>
 
         <Link
           href={`/dashboard/pacientes/${n.pacienteId}`}
@@ -430,7 +391,7 @@ function NotificacaoItem({
             'text-[#04c2fb] hover:text-[#0094c8]',
           )}
         >
-          {isPaused ? 'Definir valor' : 'Ver paciente'}
+          Ver paciente
           <ChevronRight className="h-3 w-3" />
         </Link>
       </div>

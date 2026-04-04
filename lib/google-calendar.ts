@@ -19,12 +19,14 @@ export type GoogleCalendarEvent = {
 export type AgendamentoComSource = {
   id: number | string
   paciente: string
-  pacientes?: string[]
+  paciente_id?: string         // UUID, presente para agendamentos Clinitra
+  pacientes?: string[]         // nomes (display)
+  pacientes_ids?: string[]     // UUIDs (sessão em grupo)
   tipo: string
   data: string
   horario: string
   horarioFim?: string
-  source?: 'google' | 'clinitra'
+  source?: 'google' | 'clinitra' | 'recorrente'
   googleEventId?: string
 }
 

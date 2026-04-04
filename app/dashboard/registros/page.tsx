@@ -2,19 +2,32 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn, extractTiptapText } from '@/lib/utils'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
-import { registrosIniciais, type Registro } from '@/lib/mock-registros'
+import { useRegistros } from '@/hooks/use-registros'
+import type { Registro } from '@/types'
 
-type SortKey = 'paciente' | 'data' | 'tipoSessao' | 'presenca'
+type SortKey = 'paciente_nome' | 'data_sessao' | 'titulo' | 'presenca'
 type SortDir = 'asc' | 'desc'
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
+  return sortDir === 'asc'
+    ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
+    : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />
+}
 
 function formatDataBR(iso: string) {
   if (!iso) return '-'
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
+}
+
+function formatBRL(valor: number | null): string {
+  if (valor === null || valor === undefined) return '—'
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function HighlightMatch({ texto, busca }: { texto: string; busca: string }) {
@@ -36,13 +49,22 @@ function HighlightMatch({ texto, busca }: { texto: string; busca: string }) {
 
 export default function RegistrosPage() {
   const router = useRouter()
-  const [registros] = useState<Registro[]>(registrosIniciais)
   const [filtroPeriodo, setFiltroPeriodo] = useState<DateRange | undefined>(undefined)
   const [busca, setBusca] = useState('')
   const inputBuscaRef = useRef<HTMLInputElement>(null)
-  const [expandidoId, setExpandidoId] = useState<number | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>('data')
+  const [expandidoId, setExpandidoId] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>('data_sessao')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const filtroDataInicio = filtroPeriodo?.from?.toISOString().slice(0, 10)
+  const filtroDataFim = filtroPeriodo?.to?.toISOString().slice(0, 10)
+
+  const { data: apiData, isLoading, isError } = useRegistros({
+    data_inicio: filtroDataInicio,
+    data_fim: filtroDataFim,
+    page_size: 200,
+  })
+  const registros: Registro[] = useMemo(() => apiData?.items ?? [], [apiData])
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -53,29 +75,24 @@ export default function RegistrosPage() {
     }
   }
 
-  const filtroDataInicio = filtroPeriodo?.from?.toISOString().slice(0, 10) ?? ''
-  const filtroDataFim    = filtroPeriodo?.to?.toISOString().slice(0, 10) ?? ''
-
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     const filtered = registros.filter(r => {
-      if (filtroDataInicio && r.data < filtroDataInicio) return false
-      if (filtroDataFim   && r.data > filtroDataFim)   return false
-      if (termo && !r.paciente.toLowerCase().includes(termo)) return false
+      if (termo && !(r.paciente_nome ?? '').toLowerCase().includes(termo)) return false
       return true
     })
 
     return [...filtered].sort((a, b) => {
       let cmp = 0
       switch (sortKey) {
-        case 'paciente':
-          cmp = a.paciente.localeCompare(b.paciente, 'pt-BR')
+        case 'paciente_nome':
+          cmp = (a.paciente_nome ?? '').localeCompare(b.paciente_nome ?? '', 'pt-BR')
           break
-        case 'data':
-          cmp = a.data.localeCompare(b.data)
+        case 'data_sessao':
+          cmp = (a.data_sessao ?? a.criado_em).localeCompare(b.data_sessao ?? b.criado_em)
           break
-        case 'tipoSessao':
-          cmp = a.tipoSessao.localeCompare(b.tipoSessao, 'pt-BR')
+        case 'titulo':
+          cmp = (a.titulo ?? '').localeCompare(b.titulo ?? '', 'pt-BR')
           break
         case 'presenca':
           cmp = (a.presenca === b.presenca) ? 0 : a.presenca ? -1 : 1
@@ -83,19 +100,12 @@ export default function RegistrosPage() {
       }
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [registros, filtroDataInicio, filtroDataFim, busca, sortKey, sortDir])
+  }, [registros, busca, sortKey, sortDir])
 
   const temFiltro = filtroPeriodo?.from || busca.trim()
 
-  function toggleExpansao(id: number) {
+  function toggleExpansao(id: string) {
     setExpandidoId(prev => (prev === id ? null : id))
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
-    return sortDir === 'asc'
-      ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
-      : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />
   }
 
   return (
@@ -178,29 +188,48 @@ export default function RegistrosPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th onClick={() => handleSort('paciente')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Paciente <SortIcon col="paciente" /></span>
+                <th onClick={() => handleSort('paciente_nome')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Paciente <SortIcon col="paciente_nome" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
-                <th onClick={() => handleSort('data')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data" /></span>
+                <th onClick={() => handleSort('data_sessao')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data_sessao" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
-                <th onClick={() => handleSort('tipoSessao')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="tipoSessao" /></span>
+                <th onClick={() => handleSort('titulo')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="titulo" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th onClick={() => handleSort('presenca')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Presença <SortIcon col="presenca" /></span>
+                  <span className="inline-flex items-center gap-1.5">Presença <SortIcon col="presenca" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Material</th>
+                <th className="hidden md:table-cell px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Valor</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground w-20">Ações</th>
                 <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
             <tbody className="divide-y">
-              {lista.map(r => {
-                const textoNotas = extractTiptapText(r.notasSessaoJson, 80)
-                const textoCompleto = extractTiptapText(r.notasSessaoJson, 1000)
+              {isLoading && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-6 w-6 animate-spin text-[#04c2fb]" />
+                      <p className="text-sm text-muted-foreground">Carregando registros...</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {isError && !isLoading && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <p className="text-sm text-red-500">Erro ao carregar registros. Tente novamente.</p>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !isError && lista.map(r => {
+                const textoNotas = extractTiptapText(r.conteudo_json, 80)
+                const textoCompleto = extractTiptapText(r.conteudo_json, 1000)
                 const aberto = expandidoId === r.id
-                const temNotas = !!r.notasSessaoJson && textoCompleto.length > 0
+                const temNotas = !!r.conteudo_json && textoCompleto.length > 0
+                const links = r.link_youtube ? [r.link_youtube] : []
 
                 return (
                   <Fragment key={r.id}>
@@ -208,14 +237,16 @@ export default function RegistrosPage() {
                       {/* Paciente */}
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-800">
-                          <HighlightMatch texto={r.paciente} busca={busca} />
+                          <HighlightMatch texto={r.paciente_nome ?? ''} busca={busca} />
                         </div>
                         {/* Mobile: info extra */}
                         <div className="flex flex-wrap items-center gap-2 mt-1 md:hidden">
-                          <span className="text-[11px] text-muted-foreground">{formatDataBR(r.data)}</span>
-                          <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
-                            {r.tipoSessao}
-                          </span>
+                          <span className="text-[11px] text-muted-foreground">{formatDataBR(r.data_sessao ?? r.criado_em.slice(0, 10))}</span>
+                          {r.tipo_sessao && (
+                            <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
+                              {r.tipo_sessao}
+                            </span>
+                          )}
                           <span className={cn(
                             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
                             r.presenca ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
@@ -223,6 +254,9 @@ export default function RegistrosPage() {
                             <span className={cn('h-1.5 w-1.5 rounded-full', r.presenca ? 'bg-green-500' : 'bg-red-500')} />
                             {r.presenca ? 'Presente' : 'Falta'}
                           </span>
+                          {r.valor_sessao != null && (
+                            <span className="text-[11px] font-medium text-gray-600">{formatBRL(r.valor_sessao)}</span>
+                          )}
                         </div>
                         {/* Preview de notas — mobile */}
                         {temNotas && (
@@ -234,11 +268,15 @@ export default function RegistrosPage() {
                       </td>
 
                       {/* Desktop: colunas */}
-                      <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{formatDataBR(r.data)}</td>
+                      <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{formatDataBR(r.data_sessao ?? r.criado_em.slice(0, 10))}</td>
                       <td className="hidden md:table-cell px-4 py-3">
-                        <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
-                          {r.tipoSessao}
-                        </span>
+                        {r.tipo_sessao ? (
+                          <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
+                            {r.tipo_sessao}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="hidden md:table-cell px-4 py-3">
                         <span className={cn(
@@ -250,7 +288,14 @@ export default function RegistrosPage() {
                         </span>
                       </td>
                       <td className="hidden md:table-cell px-4 py-3 text-muted-foreground max-w-[200px] truncate" title={r.material}>
-                        {r.presenca ? r.material : (r.observacao || '—')}
+                        {r.presenca ? (r.material || '—') : (r.observacao || '—')}
+                      </td>
+                      <td className="hidden md:table-cell px-4 py-3 text-right">
+                        {r.valor_sessao != null ? (
+                          <span className="text-sm font-medium text-gray-700">{formatBRL(r.valor_sessao)}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">sem cobrança</span>
+                        )}
                       </td>
                       {/* Botão editar */}
                       <td className="px-3 py-3 text-center">
@@ -288,7 +333,7 @@ export default function RegistrosPage() {
                     {/* Linha expandida */}
                     {temNotas && (
                       <tr className={aberto ? '' : 'hidden'}>
-                        <td colSpan={7} className="px-0 py-0">
+                        <td colSpan={8} className="px-0 py-0">
                           <div
                             className={cn(
                               'grid transition-all duration-200',
@@ -305,14 +350,14 @@ export default function RegistrosPage() {
                                   {textoCompleto}
                                 </p>
                                 {/* Rodapé: material + links */}
-                                {(r.material && r.material !== '-') || r.links.length > 0 ? (
+                                {(r.material && r.material !== '-') || links.length > 0 ? (
                                   <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
                                     {r.material && r.material !== '-' && (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
                                         Material: {r.material}
                                       </span>
                                     )}
-                                    {r.links.map((link, i) => (
+                                    {links.map((link, i) => (
                                       <a
                                         key={i}
                                         href={link}
@@ -336,9 +381,9 @@ export default function RegistrosPage() {
                   </Fragment>
                 )
               })}
-              {lista.length === 0 && (
+              {!isLoading && !isError && lista.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
+                  <td colSpan={8} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Search className="h-8 w-8 text-muted-foreground/30" />
                       <p className="text-sm font-medium text-muted-foreground">

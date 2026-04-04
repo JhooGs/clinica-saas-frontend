@@ -32,7 +32,34 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && request.nextUrl.pathname.startsWith('/auth')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    // Permitir acesso a /auth/aguardando-confirmacao mesmo autenticado
+    if (!request.nextUrl.pathname.startsWith('/auth/aguardando-confirmacao')) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+  }
+
+  // Usuário autenticado mas sem clinica_id → e-mail ainda não confirmado
+  if (user && !user.user_metadata?.clinica_id && request.nextUrl.pathname.startsWith('/dashboard')) {
+    return NextResponse.redirect(new URL('/auth/aguardando-confirmacao', request.url))
+  }
+
+  if (user) {
+    const role = user.user_metadata?.role as string | undefined
+    const pathname = request.nextUrl.pathname
+
+    const isSuperAdmin = role === 'super_admin'
+    const isAdmin = role === 'admin'
+
+    if (pathname.startsWith('/dashboard/usuarios') && !isSuperAdmin && !isAdmin) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+
+    if (
+      (pathname.startsWith('/dashboard/configuracoes') || pathname.startsWith('/dashboard/planos')) &&
+      !isSuperAdmin
+    ) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   return supabaseResponse

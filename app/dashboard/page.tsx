@@ -1,20 +1,21 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { Clock, User, AlertTriangle, FileText, X, CheckCircle2, NotebookPen } from 'lucide-react'
+import { useState, useMemo, useEffect, startTransition } from 'react'
+import { Clock, User, AlertTriangle, FileText, X, CheckCircle2, NotebookPen, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { relatoriosPendentesIniciais } from '@/lib/mock-registros'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
+import { useAgendamentosHoje, useAgendamentos } from '@/hooks/use-agenda'
+import type { Agendamento } from '@/types'
 
 // ---------------------------------------------------------------------------
-// Tipos
+// Tipos locais
 // ---------------------------------------------------------------------------
 
 type AtendStatus = 'falta' | 'passado' | 'agora' | 'futuro'
 
-type Atendimento = {
-  id: number
+type AtendimentoUI = {
+  id: string
   nome: string
   horario: string
   tipo: string
@@ -22,7 +23,7 @@ type Atendimento = {
 }
 
 type RelatorioPendente = {
-  id: number
+  id: string
   paciente: string
   tipo: string
   data: string
@@ -30,35 +31,60 @@ type RelatorioPendente = {
 }
 
 // ---------------------------------------------------------------------------
-// Stub — substituir por API quando backend estiver pronto
+// Adapters API → tipos locais
 // ---------------------------------------------------------------------------
 
-const atendimentosHoje: Atendimento[] = [
-  { id: 1, nome: 'Angelo Gustavo P. Holub',  horario: '08:30', tipo: 'Sessão'          },
-  { id: 2, nome: 'Lorenzo de Souza Bueno',   horario: '09:15', tipo: 'Sessão'          },
-  { id: 3, nome: 'Isadora Furman',           horario: '10:00', tipo: 'Sessão família'  },
-  { id: 4, nome: 'Pietro Bizinelli Amorim',  horario: '11:00', tipo: 'Sessão', falta: true },
-  { id: 5, nome: 'Vinícius Augusto Padilha', horario: '14:00', tipo: 'Sessão'          },
-  { id: 111, nome: 'Moysés Costa de Almeida',  horario: '15:00', tipo: 'Sessão'          },
-  { id: 112, nome: 'Rafaela de Souza Bueno',   horario: '16:00', tipo: 'Sessão'          },
-]
+function toAtendimentoUI(a: Agendamento): AtendimentoUI {
+  return {
+    id: a.id,
+    nome: a.paciente_nome ?? 'Paciente',
+    horario: a.horario,
+    tipo: a.tipo_sessao,
+    falta: a.status === 'falta',
+  }
+}
 
-// relatoriosPendentesIniciais importado de @/lib/mock-registros
+function toRelatorioPendente(a: Agendamento): RelatorioPendente {
+  return {
+    id: a.id,
+    paciente: a.paciente_nome ?? 'Paciente',
+    tipo: a.tipo_sessao,
+    data: typeof a.data === 'string' ? a.data : String(a.data),
+    horario: a.horario,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getAtendStatus(horario: string, falta?: boolean): AtendStatus {
+function getAtendStatus(horario: string, falta?: boolean, now?: Date): AtendStatus {
   if (falta) return 'falta'
-  const now = new Date()
+  const ref = now ?? new Date()
   const [h, m] = horario.split(':').map(Number)
-  const t = new Date()
+  const t = new Date(ref)
   t.setHours(h, m, 0, 0)
-  const diff = t.getTime() - now.getTime()
+  const diff = t.getTime() - ref.getTime()
   if (diff < -30 * 60 * 1000) return 'passado'
   if (diff < 15 * 60 * 1000)  return 'agora'
   return 'futuro'
+}
+
+/** Converte atendimentos de hoje cujo horário já chegou em RelatorioPendente */
+function derivePendentesFromHoje(atendimentos: AtendimentoUI[], now: Date): RelatorioPendente[] {
+  const hoje = now.toISOString().slice(0, 10)
+  return atendimentos
+    .filter(at => {
+      const status = getAtendStatus(at.horario, at.falta, now)
+      return status !== 'futuro' && status !== 'falta'
+    })
+    .map(at => ({
+      id: `hoje-${at.id}`,
+      paciente: at.nome,
+      tipo: at.tipo,
+      data: hoje,
+      horario: at.horario,
+    }))
 }
 
 /** Retorna quantos dias se passaram desde a data ISO */
@@ -73,6 +99,18 @@ function labelAtraso(dias: number, horario: string): string {
   if (dias === 0) return `hoje às ${horario}`
   if (dias === 1) return 'ontem'
   return `há ${dias} dias`
+}
+
+function dataOntem(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
+function data30DiasAtras(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 30)
+  return d.toISOString().slice(0, 10)
 }
 
 // ---------------------------------------------------------------------------
@@ -101,9 +139,9 @@ function AtendimentoCard({
   temPauta,
   onAbrirPauta,
 }: {
-  at: Atendimento
+  at: AtendimentoUI
   temPauta: boolean
-  onAbrirPauta: (at: Atendimento) => void
+  onAbrirPauta: (at: AtendimentoUI) => void
 }) {
   const status = getAtendStatus(at.horario, at.falta)
   const style = statusStyle[status]
@@ -135,23 +173,41 @@ function AtendimentoCard({
         </span>
       </div>
 
-      {/* Botão Pauta */}
-      <button
-        onClick={() => onAbrirPauta(at)}
-        title="Abrir pauta desta sessão"
-        className={cn(
-          'shrink-0 flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 transition-all border',
-          temPauta
-            ? 'border-[#04c2fb]/30 bg-[#04c2fb]/5 text-[#04c2fb] hover:bg-[#04c2fb]/10'
-            : 'border-transparent text-muted-foreground hover:border-gray-200 hover:bg-muted hover:text-foreground',
-        )}
-      >
-        <NotebookPen className="h-3.5 w-3.5" />
-        <span className="text-[9px] font-semibold leading-none">Pauta</span>
-        {temPauta && (
-          <span className="h-1 w-1 rounded-full bg-[#04c2fb] inline-block" />
-        )}
-      </button>
+      {/* Botão Pauta — só disponível antes da sessão começar */}
+      {status === 'futuro' && (
+        <button
+          onClick={() => onAbrirPauta(at)}
+          title="Abrir pauta desta sessão"
+          className={cn(
+            'shrink-0 flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 transition-all border',
+            temPauta
+              ? 'border-[#04c2fb]/30 bg-[#04c2fb]/5 text-[#04c2fb] hover:bg-[#04c2fb]/10'
+              : 'border-transparent text-muted-foreground hover:border-gray-200 hover:bg-muted hover:text-foreground',
+          )}
+        >
+          <NotebookPen className="h-3.5 w-3.5" />
+          <span className="text-[9px] font-semibold leading-none">Pauta</span>
+          {temPauta && (
+            <span className="h-1 w-1 rounded-full bg-[#04c2fb] inline-block" />
+          )}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function AtendimentoSkeleton() {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-l-4 border-l-gray-200 bg-white p-3">
+      <div className="h-8 w-8 rounded-full bg-muted shrink-0 animate-pulse" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 w-36 rounded bg-muted animate-pulse" />
+        <div className="h-3 w-20 rounded-full bg-muted animate-pulse" />
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        <div className="h-3 w-10 rounded bg-muted animate-pulse" />
+        <div className="h-4 w-16 rounded-full bg-muted animate-pulse" />
+      </div>
     </div>
   )
 }
@@ -167,28 +223,40 @@ function EmptyAtendimentos() {
   )
 }
 
-function TarefasPendentes() {
-  const [pendentes, setPendentes] = useState<RelatorioPendente[]>(relatoriosPendentesIniciais)
-  const [dispensados, setDispensados] = useState<Set<number>>(new Set())
+function TarefasPendentes({ pendentes, loading }: { pendentes: RelatorioPendente[]; loading?: boolean }) {
+  const [dispensados, setDispensados] = useState<Set<string>>(new Set())
 
   const visiveis = useMemo(
     () => pendentes.filter(p => !dispensados.has(p.id)),
     [pendentes, dispensados]
   )
 
-  // Ordenar: mais antigo primeiro (maior urgência)
   const ordenados = useMemo(
     () => [...visiveis].sort((a, b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario)),
     [visiveis]
   )
 
-  function dispensar(id: number) {
+  function dispensar(id: string) {
     setDispensados(prev => new Set([...prev, id]))
   }
 
   const totalPendentes = pendentes.length
 
-  // Estado vazio — tudo em dia
+  if (loading) {
+    return (
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b">
+          <FileText className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Tarefas pendentes</span>
+        </div>
+        <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm">Carregando...</span>
+        </div>
+      </div>
+    )
+  }
+
   if (visiveis.length === 0) {
     return (
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -206,7 +274,7 @@ function TarefasPendentes() {
             <CheckCircle2 className="h-5 w-5 text-green-500" />
           </div>
           <p className="text-sm font-medium text-green-700">Tudo em dia!</p>
-          <p className="text-xs text-muted-foreground">Nenhum relatório pendente.</p>
+          <p className="text-xs text-muted-foreground">Nenhum registro pendente.</p>
         </div>
       </div>
     )
@@ -223,7 +291,7 @@ function TarefasPendentes() {
           </div>
           <div>
             <p className="text-sm font-semibold leading-none">Tarefas pendentes</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Relatórios de sessão ainda não registrados</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Registros de sessão ainda não documentados</p>
           </div>
         </div>
         <span className="flex items-center justify-center h-6 min-w-6 rounded-full bg-red-500 text-white text-[11px] font-bold px-1.5">
@@ -267,7 +335,7 @@ function TarefasPendentes() {
 
               {/* Ação */}
               <Link
-                href={`/dashboard/registros/${item.id}`}
+                href="/dashboard/registros"
                 className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110 whitespace-nowrap"
                 style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
               >
@@ -290,7 +358,7 @@ function TarefasPendentes() {
       {/* Footer */}
       <div className="flex items-center justify-between px-5 py-3 border-t bg-muted/20">
         <p className="text-[11px] text-muted-foreground">
-          Clique em <strong>Registrar</strong> para documentar a sessão diretamente na página do paciente.
+          Clique em <strong>Registrar</strong> para documentar a sessão.
         </p>
         {dispensados.size > 0 && (
           <button
@@ -310,27 +378,63 @@ function TarefasPendentes() {
 // ---------------------------------------------------------------------------
 
 export default function DashboardPage() {
-  const [pautaAberta, setPautaAberta] = useState<Atendimento | null>(null)
-  // Mapa de atendimentoId → tem pauta salva (não-vazia)
-  const [comPauta, setComPauta] = useState<Set<number>>(new Set())
+  const [pautaAberta, setPautaAberta] = useState<AtendimentoUI | null>(null)
+  const [comPauta, setComPauta] = useState<Set<string>>(new Set())
+
+  // Relógio que re-avalia a cada 30s quais sessões já começaram
+  const [currentTime, setCurrentTime] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setCurrentTime(new Date()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Dados reais: agendamentos de hoje
+  const { data: agendaHoje, isLoading: loadingHoje } = useAgendamentosHoje()
+  const atendimentosHoje = useMemo<AtendimentoUI[]>(
+    () => (agendaHoje?.items ?? []).map(toAtendimentoUI),
+    [agendaHoje]
+  )
+
+  // Dados reais: agendamentos dos últimos 30 dias sem registro
+  const { data: agendaPendente, isLoading: loadingPendente } = useAgendamentos({
+    data_inicio: data30DiasAtras(),
+    data_fim: dataOntem(),
+    sem_registro: true,
+  })
+  const pendentesPassado = useMemo<RelatorioPendente[]>(
+    () => (agendaPendente?.items ?? []).map(toRelatorioPendente),
+    [agendaPendente]
+  )
+
+  // Pendentes derivados dos atendimentos de hoje (horário já passou)
+  const pendentesHoje = useMemo(
+    () => derivePendentesFromHoje(atendimentosHoje, currentTime),
+    [atendimentosHoje, currentTime],
+  )
+
+  const allPendentes = useMemo(
+    () => [...pendentesPassado, ...pendentesHoje],
+    [pendentesPassado, pendentesHoje],
+  )
 
   // Carrega do localStorage quais atendimentos já têm pauta
   useEffect(() => {
+    if (!atendimentosHoje.length) return
     const ids = atendimentosHoje
       .filter(at => {
         const v = localStorage.getItem(chavePauta(at.id))
         return v && v.trim().length > 0
       })
       .map(at => at.id)
-    setComPauta(new Set(ids))
-  }, [])
+    startTransition(() => setComPauta(new Set(ids)))
+  }, [atendimentosHoje])
 
   function handlePautaSalva(atendId: number | string, texto: string) {
-    const numId = Number(atendId)
+    const strId = String(atendId)
     setComPauta(prev => {
       const next = new Set(prev)
-      if (texto.trim()) next.add(numId)
-      else next.delete(numId)
+      if (texto.trim()) next.add(strId)
+      else next.delete(strId)
       return next
     })
   }
@@ -351,7 +455,10 @@ export default function DashboardPage() {
           <div>
             <p className="text-sm font-semibold">Atendimentos</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {atendimentosHoje.length} agendado{atendimentosHoje.length !== 1 ? 's' : ''} para hoje
+              {loadingHoje
+                ? 'Carregando...'
+                : `${atendimentosHoje.length} agendado${atendimentosHoje.length !== 1 ? 's' : ''} para hoje`
+              }
             </p>
           </div>
           {/* Legenda */}
@@ -375,16 +482,18 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="p-3 sm:p-4 space-y-2 overflow-y-auto max-h-[520px]">
-          {atendimentosHoje.length === 0
-            ? <EmptyAtendimentos />
-            : atendimentosHoje.map(at => (
-                <AtendimentoCard
-                  key={at.id}
-                  at={at}
-                  temPauta={comPauta.has(at.id)}
-                  onAbrirPauta={setPautaAberta}
-                />
-              ))
+          {loadingHoje
+            ? Array.from({ length: 3 }).map((_, i) => <AtendimentoSkeleton key={i} />)
+            : atendimentosHoje.length === 0
+              ? <EmptyAtendimentos />
+              : atendimentosHoje.map(at => (
+                  <AtendimentoCard
+                    key={at.id}
+                    at={at}
+                    temPauta={comPauta.has(at.id)}
+                    onAbrirPauta={setPautaAberta}
+                  />
+                ))
           }
         </div>
         {/* Legenda mobile */}
@@ -397,7 +506,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Tarefas pendentes */}
-      <TarefasPendentes />
+      <TarefasPendentes
+        pendentes={allPendentes}
+        loading={loadingHoje || loadingPendente}
+      />
 
       {/* Modal Pauta */}
       {pautaAberta && (

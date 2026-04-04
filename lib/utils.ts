@@ -22,6 +22,15 @@ export function extractTiptapText(json: Record<string, unknown> | null, maxChars
   return full.length > maxChars ? full.slice(0, maxChars).trimEnd() + '…' : full
 }
 
+/** Retorna a próxima hora cheia (HH:00) a partir de agora. Ex: 22:32 → '23:00', 14:00 → '14:00' */
+export function proximaHoraCheia(): string {
+  const d = new Date()
+  const min = d.getMinutes()
+  let h = d.getHours()
+  if (min > 0) h = (h + 1) % 24
+  return `${String(h).padStart(2, '0')}:00`
+}
+
 /** Retorna a data de hoje no formato YYYY-MM-DD (sem desvio de timezone). */
 export function hoje(): string {
   const d = new Date()

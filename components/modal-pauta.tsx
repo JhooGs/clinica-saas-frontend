@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, startTransition } from 'react'
 import { NotebookPen, X, Check } from 'lucide-react'
 
 /* ── Helpers ──────────────────────────────────────── */
@@ -36,7 +36,7 @@ export function ModalPauta({
 
   useEffect(() => {
     const raw = localStorage.getItem(chavePauta(atendimento.id))
-    if (raw) setTexto(raw)
+    if (raw) startTransition(() => setTexto(raw))
     setTimeout(() => textareaRef.current?.focus(), 50)
   }, [atendimento.id])
 

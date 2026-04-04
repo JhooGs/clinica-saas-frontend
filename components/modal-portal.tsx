@@ -12,14 +12,14 @@
  * diretamente no <body>, garantindo que o fixed se posicione relativo ao viewport.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, startTransition } from 'react'
 import { createPortal } from 'react-dom'
 
 export function ModalPortal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
+    startTransition(() => setMounted(true))
   }, [])
 
   if (!mounted) return null

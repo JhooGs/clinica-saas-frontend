@@ -1,73 +1,522 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { TrendingUp, TrendingDown, Clock, Plus, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
-import { cn, hoje } from '@/lib/utils'
+import { TrendingUp, TrendingDown, Clock, AlertCircle, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Loader2, Receipt, User, CalendarDays, Banknote, Info, FileText, Trash2, QrCode, CreditCard, ArrowLeftRight, Building2, ChevronDown, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ModalPortal } from '@/components/modal-portal'
 import { DatePicker } from '@/components/ui/date-picker'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { toast } from 'sonner'
+import { useTransacoes, useCriarTransacao, useAtualizarTransacao, useExcluirTransacao } from '@/hooks/use-financeiro'
+import type { Financeiro, FormaPagamento } from '@/types'
 
-type Tipo = 'receita' | 'despesa'
-type Status = 'pago' | 'pendente'
+import type { LucideIcon } from 'lucide-react'
 
-type Transacao = {
-  id: number
-  data: string
-  descricao: string
-  tipo: Tipo
-  valor: number
-  status: Status
-}
-
-type SortKey = 'data' | 'descricao' | 'tipo' | 'valor' | 'status'
-type SortDir = 'asc' | 'desc'
-
-const transacoesIniciais: Transacao[] = [
-  { id: 1, data: '03/03/2026', descricao: 'Sessão - Bernardo',         tipo: 'receita', valor: 120.00, status: 'pago'     },
-  { id: 2, data: '05/03/2026', descricao: 'Sessão - Angelo',           tipo: 'receita', valor: 100.00, status: 'pago'     },
-  { id: 3, data: '07/03/2026', descricao: 'Sessão - Lorenzo',          tipo: 'receita', valor: 150.00, status: 'pago'     },
-  { id: 4, data: '10/03/2026', descricao: 'Aluguel da sala',           tipo: 'despesa', valor: 800.00, status: 'pago'     },
-  { id: 5, data: '12/03/2026', descricao: 'Sessão - Pietro',           tipo: 'receita', valor: 150.00, status: 'pendente' },
-  { id: 6, data: '14/03/2026', descricao: 'Sessão - Isadora',          tipo: 'receita', valor: 160.00, status: 'pendente' },
-  { id: 7, data: '15/03/2026', descricao: 'Material terapêutico',      tipo: 'despesa', valor: 250.00, status: 'pendente' },
-  { id: 8, data: '17/03/2026', descricao: 'Sessão - Moysés',           tipo: 'receita', valor: 160.00, status: 'pendente' },
+const FORMAS_PAGAMENTO: { value: FormaPagamento; label: string; short: string; Icon: LucideIcon }[] = [
+  { value: 'pix',            label: 'Pix',               short: 'Pix',          Icon: QrCode },
+  { value: 'cartao_credito', label: 'Cartão de crédito', short: 'Crédito',      Icon: CreditCard },
+  { value: 'cartao_debito',  label: 'Cartão de débito',  short: 'Débito',       Icon: CreditCard },
+  { value: 'dinheiro',       label: 'Dinheiro',          short: 'Dinheiro',     Icon: Banknote },
+  { value: 'transferencia',  label: 'Transferência',     short: 'Transferência', Icon: ArrowLeftRight },
+  { value: 'convenio',       label: 'Convênio',          short: 'Convênio',     Icon: Building2 },
 ]
 
-function formInicial() {
-  return {
-    tipo: 'receita' as Tipo,
-    descricao: '',
-    valor: '',
-    dataVencimento: hoje(),
-    status: 'pendente' as Status,
-  }
+function labelForma(forma?: FormaPagamento) {
+  return FORMAS_PAGAMENTO.find(f => f.value === forma)?.label ?? '-'
+}
+
+function FormaPagamentoDropdown({
+  value,
+  onChange,
+}: {
+  value: FormaPagamento
+  onChange: (v: FormaPagamento) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const selecionado = FORMAS_PAGAMENTO.find(f => f.value === value) ?? FORMAS_PAGAMENTO[0]
+
+  useEffect(() => {
+    function handleFora(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleFora)
+    return () => document.removeEventListener('mousedown', handleFora)
+  }, [])
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setAberto(a => !a)}
+        className={cn(
+          'w-full flex items-center gap-2.5 rounded-lg border bg-white/80 px-3 py-2 text-sm transition-all',
+          aberto
+            ? 'border-[#04c2fb]/60 ring-2 ring-[#04c2fb]/40'
+            : 'border-gray-200 hover:border-[#04c2fb]/30'
+        )}
+      >
+        <selecionado.Icon className="h-4 w-4 text-[#04c2fb] shrink-0" />
+        <span className="flex-1 text-left font-medium text-gray-800">{selecionado.label}</span>
+        <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-150', aberto && 'rotate-180')} />
+      </button>
+
+      {/* Dropdown */}
+      {aberto && (
+        <div
+          className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-gray-200 shadow-lg overflow-hidden"
+          style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
+        >
+          <div className="py-1">
+            {FORMAS_PAGAMENTO.map(fp => {
+              const ativo = value === fp.value
+              return (
+                <button
+                  key={fp.value}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); onChange(fp.value); setAberto(false) }}
+                  className={cn(
+                    'w-full px-3 py-2 text-left text-sm transition-colors flex items-center gap-2.5',
+                    ativo
+                      ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  )}
+                >
+                  <fp.Icon className={cn('h-4 w-4 shrink-0', ativo ? 'text-[#04c2fb]' : 'text-muted-foreground')} />
+                  <span className="flex-1">{fp.label}</span>
+                  {ativo && <Check className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function hoje() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+type SortKey = 'criado_em' | 'descricao' | 'tipo' | 'valor' | 'status'
+type SortDir = 'asc' | 'desc'
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
+  return sortDir === 'asc'
+    ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
+    : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />
+}
+
+function numParaBRL(v: number | string): string {
+  const str = Number(v).toFixed(2)
+  const dot = str.indexOf('.')
+  const intFormatted = str.slice(0, dot).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return `${intFormatted},${str.slice(dot + 1)}`
 }
 
 function formatBRL(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  return `R$ ${numParaBRL(v)}`
+}
+
+function formatValor(v: number) {
+  return numParaBRL(v)
+}
+
+function formatData(iso: string | undefined) {
+  if (!iso) return '-'
+  return new Date(iso).toLocaleDateString('pt-BR')
+}
+
+function statusLabel(status: Financeiro['status']) {
+  switch (status) {
+    case 'pago':     return 'Pago'
+    case 'pendente': return 'Pendente'
+    case 'atrasado': return 'Atrasado'
+    case 'cancelado': return 'Cancelado'
+  }
+}
+
+function statusClasses(status: Financeiro['status']) {
+  switch (status) {
+    case 'pago':     return 'bg-green-50 text-green-700'
+    case 'pendente': return 'bg-amber-50 text-amber-700'
+    case 'atrasado': return 'bg-red-50 text-red-600'
+    case 'cancelado': return 'bg-gray-100 text-gray-500'
+  }
+}
+
+function statusDotClasses(status: Financeiro['status']) {
+  switch (status) {
+    case 'pago':     return 'bg-green-500'
+    case 'pendente': return 'bg-amber-500'
+    case 'atrasado': return 'bg-red-500'
+    case 'cancelado': return 'bg-gray-400'
+  }
+}
+
+function TrashCanButton({ onClick }: { onClick: (e: React.MouseEvent) => void }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title="Excluir despesa"
+      className={cn(
+        'rounded-lg p-1.5 transition-colors',
+        hovered ? 'text-red-500 bg-red-50' : 'text-muted-foreground hover:bg-gray-100'
+      )}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+        <line x1="10" x2="10" y1="11" y2="17" />
+        <line x1="14" x2="14" y1="11" y2="17" />
+        <g style={{
+          transformOrigin: '3px 6px',
+          transform: hovered ? 'rotate(-35deg)' : 'rotate(0deg)',
+          transition: 'transform 0.2s ease',
+        }}>
+          <path d="M3 6h18" />
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+        </g>
+      </svg>
+    </button>
+  )
+}
+
+function ModalDetalheTransacao({
+  transacao,
+  onFechar,
+}: {
+  transacao: Financeiro
+  onFechar: () => void
+}) {
+  const [dataPagamento, setDataPagamento] = useState(hoje())
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('pix')
+  const atualizarTransacao = useAtualizarTransacao()
+
+  const eReceita = transacao.tipo === 'receita'
+  const jaPago = transacao.status === 'pago'
+
+  const heroLabel = eReceita
+    ? (jaPago ? 'Valor recebido' : 'A receber')
+    : 'Valor da despesa'
+
+  async function darBaixa() {
+    try {
+      await atualizarTransacao.mutateAsync({
+        id: transacao.id,
+        payload: { status: 'pago', data_pagamento: dataPagamento, forma_pagamento: formaPagamento },
+      })
+      toast.success('Recebimento registrado', { description: `Pago em ${formatData(dataPagamento)}.` })
+      onFechar()
+    } catch {
+      toast.error('Erro ao registrar pagamento', { description: 'Tente novamente.' })
+    }
+  }
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+        onClick={onFechar}
+      >
+        <div
+          className="w-full max-w-md rounded-2xl border border-white/30 shadow-2xl"
+          style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2.5">
+              <div className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                eReceita ? 'bg-emerald-100' : 'bg-red-100'
+              )}>
+                <Receipt className={cn('h-4 w-4', eReceita ? 'text-emerald-600' : 'text-red-500')} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold tracking-tight leading-tight">{transacao.descricao}</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {transacao.paciente_nome ?? (eReceita ? 'Receita' : 'Despesa')}
+                </p>
+              </div>
+            </div>
+            <button onClick={onFechar} className="rounded-lg p-1.5 text-muted-foreground hover:bg-gray-100 transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Hero */}
+          <div className={cn(
+            'px-6 py-5 flex items-center justify-between',
+            eReceita ? 'bg-gradient-to-br from-emerald-50 to-teal-50/40' : 'bg-gradient-to-br from-red-50 to-rose-50/40'
+          )}>
+            <div>
+              <p className="text-[11px] font-medium text-muted-foreground mb-1">{heroLabel}</p>
+              <p className={cn('text-3xl font-bold tracking-tight tabular-nums', eReceita ? 'text-emerald-600' : 'text-red-500')}>
+                {eReceita ? '+' : '−'} R$ {formatValor(transacao.valor)}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium', statusClasses(transacao.status))}>
+                <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClasses(transacao.status))} />
+                {statusLabel(transacao.status)}
+              </span>
+              {transacao.registro_id && (
+                <span className="inline-flex items-center rounded-full bg-violet-50 text-violet-700 px-2.5 py-1 text-xs font-medium">
+                  Sessão
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Detalhes */}
+          <div className="px-6 divide-y divide-gray-50">
+            {transacao.paciente_nome && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-xs text-muted-foreground flex items-center gap-2"><User className="h-3.5 w-3.5" /> Paciente</span>
+                <span className="text-sm font-medium text-gray-800">{transacao.paciente_nome}</span>
+              </div>
+            )}
+            {transacao.tipo_sessao && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-xs text-muted-foreground flex items-center gap-2"><Banknote className="h-3.5 w-3.5" /> Tipo de atendimento</span>
+                <span className="text-sm font-medium text-gray-800">{transacao.tipo_sessao}</span>
+              </div>
+            )}
+            {transacao.data_sessao && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Data da sessão</span>
+                <span className="text-sm text-gray-700">{formatData(transacao.data_sessao)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between py-2.5">
+              <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Criado em</span>
+              <span className="text-sm text-gray-700">{formatData(transacao.criado_em)}</span>
+            </div>
+            {transacao.data_vencimento && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-xs text-muted-foreground flex items-center gap-2"><Clock className="h-3.5 w-3.5" /> Vencimento</span>
+                <span className="text-sm text-gray-700">{formatData(transacao.data_vencimento)}</span>
+              </div>
+            )}
+            {transacao.forma_pagamento && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-xs text-muted-foreground flex items-center gap-2"><Banknote className="h-3.5 w-3.5" /> Meio de pagamento</span>
+                <span className="text-sm font-medium text-gray-800">{labelForma(transacao.forma_pagamento)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Seção de pagamento — apenas para receitas não canceladas */}
+          {eReceita && transacao.status !== 'cancelado' && (
+            <div className="px-6 pt-4 pb-5 border-t border-gray-100 mt-1">
+              {jaPago ? (
+                /* Já pago */
+                <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3.5 flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-emerald-700">Recebimento confirmado</p>
+                    {transacao.data_pagamento && (
+                      <p className="text-xs text-emerald-600 mt-0.5">
+                        Em {formatData(transacao.data_pagamento)}
+                        {transacao.forma_pagamento && ` via ${labelForma(transacao.forma_pagamento)}`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Pendente ou atrasado — form de baixa */
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-gray-100" />
+                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Registrar recebimento</span>
+                    <div className="h-px flex-1 bg-gray-100" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Data do recebimento</label>
+                      <DatePicker value={dataPagamento} onChange={v => setDataPagamento(v)} placeholder="Selecionar data" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Forma de pagamento</label>
+                      <FormaPagamentoDropdown value={formaPagamento} onChange={setFormaPagamento} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={darBaixa}
+                    disabled={atualizarTransacao.isPending}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
+                    style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                  >
+                    {atualizarTransacao.isPending
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <CheckCircle className="h-4 w-4" />
+                    }
+                    Confirmar recebimento
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Rodapé */}
+          <div className="flex justify-end px-6 py-3 border-t border-gray-100">
+            <button onClick={onFechar} className="rounded-xl border px-5 py-2 text-sm font-medium text-muted-foreground hover:bg-gray-50 transition-colors">
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
+function ModalExclusaoTransacao({
+  transacao,
+  onConfirmar,
+  onCancelar,
+}: {
+  transacao: Financeiro
+  onConfirmar: () => void
+  onCancelar: () => void
+}) {
+  const titulo = transacao.tipo === 'receita' ? 'Excluir receita' : 'Excluir despesa'
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backdropFilter: 'blur(5px)', background: 'rgba(0,0,0,0.22)' }}
+      onClick={e => { if (e.target === e.currentTarget) onCancelar() }}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-white/60 shadow-2xl"
+        style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(24px)' }}
+      >
+        <div className="px-6 pt-6 pb-5 space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 border border-red-100">
+              <Trash2 className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">{titulo}</h2>
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                Tem certeza que deseja excluir{' '}
+                <span className="font-semibold text-gray-800">&ldquo;{transacao.descricao}&rdquo;</span>?{' '}
+                Esta ação não pode ser desfeita.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              onClick={onCancelar}
+              className="rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-gray-100 transition-colors border border-gray-200"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={onConfirmar}
+              className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const STORAGE_KEY_VENCIMENTO = 'clinitra:dia_vencimento'
+
+function calcularVencimentoPadrao(): { iso: string; display: string; dia: number } | null {
+  if (typeof window === 'undefined') return null
+  const stored = localStorage.getItem(STORAGE_KEY_VENCIMENTO)
+  if (!stored) return null
+  const dia = Number(stored)
+  if (!dia || isNaN(dia)) return null
+
+  const hoje = new Date()
+  const candidato = new Date(hoje.getFullYear(), hoje.getMonth(), dia)
+  const alvo = candidato > hoje ? candidato : new Date(hoje.getFullYear(), hoje.getMonth() + 1, dia)
+
+  return {
+    iso: alvo.toISOString().slice(0, 10),
+    display: alvo.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    dia,
+  }
+}
+
+function formatarMoeda(raw: string) {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  return numParaBRL(parseInt(digits, 10) / 100)
 }
 
 function ModalNovaTransacao({
-  onSalvar,
   onFechar,
 }: {
-  onSalvar: (f: ReturnType<typeof formInicial>) => void
   onFechar: () => void
 }) {
-  const [form, setForm] = useState(formInicial)
+  const [form, setForm] = useState({
+    tipo: 'receita' as 'receita' | 'despesa',
+    descricao: '',
+    valor: '',
+    formaPagamento: 'pix' as FormaPagamento,
+  })
   const [confirmarSair, setConfirmarSair] = useState(false)
+  const criarTransacao = useCriarTransacao()
+
+  const vencimentoPadrao = useMemo(() => calcularVencimentoPadrao(), [])
+
   function f(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  const temDados = form.descricao !== '' || form.valor !== '' || form.dataVencimento !== ''
+  function handleValorChange(e: React.ChangeEvent<HTMLInputElement>) {
+    f('valor', formatarMoeda(e.target.value))
+  }
+
+  const temDados = form.descricao !== '' || form.valor !== ''
 
   function tentarFechar() {
     if (temDados) setConfirmarSair(true)
     else onFechar()
+  }
+
+  async function salvar() {
+    if (!form.descricao.trim() || !form.valor) return
+    const digits = form.valor.replace(/\D/g, '')
+    const valorNum = parseInt(digits, 10) / 100
+    if (!valorNum || isNaN(valorNum)) {
+      toast.error('Valor inválido')
+      return
+    }
+    try {
+      await criarTransacao.mutateAsync({
+        tipo: form.tipo,
+        descricao: form.descricao.trim(),
+        valor: valorNum,
+        forma_pagamento: form.formaPagamento,
+        data_vencimento: vencimentoPadrao?.iso,
+      })
+      toast.success('Transação registrada', {
+        description: `${form.tipo === 'receita' ? 'Entrada' : 'Saída'} de ${formatBRL(valorNum)} adicionada.`,
+      })
+      onFechar()
+    } catch {
+      toast.error('Erro ao salvar transação', { description: 'Tente novamente.' })
+    }
   }
 
   return (
@@ -83,12 +532,15 @@ function ModalNovaTransacao({
         />
       )}
       <div
-        className="w-full max-w-lg rounded-2xl border border-white/30 shadow-2xl"
-        style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.92)' }}
+        className="w-full max-w-md rounded-2xl border border-white/30 shadow-2xl"
+        style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.95)' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold tracking-tight">Nova Transação</h2>
+          <div className="flex items-center gap-2">
+            <Receipt className="h-4 w-4 text-[#04c2fb]" />
+            <h2 className="text-base font-semibold tracking-tight">Nova Transação</h2>
+          </div>
           <button
             onClick={tentarFechar}
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-gray-100 transition-colors"
@@ -97,61 +549,111 @@ function ModalNovaTransacao({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Tipo *</label>
-            <select
-              value={form.tipo}
-              onChange={e => f('tipo', e.target.value)}
-              className="w-full rounded-lg border bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
-            >
-              <option value="receita">Receita (Entrada)</option>
-              <option value="despesa">Despesa (Saída)</option>
-            </select>
+        <div className="px-6 py-5 space-y-4">
+          {/* Tipo — toggle segmentado */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tipo</label>
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100/80 p-1">
+              {(['receita', 'despesa'] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => f('tipo', t)}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-all duration-150',
+                    form.tipo === t
+                      ? t === 'receita'
+                        ? 'bg-white text-emerald-700 shadow-sm'
+                        : 'bg-white text-red-600 shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {t === 'receita'
+                    ? <TrendingUp className="h-3.5 w-3.5" />
+                    : <TrendingDown className="h-3.5 w-3.5" />
+                  }
+                  {t === 'receita' ? 'Entrada' : 'Saída'}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Descrição *</label>
-            <input
-              value={form.descricao}
-              onChange={e => f('descricao', e.target.value)}
-              placeholder="Ex: Sessão - Nome do paciente"
-              className="w-full rounded-lg border bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
-            />
+
+          {/* Descrição */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Descrição</label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                value={form.descricao}
+                onChange={e => f('descricao', e.target.value)}
+                placeholder="Ex: Sessão com João Silva"
+                className="w-full rounded-lg border bg-white/80 pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Valor (R$) *</label>
+
+          {/* Valor */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valor</label>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-sm text-gray-400 select-none">
+                R$
+              </span>
               <input
                 value={form.valor}
-                onChange={e => f('valor', e.target.value)}
+                onChange={handleValorChange}
                 placeholder="0,00"
-                className="w-full rounded-lg border bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Data</label>
-              <DatePicker
-                value={form.dataVencimento}
-                onChange={v => f('dataVencimento', v)}
-                placeholder="Selecionar data"
+                inputMode="numeric"
+                className="w-full rounded-xl border border-gray-200 pl-10 pr-4 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/30 focus:border-[#04c2fb]/60 transition-all"
               />
             </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Status</label>
-            <select
-              value={form.status}
-              onChange={e => f('status', e.target.value)}
-              className="w-full rounded-lg border bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
-            >
-              <option value="pendente">Pendente</option>
-              <option value="pago">Pago</option>
-            </select>
+
+          {/* Forma de pagamento */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Forma de pagamento</label>
+            <FormaPagamentoDropdown
+              value={form.formaPagamento}
+              onChange={v => f('formaPagamento', v)}
+            />
+          </div>
+
+          {/* Vencimento — somente leitura, vem das configurações */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vencimento</label>
+            {vencimentoPadrao ? (
+              <div className="rounded-xl border border-[#04c2fb]/25 bg-[#04c2fb]/5 px-4 py-3 space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />
+                    <span className="text-sm font-medium text-gray-800">{vencimentoPadrao.display}</span>
+                  </div>
+                  <span
+                    className="text-[11px] font-semibold text-white px-2 py-0.5 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                  >
+                    dia {vencimentoPadrao.dia}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Info className="h-3 w-3 shrink-0" />
+                  Definido em Configurações → Financeiro. Não editável aqui.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-2">
+                <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-amber-700">Nenhuma data configurada</p>
+                  <p className="text-[11px] text-amber-600 mt-0.5">
+                    Defina o dia de vencimento padrão em Configurações → Financeiro.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
           <button
             onClick={tentarFechar}
@@ -160,11 +662,16 @@ function ModalNovaTransacao({
             Cancelar
           </button>
           <button
-            onClick={() => { if (form.descricao.trim() && form.valor) onSalvar(form) }}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors hover:brightness-110"
+            onClick={salvar}
+            disabled={criarTransacao.isPending || !form.descricao.trim() || !form.valor}
+            className="rounded-lg px-5 py-2 text-sm font-medium text-white transition-colors hover:brightness-110 disabled:opacity-50 flex items-center gap-2"
             style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
           >
-            Salvar Transação
+            {criarTransacao.isPending
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <CheckCircle className="h-3.5 w-3.5" />
+            }
+            Salvar
           </button>
         </div>
       </div>
@@ -174,12 +681,31 @@ function ModalNovaTransacao({
 }
 
 export default function FinanceiroPage() {
-  const [transacoes, setTransacoes] = useState<Transacao[]>(transacoesIniciais)
   const [abrirModal, setAbrirModal] = useState(false)
-  const [filtroTipo, setFiltroTipo] = useState<'todos' | Tipo>('todos')
+  const [transacaoSelecionada, setTransacaoSelecionada] = useState<Financeiro | null>(null)
+  const [excluindoTransacao, setExcluindoTransacao] = useState<Financeiro | null>(null)
+  const [filtroTipo, setFiltroTipo] = useState<'todos' | 'receita' | 'despesa'>('todos')
   const [filtroPeriodo, setFiltroPeriodo] = useState<DateRange | undefined>(undefined)
-  const [sortKey, setSortKey] = useState<SortKey>('data')
+  const [sortKey, setSortKey] = useState<SortKey>('criado_em')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const { data, isLoading } = useTransacoes()
+  const excluirTransacao = useExcluirTransacao()
+
+  async function confirmarExclusao() {
+    if (!excluindoTransacao) return
+    try {
+      await excluirTransacao.mutateAsync(excluindoTransacao.id)
+      const label = excluindoTransacao.tipo === 'receita' ? 'Receita excluída' : 'Despesa excluída'
+      toast.success(label, { description: excluindoTransacao.descricao })
+      setExcluindoTransacao(null)
+    } catch {
+      toast.error('Erro ao excluir', { description: 'Tente novamente.' })
+    }
+  }
+
+  const transacoes = useMemo(() => data?.items ?? [], [data])
+  const resumo = data?.resumo
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -190,20 +716,6 @@ export default function FinanceiroPage() {
     }
   }
 
-  const resumo = useMemo(() => {
-    const receitaMes = transacoes.filter(t => t.tipo === 'receita').reduce((s, t) => s + t.valor, 0)
-    const despesaMes = transacoes.filter(t => t.tipo === 'despesa').reduce((s, t) => s + t.valor, 0)
-    const aReceber   = transacoes.filter(t => t.tipo === 'receita' && t.status === 'pendente').reduce((s, t) => s + t.valor, 0)
-    return { receitaMes, despesaMes, aReceber }
-  }, [transacoes])
-
-  // Converte DD/MM/YYYY → Date para comparação com o range
-  function parseDateBR(br: string): Date | null {
-    if (!br) return null
-    const [d, m, y] = br.split('/')
-    return new Date(Number(y), Number(m) - 1, Number(d))
-  }
-
   const filtroInicio = filtroPeriodo?.from
   const filtroFim    = filtroPeriodo?.to
 
@@ -211,8 +723,7 @@ export default function FinanceiroPage() {
     const filtered = transacoes.filter(t => {
       if (filtroTipo !== 'todos' && t.tipo !== filtroTipo) return false
       if (filtroInicio || filtroFim) {
-        const dt = parseDateBR(t.data)
-        if (!dt) return true
+        const dt = new Date(t.criado_em)
         if (filtroInicio && dt < filtroInicio) return false
         if (filtroFim   && dt > filtroFim)    return false
       }
@@ -222,11 +733,9 @@ export default function FinanceiroPage() {
     return [...filtered].sort((a, b) => {
       let cmp = 0
       switch (sortKey) {
-        case 'data': {
-          const da = parseDateBR(a.data), db = parseDateBR(b.data)
-          cmp = (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
+        case 'criado_em':
+          cmp = new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
           break
-        }
         case 'descricao':
           cmp = a.descricao.localeCompare(b.descricao, 'pt-BR')
           break
@@ -244,35 +753,23 @@ export default function FinanceiroPage() {
     })
   }, [transacoes, filtroTipo, filtroInicio, filtroFim, sortKey, sortDir])
 
-  function salvar(form: ReturnType<typeof formInicial>) {
-    const nova: Transacao = {
-      id: Date.now(),
-      data: form.dataVencimento
-        ? new Date(form.dataVencimento).toLocaleDateString('pt-BR')
-        : new Date().toLocaleDateString('pt-BR'),
-      descricao: form.descricao,
-      tipo: form.tipo,
-      valor: parseFloat(form.valor.replace(',', '.')),
-      status: form.status,
-    }
-    setTransacoes(prev => [nova, ...prev])
-    setAbrirModal(false)
-    toast.success('Transação registrada', {
-      description: `${nova.tipo === 'receita' ? 'Entrada' : 'Saída'} de ${formatBRL(nova.valor)} adicionada.`,
-    })
-  }
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
-    return sortDir === 'asc'
-      ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
-      : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />
-  }
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
 
-      {abrirModal && <ModalNovaTransacao onSalvar={salvar} onFechar={() => setAbrirModal(false)} />}
+      {abrirModal && <ModalNovaTransacao onFechar={() => setAbrirModal(false)} />}
+      {transacaoSelecionada && (
+        <ModalDetalheTransacao
+          transacao={transacaoSelecionada}
+          onFechar={() => setTransacaoSelecionada(null)}
+        />
+      )}
+      {excluindoTransacao && (
+        <ModalExclusaoTransacao
+          transacao={excluindoTransacao}
+          onConfirmar={confirmarExclusao}
+          onCancelar={() => setExcluindoTransacao(null)}
+        />
+      )}
 
       {/* Cabeçalho */}
       <div className="flex items-start justify-between">
@@ -291,12 +788,12 @@ export default function FinanceiroPage() {
       </div>
 
       {/* Cards resumo */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Receita do Mês</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-600">{formatBRL(resumo.receitaMes)}</p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-600">{formatBRL(resumo?.receita_mes ?? 0)}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">total de entradas</p>
             </div>
             <div className="rounded-lg p-2.5 bg-emerald-500/10">
@@ -308,7 +805,7 @@ export default function FinanceiroPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Despesa do Mês</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-red-500">{formatBRL(resumo.despesaMes)}</p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-red-500">{formatBRL(resumo?.despesa_mes ?? 0)}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">total de saídas</p>
             </div>
             <div className="rounded-lg p-2.5 bg-red-500/10">
@@ -320,11 +817,23 @@ export default function FinanceiroPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">A Receber</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-amber-600">{formatBRL(resumo.aReceber)}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">receitas pendentes</p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-amber-600">{formatBRL(resumo?.a_receber ?? 0)}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">dentro do prazo</p>
             </div>
             <div className="rounded-lg p-2.5 bg-amber-500/10">
               <Clock className="h-4 w-4 text-amber-500" />
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Atrasado</p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-red-600">{formatBRL(resumo?.atrasado ?? 0)}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">prazo expirado</p>
+            </div>
+            <div className="rounded-lg p-2.5 bg-red-500/10">
+              <AlertCircle className="h-4 w-4 text-red-500" />
             </div>
           </div>
         </div>
@@ -371,28 +880,55 @@ export default function FinanceiroPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th onClick={() => handleSort('data')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data" /></span>
+                <th onClick={() => handleSort('criado_em')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="criado_em" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th onClick={() => handleSort('descricao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Descrição <SortIcon col="descricao" /></span>
+                  <span className="inline-flex items-center gap-1.5">Descrição <SortIcon col="descricao" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th onClick={() => handleSort('tipo')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="tipo" /></span>
+                  <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="tipo" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th onClick={() => handleSort('valor')} className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5 justify-end">Valor <SortIcon col="valor" /></span>
+                  <span className="inline-flex items-center gap-1.5 justify-end">Valor <SortIcon col="valor" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th onClick={() => handleSort('status')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Status <SortIcon col="status" /></span>
+                  <span className="inline-flex items-center gap-1.5">Status <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
+                <th className="w-20 px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y">
-              {lista.map(t => (
-                <tr key={t.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-muted-foreground">{t.data}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{t.descricao}</td>
+              {isLoading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-[#04c2fb]" />
+                  </td>
+                </tr>
+              )}
+              {!isLoading && lista.map(t => (
+                <tr
+                  key={t.id}
+                  onClick={() => setTransacaoSelecionada(t)}
+                  className="group hover:bg-muted/20 transition-colors cursor-pointer"
+                >
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                    <div>{formatData(t.criado_em)}</div>
+                    {t.data_pagamento && (
+                      <div className="text-[11px] text-green-600">pago {formatData(t.data_pagamento)}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-800">
+                    <div className="flex items-center gap-1.5">
+                      {t.descricao}
+                      {t.registro_id && (
+                        <span className="inline-flex items-center rounded-full bg-violet-50 text-violet-600 px-1.5 py-0.5 text-[10px] font-medium">Sessão</span>
+                      )}
+                    </div>
+                    {t.paciente_nome && (
+                      <div className="text-[11px] text-muted-foreground">{t.paciente_nome}</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={cn(
                       'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
@@ -401,26 +937,34 @@ export default function FinanceiroPage() {
                       {t.tipo === 'receita' ? '↑ Entrada' : '↓ Saída'}
                     </span>
                   </td>
-                  <td className={cn(
-                    'px-4 py-3 text-right font-semibold',
-                    t.tipo === 'receita' ? 'text-emerald-600' : 'text-red-500'
-                  )}>
-                    {t.tipo === 'despesa' && '− '}{formatBRL(t.valor)}
+                  <td className="px-4 py-3 text-right">
+                    <div className={cn(
+                      'inline-flex items-baseline gap-1 font-semibold tabular-nums',
+                      t.tipo === 'receita' ? 'text-emerald-600' : 'text-red-500'
+                    )}>
+                      <span className="text-[11px] font-normal opacity-70">
+                        {t.tipo === 'receita' ? '+' : '−'} R$
+                      </span>
+                      {formatValor(t.valor)}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn(
                       'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                      t.status === 'pago' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                      statusClasses(t.status)
                     )}>
-                      <span className={cn('h-1.5 w-1.5 rounded-full', t.status === 'pago' ? 'bg-green-500' : 'bg-amber-500')} />
-                      {t.status === 'pago' ? 'Pago' : 'Pendente'}
+                      <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClasses(t.status))} />
+                      {statusLabel(t.status)}
                     </span>
+                  </td>
+                  <td className="w-14 px-4 py-3 text-center">
+                    <TrashCanButton onClick={e => { e.stopPropagation(); setExcluindoTransacao(t) }} />
                   </td>
                 </tr>
               ))}
-              {lista.length === 0 && (
+              {!isLoading && lista.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     Nenhuma transação encontrada.
                   </td>
                 </tr>

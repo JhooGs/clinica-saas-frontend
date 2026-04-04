@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, startTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
@@ -21,12 +21,14 @@ import {
   NotebookPen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { relatoriosPendentesIniciais } from '@/lib/mock-registros'
+// relatoriosPendentesIniciais não é mais usado aqui — agenda mostra apenas hoje em diante
 import { useGoogleCalendar } from '@/hooks/use-google-calendar'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { ModalNovoAgendamento } from '@/components/modal-novo-agendamento'
 import { ModalPortal } from '@/components/modal-portal'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
+import { useAgendamentos, useCancelarAgendamento } from '@/hooks/use-agenda'
+import type { Agendamento } from '@/types'
 
 const LS_EXPORTED_KEY = 'clinitra_gcal_exported_ids'
 
@@ -45,20 +47,6 @@ function saveExportedIds(ids: Set<string>) {
     localStorage.setItem(LS_EXPORTED_KEY, JSON.stringify(Array.from(ids)))
   } catch {}
 }
-
-// Agendamentos extras mock (constante — base fixa)
-const agendamentosBase: AgendamentoComSource[] = [
-  ...relatoriosPendentesIniciais.map(a => ({ ...a, source: 'clinitra' as const })),
-  { id: 201, paciente: 'Arthur da Silva Cardoso Leal', tipo: 'Sessão',           data: '2026-03-21', horario: '11:00', source: 'clinitra' },
-  { id: 202, paciente: 'Luiz Henrique Antônio Rosa',   tipo: 'Sessão',           data: '2026-03-21', horario: '14:00', source: 'clinitra' },
-  { id: 203, paciente: 'Felipe Konik Pertele',         tipo: 'Sessão avaliação', data: '2026-03-22', horario: '11:30', source: 'clinitra' },
-  { id: 204, paciente: 'Arthur Felipe Belarmino',      tipo: 'Sessão família',   data: '2026-03-22', horario: '15:00', source: 'clinitra' },
-  { id: 205, paciente: 'Lorenzo de Souza Bueno',       tipo: 'Sessão',           data: '2026-03-24', horario: '08:30', source: 'clinitra' },
-  { id: 206, paciente: 'Isadora Furman',               tipo: 'Sessão',           data: '2026-03-25', horario: '10:00', source: 'clinitra' },
-  { id: 207, paciente: 'Bernardo Antonio L.F.',        tipo: 'Sessão',           data: '2026-03-26', horario: '08:30', source: 'clinitra' },
-  { id: 208, pacientes: ['Lorenzo de Souza Bueno', 'Arthur Henrique'], paciente: 'Lorenzo de Souza Bueno, Arthur Henrique', tipo: 'Sessão em grupo', data: '2026-03-24', horario: '14:00', source: 'clinitra' },
-  { id: 209, pacientes: ['Isadora Furman', 'Rafaela Carnelosi Fonseca', 'Matteo Prado Oliveira'], paciente: 'Isadora Furman, Rafaela Carnelosi Fonseca, Matteo Prado Oliveira', tipo: 'Sessão em grupo', data: '2026-03-25', horario: '15:00', source: 'clinitra' },
-]
 
 const HOJE = (() => {
   const d = new Date()
@@ -88,6 +76,23 @@ function limitesSemana(hojeIso: string): { inicio: string; fim: string } {
 }
 
 const SEMANA = limitesSemana(HOJE)
+
+
+// Mapeia Agendamento da API para AgendamentoComSource (tipo unificado com Google Calendar)
+function agendamentoToComSource(a: Agendamento): AgendamentoComSource {
+  return {
+    id: a.id,
+    paciente: a.paciente_nome ?? a.paciente_id,
+    paciente_id: a.paciente_id,
+    pacientes: a.paciente_nome ? [a.paciente_nome] : undefined,
+    pacientes_ids: a.pacientes_ids,
+    tipo: a.tipo_sessao,
+    data: a.data,
+    horario: a.horario,
+    horarioFim: a.horario_fim,
+    source: 'clinitra',
+  }
+}
 
 function formatDataBR(iso: string) {
   if (!iso) return '-'
@@ -130,26 +135,33 @@ export default function AgendaPage() {
     refresh,
   } = useGoogleCalendar()
 
+  const { data: apiData } = useAgendamentos({ data_inicio: SEMANA.inicio, data_fim: SEMANA.fim })
+  const cancelarAgendamento = useCancelarAgendamento()
+
   const [exportedIds, setExportedIds] = useState<Set<string>>(() => loadExportedIds())
-  const [agendamentosExtra, setAgendamentosExtra] = useState<AgendamentoComSource[]>([])
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
+  const [agendamentosRecorrentes] = useState<AgendamentoComSource[]>(() => {
+    try {
+      const raw = localStorage.getItem('clinitra_agenda_recorrentes')
+      return raw ? JSON.parse(raw) as AgendamentoComSource[] : []
+    } catch { return [] }
+  })
   const [modalOpen, setModalOpen] = useState(false)
   const [agendamentoEditando, setAgendamentoEditando] = useState<AgendamentoComSource | undefined>()
   const [confirmarDeletar, setConfirmarDeletar] = useState<AgendamentoComSource | null>(null)
   const [pautaAberta, setPautaAberta] = useState<AgendamentoComSource | null>(null)
   const [comPauta, setComPauta] = useState<Set<string>>(new Set())
 
-  // Todos os agendamentos, filtrados à semana atual (seg–dom)
-  // agendamentosExtra pode conter overrides de itens base (edição)
-  // deletedIds exclui itens que foram removidos pelo usuário
+  // Todos os agendamentos: API (clinitra) + recorrentes locais + Google Calendar
   const todosAgendamentos = useMemo<AgendamentoComSource[]>(() => {
-    const extraIds = new Set(agendamentosExtra.map(a => String(a.id)))
-    const base = agendamentosBase.filter(a => !extraIds.has(String(a.id)))
-    const todos = [...base, ...agendamentosExtra, ...googleEvents]
-    return todos
-      .filter(a => !deletedIds.has(String(a.id)))
-      .filter(a => a.data >= SEMANA.inicio && a.data <= SEMANA.fim)
-  }, [agendamentosExtra, googleEvents, deletedIds])
+    const clinitaItems = (apiData?.items ?? []).map(agendamentoToComSource)
+    const clinitaKey = new Set(clinitaItems.map(a => `${a.data}_${a.horario}_${a.paciente}`))
+    // Recorrentes locais: apenas os que ainda não existem no banco
+    const recorrentesFiltrados = agendamentosRecorrentes.filter(
+      a => !clinitaKey.has(`${a.data}_${a.horario}_${a.paciente}`)
+    )
+    const todos = [...clinitaItems, ...recorrentesFiltrados, ...googleEvents]
+    return todos.filter(a => a.data >= HOJE && a.data <= SEMANA.fim)
+  }, [apiData, googleEvents, agendamentosRecorrentes])
 
   // Carrega quais agendamentos já têm pauta salva
   useEffect(() => {
@@ -159,7 +171,7 @@ export default function AgendaPage() {
         return v && v.trim().length > 0
       })
       .map(ag => String(ag.id))
-    setComPauta(new Set(ids))
+    startTransition(() => setComPauta(new Set(ids)))
   }, [todosAgendamentos])
 
   function handlePautaSalva(atendId: number | string, texto: string) {
@@ -197,18 +209,7 @@ export default function AgendaPage() {
   }
 
   function handleSave(ag: AgendamentoComSource) {
-    if (agendamentoEditando) {
-      setAgendamentosExtra(prev => {
-        const jaExiste = prev.some(a => a.id === ag.id)
-        // Se já está em extras → atualiza; senão era um item base → adiciona como override
-        return jaExiste ? prev.map(a => a.id === ag.id ? ag : a) : [ag, ...prev]
-      })
-      toast.success('Agendamento atualizado', { description: `${ag.paciente} — ${ag.horario}` })
-    } else {
-      setAgendamentosExtra(prev => [ag, ...prev])
-      toast.success('Agendamento criado', { description: `${ag.paciente} — ${ag.horario}` })
-    }
-    // Auto-exporta para Google Calendar
+    // Modal já fez a chamada API e invalidou o cache — apenas fecha e exporta
     autoExportParaGoogle(ag)
     setModalOpen(false)
     setAgendamentoEditando(undefined)
@@ -225,43 +226,38 @@ export default function AgendaPage() {
   }
 
   // ── Deletar agendamento ─────────────────────────────────────────────────
-  async function handleDelete(ag: AgendamentoComSource) {
+  function handleDelete(ag: AgendamentoComSource) {
     const key = String(ag.id)
 
-    // Remove de agendamentosExtra (se era novo/editado)
-    setAgendamentosExtra(prev => prev.filter(a => String(a.id) !== key))
-    // Marca como deletado (para itens base e Google)
-    setDeletedIds(prev => {
-      const next = new Set(prev)
-      next.add(key)
-      return next
-    })
-
-    // Se estava exportado para Google, tenta deletar de lá também
-    if (connected && exportedIds.has(key)) {
-      // Remove da lista de exportados
-      setExportedIds(prev => {
-        const next = new Set(prev)
-        next.delete(key)
-        saveExportedIds(next)
-        return next
-      })
-      // Deleta do Google Calendar se tem googleEventId
-      if (ag.googleEventId) {
-        deleteEventFromGoogle(ag.googleEventId).catch(() => {
-          // Falha silenciosa — evento pode já ter sido removido manualmente
-        })
-      }
-    }
-
-    // Se é um evento Google importado, tenta deletar do Google também
+    // Se é evento Google, deleta direto do Google Calendar
     if (ag.source === 'google' && ag.googleEventId) {
       deleteEventFromGoogle(ag.googleEventId).catch(() => {})
+      setConfirmarDeletar(null)
+      toast.success('Agendamento removido', { description: `${ag.paciente} — ${ag.horario}` })
+      return
     }
 
-    setConfirmarDeletar(null)
-    toast.success('Agendamento removido', {
-      description: `${ag.paciente} — ${ag.horario}`,
+    // Evento Clinitra: chama API (soft delete)
+    cancelarAgendamento.mutate(key, {
+      onSuccess: () => {
+        // Remove também do Google Calendar se estava exportado
+        if (connected && exportedIds.has(key)) {
+          setExportedIds(prev => {
+            const next = new Set(prev)
+            next.delete(key)
+            saveExportedIds(next)
+            return next
+          })
+          if (ag.googleEventId) {
+            deleteEventFromGoogle(ag.googleEventId).catch(() => {})
+          }
+        }
+        setConfirmarDeletar(null)
+        toast.success('Agendamento removido', { description: `${ag.paciente} — ${ag.horario}` })
+      },
+      onError: () => {
+        toast.error('Erro ao remover', { description: 'Não foi possível remover o agendamento.' })
+      },
     })
   }
 
@@ -368,7 +364,7 @@ export default function AgendaPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Agenda</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Semana {formatDataBR(SEMANA.inicio)} – {formatDataBR(SEMANA.fim)}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{formatDataBR(HOJE)} – {formatDataBR(SEMANA.fim)}</p>
         </div>
 
         <div className="flex items-center gap-2">

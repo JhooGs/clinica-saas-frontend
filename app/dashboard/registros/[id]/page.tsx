@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense, startTransition } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, User, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, User, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Loader2 } from 'lucide-react'
 import { cn, hoje, extractTiptapText } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
@@ -12,7 +12,10 @@ import { useRegistroDraft } from '@/hooks/use-registro-draft'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ConfirmDelete } from '@/components/confirm-delete'
 import { chavePauta } from '@/components/modal-pauta'
-import { registrosIniciais, relatoriosPendentesIniciais, TIPOS_SESSAO } from '@/lib/mock-registros'
+import { relatoriosPendentesIniciais, TIPOS_SESSAO } from '@/lib/mock-registros'
+import { useRegistro, useAtualizarRegistro, useCriarRegistro } from '@/hooks/use-registros'
+import { usePacientes } from '@/hooks/use-pacientes'
+import type { Registro } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Dropdown elegante de tipo de sessão
@@ -41,7 +44,7 @@ function TipoSessaoSelect({
 
   useEffect(() => {
     const idx = (TIPOS_SESSAO as readonly string[]).indexOf(value)
-    setIndiceAtivo(Math.max(0, idx))
+    startTransition(() => setIndiceAtivo(Math.max(0, idx)))
   }, [value])
 
   function selecionar(tipo: string) {
@@ -140,28 +143,10 @@ function formatDataBR(iso: string) {
 // Modo visualização — registro já concluído
 // ---------------------------------------------------------------------------
 
-function RegistroViewMode({ id }: { id: number }) {
+function RegistroViewMode({ registro }: { registro: Registro }) {
   const router = useRouter()
-  const registro = registrosIniciais.find(r => r.id === id)
-
-  if (!registro) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6 p-4 sm:p-6">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </button>
-        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground text-sm">
-          Registro não encontrado.
-        </div>
-      </div>
-    )
-  }
-
-  const textoNotas = extractTiptapText(registro.notasSessaoJson, 2000)
+  const textoNotas = extractTiptapText(registro.conteudo_json, 2000)
+  const links = registro.link_youtube ? [registro.link_youtube] : []
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 p-4 sm:p-6">
@@ -195,22 +180,22 @@ function RegistroViewMode({ id }: { id: number }) {
             <User className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Paciente</p>
-              <p className="text-sm font-medium text-gray-800">{registro.paciente}</p>
+              <p className="text-sm font-medium text-gray-800">{registro.paciente_nome ?? '—'}</p>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Calendar className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Data</p>
-              <p className="text-sm font-medium text-gray-800">{formatDataBR(registro.data)}</p>
+              <p className="text-sm font-medium text-gray-800">{formatDataBR(registro.data_sessao ?? registro.criado_em.slice(0, 10))}</p>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Tag className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[11px] text-muted-foreground">Tipo</p>
+              <p className="text-[11px] text-muted-foreground">Tipo de sessão</p>
               <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-xs font-medium text-[#04c2fb] mt-0.5">
-                {registro.tipoSessao}
+                {registro.tipo_sessao ?? '—'}
               </span>
             </div>
           </div>
@@ -219,7 +204,7 @@ function RegistroViewMode({ id }: { id: number }) {
             <div>
               <p className="text-[11px] text-muted-foreground">Nº Sessão</p>
               <p className="text-sm font-medium text-gray-800">
-                {registro.numeroSessao ?? <span className="text-muted-foreground">—</span>}
+                {registro.numero_sessao ?? <span className="text-muted-foreground">—</span>}
               </p>
             </div>
           </div>
@@ -242,17 +227,34 @@ function RegistroViewMode({ id }: { id: number }) {
           </div>
 
           <div>
+            <p className="text-[11px] text-muted-foreground mb-1">Valor da sessão</p>
+            {registro.valor_sessao != null ? (
+              <p className="text-sm font-semibold text-gray-800">
+                {registro.valor_sessao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            ) : (
+              <span className="inline-flex items-center rounded-full bg-gray-50 border border-gray-200 px-2 py-0.5 text-[11px] text-muted-foreground">
+                sem cobrança
+              </span>
+            )}
+          </div>
+
+          <div>
             <p className="text-[11px] text-muted-foreground mb-1">Material utilizado</p>
             <p className="text-sm text-gray-700">
               {registro.material && registro.material !== '-' ? registro.material : <span className="text-muted-foreground">—</span>}
             </p>
           </div>
+        </div>
 
-          <div>
+        <div className="h-px bg-border" />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-2">
             <p className="text-[11px] text-muted-foreground mb-1">Links</p>
-            {registro.links.length > 0 ? (
+            {links.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
-                {registro.links.map((link, i) => (
+                {links.map((link, i) => (
                   <a
                     key={i}
                     href={link}
@@ -262,7 +264,7 @@ function RegistroViewMode({ id }: { id: number }) {
                     title={link}
                   >
                     <ExternalLink className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{new URL(link).hostname.replace('www.', '')}</span>
+                    <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
                   </a>
                 ))}
               </div>
@@ -303,18 +305,19 @@ function RegistroViewMode({ id }: { id: number }) {
 // Modo edição — registro existente
 // ---------------------------------------------------------------------------
 
-function RegistroEditMode({ id }: { id: number }) {
+function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) {
   const router = useRouter()
-  const registro = registrosIniciais.find(r => r.id === id)
+  const atualizarRegistro = useAtualizarRegistro()
 
   const [form, setForm] = useState({
-    data: registro?.data ?? hoje(),
-    tipoSessao: registro?.tipoSessao ?? 'Sessão',
-    numeroSessao: registro?.numeroSessao?.toString() ?? '',
-    presenca: registro?.presenca ?? true,
-    material: registro?.material === '-' ? '' : (registro?.material ?? ''),
-    links: [...(registro?.links ?? [])],
-    notasSessaoJson: registro?.notasSessaoJson ?? null,
+    data: registro.data_sessao ?? hoje(),
+    tipoSessao: registro.tipo_sessao ?? 'Sessão',
+    numeroSessao: registro.numero_sessao?.toString() ?? '',
+    presenca: registro.presenca,
+    valorSessao: registro.valor_sessao?.toString() ?? '',
+    material: registro.material === '-' ? '' : (registro.material ?? ''),
+    links: registro.link_youtube ? [registro.link_youtube] : [],
+    notasSessaoJson: registro.conteudo_json,
   })
   const [linkInput, setLinkInput] = useState('')
   const [arquivos, setArquivos] = useState<UploadedFile[]>([])
@@ -363,15 +366,30 @@ function RegistroEditMode({ id }: { id: number }) {
       return
     }
     setSalvando(true)
-    try {
-      // TODO: chamada real à API para atualizar
-      toast.success('Registro atualizado', { description: 'As alterações foram salvas com sucesso.' })
-      router.push('/dashboard/registros')
-    } catch {
-      toast.error('Erro ao salvar', { description: 'Não foi possível salvar as alterações. Tente novamente.' })
-    } finally {
-      setSalvando(false)
-    }
+    atualizarRegistro.mutate(
+      {
+        id,
+        payload: {
+          tipo_sessao: form.tipoSessao || undefined,
+          presenca: form.presenca,
+          conteudo_json: form.notasSessaoJson,
+          material: form.material || undefined,
+          link_youtube: form.links[0] || undefined,
+          observacao: undefined,
+          data_sessao: form.data,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Registro atualizado', { description: 'As alterações foram salvas com sucesso.' })
+          router.push('/dashboard/registros')
+        },
+        onError: () => {
+          toast.error('Erro ao salvar', { description: 'Não foi possível salvar as alterações. Tente novamente.' })
+        },
+        onSettled: () => setSalvando(false),
+      }
+    )
   }
 
   return (
@@ -387,7 +405,7 @@ function RegistroEditMode({ id }: { id: number }) {
         </button>
         <div className="flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Editar Registro</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{registro.paciente}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{registro.paciente_nome}</p>
         </div>
       </div>
 
@@ -416,7 +434,7 @@ function RegistroEditMode({ id }: { id: number }) {
               <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>
             </label>
             <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm text-muted-foreground select-none">
-              {registro?.numeroSessao ?? <span className="text-gray-300 text-xs italic">calculado pelo backend</span>}
+              {registro.numero_sessao ?? <span className="text-gray-300 text-xs italic">calculado pelo backend</span>}
             </div>
           </div>
         </div>
@@ -452,6 +470,41 @@ function RegistroEditMode({ id }: { id: number }) {
               Falta
             </button>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Valor da sessão
+            {form.presenca && <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>}
+          </label>
+          {form.presenca ? (
+            <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
+              <span className="text-gray-600">
+                {registro.valor_sessao != null
+                  ? registro.valor_sessao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                  : <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
+                }
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="relative max-w-[180px]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">R$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.valorSessao}
+                  onChange={e => f('valorSessao', e.target.value)}
+                  placeholder="0,00"
+                  className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground/70">
+                Deixe em 0 para não gerar cobrança pela falta.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -627,15 +680,19 @@ function RegistroEditMode({ id }: { id: number }) {
 // Modo formulário — agendamento pendente
 // ---------------------------------------------------------------------------
 
-function FormularioSessao({ id }: { id: number }) {
+function FormularioSessao({ id }: { id: string }) {
   const router = useRouter()
-  const agendamento = relatoriosPendentesIniciais.find(r => r.id === id)
+  const agendamento = relatoriosPendentesIniciais.find(r => String(r.id) === id)
+  const criarRegistro = useCriarRegistro()
+  const { data: pacientesData } = usePacientes({ page_size: 200 })
 
+  const [pacienteId, setPacienteId] = useState<string>('')
   const [form, setForm] = useState({
     data: agendamento?.data ?? hoje(),
     tipoSessao: agendamento?.tipo ?? 'Sessão',
     numeroSessao: '',
     presenca: true,
+    valorSessao: '',
     material: '',
     links: [] as string[],
     notasSessaoJson: null as Record<string, unknown> | null,
@@ -655,19 +712,22 @@ function FormularioSessao({ id }: { id: number }) {
   useEffect(() => {
     const draft = carregarRascunho()
     if (!draft) return
-    setForm({
-      ...draft.form,
-      tipoSessao: draft.form.tipoSessao ?? agendamento?.tipo ?? 'Sessão',
-      links: draft.form.links ?? [],
+    startTransition(() => {
+      setForm({
+        ...draft.form,
+        tipoSessao: draft.form.tipoSessao ?? agendamento?.tipo ?? 'Sessão',
+        valorSessao: (draft.form as Record<string, unknown>).valorSessao as string ?? '',
+        links: draft.form.links ?? [],
+      })
+      setArquivos(draft.arquivos ?? [])
+      setRascunhoRestaurado(true)
     })
-    setArquivos(draft.arquivos ?? [])
-    setRascunhoRestaurado(true)
-  }, [carregarRascunho])
+  }, [carregarRascunho, agendamento?.tipo])
 
   // Carrega pauta pré-sessão do localStorage
   useEffect(() => {
     const texto = localStorage.getItem(chavePauta(id))
-    if (texto && texto.trim()) setPauta(texto)
+    if (texto && texto.trim()) startTransition(() => setPauta(texto))
   }, [id])
 
   useEffect(() => {
@@ -715,22 +775,40 @@ function FormularioSessao({ id }: { id: number }) {
     setArquivos(prev => prev.filter(a => a.url !== url))
   }, [])
 
-  async function salvar() {
+  function salvar() {
     if (!form.data) {
       toast.error('Data obrigatória', { description: 'Informe a data da sessão antes de salvar.' })
       return
     }
-    setSalvando(true)
-    try {
-      descartarRascunho()
-      localStorage.removeItem(chavePauta(id))
-      toast.success('Registro salvo', { description: 'A sessão foi registrada com sucesso.' })
-      router.push('/dashboard/registros')
-    } catch {
-      toast.error('Erro ao salvar', { description: 'Não foi possível salvar o registro. Tente novamente.' })
-    } finally {
-      setSalvando(false)
+    if (!pacienteId) {
+      toast.error('Paciente obrigatório', { description: 'Selecione o paciente antes de salvar.' })
+      return
     }
+    setSalvando(true)
+    criarRegistro.mutate(
+      {
+        paciente_id: pacienteId,
+        tipo_sessao: form.tipoSessao || undefined,
+        presenca: form.presenca,
+        valor_sessao: form.valorSessao ? parseFloat(form.valorSessao) : undefined,
+        data_sessao: form.data,
+        conteudo_json: form.notasSessaoJson,
+        material: form.material || undefined,
+        link_youtube: form.links[0] || undefined,
+      },
+      {
+        onSuccess: () => {
+          descartarRascunho()
+          localStorage.removeItem(chavePauta(id))
+          toast.success('Registro salvo', { description: 'A sessão foi registrada com sucesso.' })
+          router.push('/dashboard/registros')
+        },
+        onError: () => {
+          toast.error('Erro ao salvar', { description: 'Não foi possível salvar o registro. Tente novamente.' })
+        },
+        onSettled: () => setSalvando(false),
+      }
+    )
   }
 
   if (!agendamento) {
@@ -809,6 +887,23 @@ function FormularioSessao({ id }: { id: number }) {
       {/* Formulário */}
       <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-6 space-y-5">
 
+        {/* Seletor de paciente — necessário quando não há agendamento real vinculado */}
+        {!agendamento && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Paciente *</label>
+            <select
+              value={pacienteId}
+              onChange={e => setPacienteId(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+            >
+              <option value="">Selecione o paciente</option>
+              {(pacientesData?.items ?? []).map(p => (
+                <option key={p.id} value={p.id}>{p.nome}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Data da sessão *</label>
@@ -866,6 +961,36 @@ function FormularioSessao({ id }: { id: number }) {
               Falta
             </button>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Valor da sessão
+            {form.presenca && <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>}
+          </label>
+          {form.presenca ? (
+            <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
+              <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
+            </div>
+          ) : (
+            <>
+              <div className="relative max-w-[180px]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">R$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.valorSessao}
+                  onChange={e => f('valorSessao', e.target.value)}
+                  placeholder="0,00"
+                  className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground/70">
+                Deixe em 0 para não gerar cobrança pela falta.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1087,20 +1212,33 @@ function FormularioSessao({ id }: { id: number }) {
 function RegistrarSessaoContent() {
   const params = useParams()
   const searchParams = useSearchParams()
-  const id = Number(params.id)
+  const id = params.id as string
   const editar = searchParams.get('editar') === 'true'
 
-  const registroExistente = registrosIniciais.some(r => r.id === id)
+  const { data: registro, isLoading, isError } = useRegistro(id)
 
-  if (registroExistente && editar) {
-    return <RegistroEditMode id={id} />
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-[#04c2fb]" />
+      </div>
+    )
   }
 
-  if (registroExistente) {
-    return <RegistroViewMode id={id} />
+  if (registro && editar) {
+    return <RegistroEditMode id={id} registro={registro} />
   }
 
-  return <FormularioSessao id={id} />
+  if (registro) {
+    return <RegistroViewMode registro={registro} />
+  }
+
+  // 404 ou ID não-UUID (agendamento pendente do mock) → formulário de nova sessão
+  if (isError || !registro) {
+    return <FormularioSessao id={id} />
+  }
+
+  return null
 }
 
 export default function RegistrarSessaoPage() {

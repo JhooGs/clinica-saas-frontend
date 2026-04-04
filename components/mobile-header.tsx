@@ -6,24 +6,24 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Menu, X as XIcon, Home, Users, ClipboardList, CalendarDays,
-  DollarSign, BarChart2, Settings, LogOut,
+  DollarSign, BarChart2, Settings, LogOut, Package, UserCog,
 } from 'lucide-react'
 import { NotificationsBell } from '@/components/notifications-bell'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
-import { contarPausados } from '@/lib/mock-pacientes'
+import { usePermissions } from '@/hooks/use-permissions'
+import type { Role } from '@/types'
 
-const navItems = [
-  { title: 'Início',        href: '/dashboard',                icon: Home },
-  { title: 'Pacientes',     href: '/dashboard/pacientes',      icon: Users },
-  { title: 'Registros',     href: '/dashboard/registros',      icon: ClipboardList },
-  { title: 'Agenda',        href: '/dashboard/agenda',         icon: CalendarDays },
-  { title: 'Relatórios',    href: '/dashboard/relatorios',     icon: BarChart2 },
-  { title: 'Financeiro',    href: '/dashboard/financeiro',     icon: DollarSign },
-  { title: 'Configurações', href: '/dashboard/configuracoes',  icon: Settings },
-]
+function roleLabel(role: Role | null): string {
+  switch (role) {
+    case 'super_admin': return 'Super Admin'
+    case 'admin': return 'Admin'
+    case 'usuario': return 'Usuário'
+    default: return 'Usuário'
+  }
+}
 
 export function MobileHeader() {
   const [open, setOpen] = useState(false)
@@ -31,7 +31,7 @@ export function MobileHeader() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [initials, setInitials] = useState('CL')
-  const pausados = contarPausados()
+  const { role, can, isSuperAdmin, isAdmin } = usePermissions()
 
   useEffect(() => {
     const supabase = createClient()
@@ -118,7 +118,17 @@ export function MobileHeader() {
 
             {/* Nav links */}
             <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-              {navItems.map(item => (
+              {[
+                { title: 'Início', href: '/dashboard', icon: Home, show: true },
+                { title: 'Pacientes', href: '/dashboard/pacientes', icon: Users, show: can('pacientes') },
+                { title: 'Registros', href: '/dashboard/registros', icon: ClipboardList, show: can('registros') },
+                { title: 'Agenda', href: '/dashboard/agenda', icon: CalendarDays, show: can('agenda') },
+                { title: 'Relatórios', href: '/dashboard/relatorios', icon: BarChart2, show: can('relatorios') },
+                { title: 'Financeiro', href: '/dashboard/financeiro', icon: DollarSign, show: can('financeiro') },
+                { title: 'Usuários', href: '/dashboard/usuarios', icon: UserCog, show: isAdmin || isSuperAdmin },
+                { title: 'Planos', href: '/dashboard/planos', icon: Package, show: isSuperAdmin },
+                { title: 'Configurações', href: '/dashboard/configuracoes', icon: Settings, show: isSuperAdmin },
+              ].filter(item => item.show).map(item => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -136,11 +146,6 @@ export function MobileHeader() {
                     isActive(item.href) ? 'text-white' : 'text-white/60',
                   )} />
                   <span className="flex-1">{item.title}</span>
-                  {item.href === '/dashboard/pacientes' && pausados > 0 && (
-                    <span className="flex items-center justify-center h-5 min-w-5 rounded-full bg-amber-400 text-[10px] font-bold text-amber-950 px-1.5 shrink-0">
-                      {pausados}
-                    </span>
-                  )}
                 </Link>
               ))}
             </nav>
@@ -157,7 +162,7 @@ export function MobileHeader() {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-white truncate leading-none">{email || 'Usuário'}</p>
-                  <p className="text-[10px] text-white/75 mt-0.5 leading-none">Administrador</p>
+                  <p className="text-[10px] text-white/75 mt-0.5 leading-none">{roleLabel(role)}</p>
                 </div>
                 <button
                   onClick={handleLogout}

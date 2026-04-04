@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, AlertTriangle, Search, Users } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useState, useEffect, useRef, useMemo, startTransition } from 'react'
+import { X, AlertTriangle, Search, Users, Info } from 'lucide-react'
+import { cn, proximaHoraCheia } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { TIPOS_SESSAO } from '@/lib/mock-registros'
-import { PACIENTES_MOCK, isPausado } from '@/lib/mock-pacientes'
 import { ModalPortal } from '@/components/modal-portal'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
+import { usePacientes } from '@/hooks/use-pacientes'
+import { useCriarAgendamento, useAtualizarAgendamento } from '@/hooks/use-agenda'
+import { toast } from 'sonner'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,7 +47,7 @@ function nomeAbreviado(nome: string): string {
 // ─── Helper: detecção de conflitos de horário ────────────────────────────────
 
 function detectarConflitos(
-  form: { data: string; horarioInicio: string; horarioFim: string },
+  form: { data: string; horarioInicio: string; horarioFim: string; tipo?: string },
   existentes: AgendamentoComSource[],
   editandoId?: number | string
 ): AgendamentoComSource[] {
@@ -62,7 +64,15 @@ function detectarConflitos(
     const fimExist = ag.horarioFim ?? horarioFimPadrao(ag.horario)
 
     // Overlap: inicioA < fimB && inicioB < fimA
-    return inicioNovo < fimExist && inicioExist < fimNovo
+    const haOverlap = inicioNovo < fimExist && inicioExist < fimNovo
+    if (!haOverlap) return false
+
+    // Grupo + grupo → não é conflito bloqueante
+    const novoEhGrupo = form.tipo === 'Sessão em grupo'
+    const existenteEhGrupo = ag.tipo === 'Sessão em grupo'
+    if (novoEhGrupo && existenteEhGrupo) return false
+
+    return true
   })
 }
 
@@ -116,6 +126,8 @@ function ConfirmDescarte({
   )
 }
 
+type PacienteOpcao = { id: string; nome: string; ativo: boolean }
+
 // ─── Sub-componente: seletor multi-paciente com tags ──────────────────────────
 
 function PacienteMultiSelect({
@@ -123,11 +135,13 @@ function PacienteMultiSelect({
   onChange,
   hasError,
   isGrupo,
+  pacientesDisponiveis,
 }: {
-  selecionados: string[]
-  onChange: (pacientes: string[]) => void
+  selecionados: PacienteOpcao[]
+  onChange: (pacientes: PacienteOpcao[]) => void
   hasError: boolean
   isGrupo: boolean
+  pacientesDisponiveis: PacienteOpcao[]
 }) {
   const [busca, setBusca] = useState('')
   const [aberto, setAberto] = useState(false)
@@ -135,14 +149,17 @@ function PacienteMultiSelect({
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const selecionadosIds = new Set(selecionados.map(p => p.id))
+
   const resultados = useMemo(() => {
     const termo = busca.toLowerCase().trim()
-    return PACIENTES_MOCK
+    return pacientesDisponiveis
       .filter(p => p.ativo)
-      .filter(p => !selecionados.includes(p.nome))
+      .filter(p => !selecionadosIds.has(p.id))
       .filter(p => !termo || p.nome.toLowerCase().includes(termo))
       .slice(0, 8)
-  }, [busca, selecionados])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca, selecionados, pacientesDisponiveis])
 
   // Fecha dropdown ao clicar fora
   useEffect(() => {
@@ -157,20 +174,19 @@ function PacienteMultiSelect({
 
   // Reset índice ativo quando resultados mudam
   useEffect(() => {
-    setIndiceAtivo(0)
+    startTransition(() => setIndiceAtivo(0))
   }, [resultados.length])
 
-  function adicionarPaciente(nome: string) {
-    const pac = PACIENTES_MOCK.find(p => p.nome === nome)
-    if (pac && isPausado(pac)) return
-    onChange([...selecionados, nome])
+  function adicionarPaciente(pac: PacienteOpcao) {
+    if (!pac.ativo) return
+    onChange([...selecionados, pac])
     setBusca('')
     setAberto(false)
     inputRef.current?.focus()
   }
 
-  function removerPaciente(nome: string) {
-    onChange(selecionados.filter(n => n !== nome))
+  function removerPaciente(id: string) {
+    onChange(selecionados.filter(p => p.id !== id))
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -179,7 +195,7 @@ function PacienteMultiSelect({
       return
     }
     if (e.key === 'Backspace' && busca === '' && selecionados.length > 0) {
-      removerPaciente(selecionados[selecionados.length - 1])
+      removerPaciente(selecionados[selecionados.length - 1].id)
       return
     }
     if (!aberto || resultados.length === 0) return
@@ -192,11 +208,10 @@ function PacienteMultiSelect({
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const pac = resultados[indiceAtivo]
-      if (pac && !isPausado(pac)) adicionarPaciente(pac.nome)
+      if (pac && pac.ativo) adicionarPaciente(pac)
     }
   }
 
-  const minPacientes = isGrupo ? 2 : 1
   const mostraHintGrupo = isGrupo && selecionados.length < 2
 
   return (
@@ -214,15 +229,15 @@ function PacienteMultiSelect({
       >
         <div className="flex flex-wrap items-center gap-1.5 p-2 min-h-[38px]">
           {/* Tags dos pacientes selecionados */}
-          {selecionados.map(nome => (
+          {selecionados.map(pac => (
             <span
-              key={nome}
+              key={pac.id}
               className="inline-flex items-center gap-1 rounded-full border border-[#04c2fb]/25 bg-[#04c2fb]/10 px-2.5 py-1 text-xs font-medium text-[#04c2fb] animate-in fade-in zoom-in-95 duration-150"
             >
-              <span className="max-w-[140px] sm:max-w-[200px] truncate">{nome}</span>
+              <span className="max-w-[140px] sm:max-w-[200px] truncate">{pac.nome}</span>
               <button
                 type="button"
-                onClick={e => { e.stopPropagation(); removerPaciente(nome) }}
+                onClick={e => { e.stopPropagation(); removerPaciente(pac.id) }}
                 className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-red-100 hover:text-red-500"
               >
                 <X className="h-3 w-3" />
@@ -257,17 +272,17 @@ function PacienteMultiSelect({
             {resultados.length > 0 ? (
               <div className="max-h-48 overflow-y-auto py-1">
                 {resultados.map((pac, i) => {
-                  const pausado = isPausado(pac)
+                  const inativo = !pac.ativo
                   return (
                     <button
                       key={pac.nome}
                       type="button"
-                      disabled={pausado}
-                      onMouseDown={e => { e.preventDefault(); if (!pausado) adicionarPaciente(pac.nome) }}
-                      onMouseEnter={() => !pausado && setIndiceAtivo(i)}
+                      disabled={inativo}
+                      onMouseDown={e => { e.preventDefault(); if (!inativo) adicionarPaciente(pac) }}
+                      onMouseEnter={() => !inativo && setIndiceAtivo(i)}
                       className={cn(
                         'w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between gap-2',
-                        pausado
+                        inativo
                           ? 'text-gray-400 cursor-not-allowed'
                           : i === indiceAtivo
                             ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
@@ -275,9 +290,9 @@ function PacienteMultiSelect({
                       )}
                     >
                       <span className="truncate">{pac.nome}</span>
-                      {pausado && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-600 shrink-0">
-                          Pausado
+                      {inativo && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 shrink-0">
+                          Inativo
                         </span>
                       )}
                     </button>
@@ -309,7 +324,7 @@ function PacienteMultiSelect({
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FormAgendamento = {
-  pacientes: string[]
+  pacientes: PacienteOpcao[]
   tipo: string
   tipoCustom: string
   data: string
@@ -335,14 +350,18 @@ function formDe(ag?: AgendamentoComSource): FormAgendamento {
       tipo: '',
       tipoCustom: '',
       data: hoje(),
-      horarioInicio: '08:00',
-      horarioFim: '09:00',
+      horarioInicio: proximaHoraCheia(),
+      horarioFim: horarioFimPadrao(proximaHoraCheia()),
       observacoes: '',
     }
   }
   const { tipo, tipoCustom } = resolverTipoForm(ag.tipo)
+  // Em modo edição, reconstruir objetos a partir dos dados disponíveis no AgendamentoComSource
+  const pacientes: PacienteOpcao[] = ag.paciente_id
+    ? [{ id: ag.paciente_id, nome: ag.paciente, ativo: true }]
+    : []
   return {
-    pacientes: ag.pacientes ?? [ag.paciente],
+    pacientes,
     tipo,
     tipoCustom,
     data: ag.data,
@@ -357,15 +376,28 @@ function formDe(ag?: AgendamentoComSource): FormAgendamento {
 export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agendamentosExistentes = [] }: Props) {
   const modoEdicao = !!agendamento
   const [form, setForm] = useState<FormAgendamento>(() => formDe(agendamento))
+  const criarAgendamento = useCriarAgendamento()
+  const atualizarAgendamento = useAtualizarAgendamento()
+  const { data: pacientesData } = usePacientes({ ativo: true, page_size: 500 })
+  const pacientesDisponiveis: PacienteOpcao[] = (pacientesData?.items ?? []).map(p => ({
+    id: p.id,
+    nome: p.nome,
+    ativo: p.ativo,
+  }))
   const [tentouSalvar, setTentouSalvar] = useState(false)
   const [confirmarSair, setConfirmarSair] = useState(false)
+  const [horarioInicial, setHorarioInicial] = useState(form.horarioInicio)
 
   // Sincroniza o form quando o agendamento muda (ex: abrir edição de outro item)
   useEffect(() => {
     if (open) {
-      setForm(formDe(agendamento))
-      setTentouSalvar(false)
-      setConfirmarSair(false)
+      const novo = formDe(agendamento)
+      startTransition(() => {
+        setForm(novo)
+        setHorarioInicial(novo.horarioInicio)
+        setTentouSalvar(false)
+        setConfirmarSair(false)
+      })
     }
   }, [open, agendamento])
 
@@ -373,7 +405,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
   // MUST be before the early return to respect Rules of Hooks
   const conflitos = useMemo(
     () => detectarConflitos(form, agendamentosExistentes, agendamento?.id),
-    [form.data, form.horarioInicio, form.horarioFim, agendamentosExistentes, agendamento?.id]
+    [form, agendamentosExistentes, agendamento?.id]
   )
 
   if (!open) return null
@@ -392,7 +424,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
     })
   }
 
-  function setPacientes(pacientes: string[]) {
+  function setPacientes(pacientes: PacienteOpcao[]) {
     setForm(prev => ({ ...prev, pacientes }))
   }
 
@@ -401,7 +433,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
     form.pacientes.length > 0 ||
     form.tipo !== '' ||
     form.data !== hoje() ||
-    form.horarioInicio !== '08:00' ||
+    form.horarioInicio !== horarioInicial ||
     form.observacoes !== ''
   )
 
@@ -442,18 +474,84 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
     if (!formularioValido) return
 
     const tipoFinal = form.tipo === 'Outros' ? form.tipoCustom.trim() : form.tipo
-    const ag: AgendamentoComSource = {
-      id: agendamento?.id ?? Date.now(),
-      paciente: form.pacientes.join(', '),
-      pacientes: form.pacientes,
-      tipo: tipoFinal,
-      data: form.data,
-      horario: form.horarioInicio,
-      horarioFim: form.horarioFim,
-      source: agendamento?.source ?? 'clinitra',
-      googleEventId: agendamento?.googleEventId,
+    const pacienteIdPrincipal = form.pacientes[0]?.id
+    if (!pacienteIdPrincipal) return
+
+    const pacientesIds = form.pacientes.length > 1
+      ? form.pacientes.map(p => p.id)
+      : undefined
+
+    if (modoEdicao && agendamento?.id) {
+      // Edição: PATCH na API
+      atualizarAgendamento.mutate(
+        {
+          id: String(agendamento.id),
+          payload: {
+            tipo_sessao: tipoFinal,
+            data: form.data,
+            horario: form.horarioInicio,
+            horario_fim: form.horarioFim,
+            observacao: form.observacoes || undefined,
+          },
+        },
+        {
+          onSuccess: (updated) => {
+            toast.success('Agendamento atualizado', { description: `${updated.paciente_nome ?? ''} — ${updated.horario}` })
+            const ag: AgendamentoComSource = {
+              id: updated.id,
+              paciente: updated.paciente_nome ?? pacienteIdPrincipal,
+              paciente_id: updated.paciente_id,
+              pacientes: form.pacientes.map(p => p.nome),
+              tipo: updated.tipo_sessao,
+              data: updated.data,
+              horario: updated.horario,
+              horarioFim: updated.horario_fim,
+              source: 'clinitra',
+              googleEventId: agendamento.googleEventId,
+            }
+            onSave(ag)
+          },
+          onError: (err) => {
+            const msg = err.message.includes('409') ? 'Conflito de horário: já existe agendamento neste horário.' : 'Não foi possível salvar.'
+            toast.error('Erro ao atualizar', { description: msg })
+          },
+        }
+      )
+    } else {
+      // Criação: POST na API
+      criarAgendamento.mutate(
+        {
+          paciente_id: pacienteIdPrincipal,
+          tipo_sessao: tipoFinal,
+          data: form.data,
+          horario: form.horarioInicio,
+          horario_fim: form.horarioFim,
+          observacao: form.observacoes || undefined,
+          pacientes_ids: pacientesIds,
+        },
+        {
+          onSuccess: (created) => {
+            toast.success('Agendamento criado', { description: `${created.paciente_nome ?? ''} — ${created.horario}` })
+            const ag: AgendamentoComSource = {
+              id: created.id,
+              paciente: created.paciente_nome ?? pacienteIdPrincipal,
+              paciente_id: created.paciente_id,
+              pacientes: form.pacientes.map(p => p.nome),
+              tipo: created.tipo_sessao,
+              data: created.data,
+              horario: created.horario,
+              horarioFim: created.horario_fim,
+              source: 'clinitra',
+            }
+            onSave(ag)
+          },
+          onError: (err) => {
+            const msg = err.message.includes('409') ? 'Conflito de horário: já existe agendamento neste horário.' : 'Não foi possível salvar.'
+            toast.error('Erro ao criar', { description: msg })
+          },
+        }
+      )
     }
-    onSave(ag)
   }
 
   function tentarFechar() {
@@ -500,6 +598,25 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
 
           {/* Body */}
           <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+
+            {/* Aviso alteração pontual (sessão recorrente) */}
+            {agendamento?.source === 'recorrente' && (
+              <div className="relative overflow-hidden rounded-xl border border-[#04c2fb]/30 bg-gradient-to-r from-[#04c2fb]/8 to-[#04c2fb]/4 px-4 py-3">
+                {/* Barra lateral colorida */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-[#04c2fb]" />
+                <div className="flex items-start gap-3 pl-1">
+                  <div className="shrink-0 mt-0.5 rounded-full bg-[#04c2fb]/15 p-1">
+                    <Info className="h-3.5 w-3.5 text-[#04c2fb]" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-[#0094c8]">Alteracao pontual</p>
+                    <p className="text-xs text-[#0094c8]/80 mt-0.5 leading-relaxed">
+                      Esta alteracao afeta apenas este agendamento. Os proximos agendamentos desta recorrencia permanecem inalterados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Card de erros */}
             {camposFaltando.length > 0 && (
@@ -552,6 +669,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
                   onChange={setPacientes}
                   hasError={erroPacientes}
                   isGrupo={isGrupo}
+                  pacientesDisponiveis={pacientesDisponiveis}
                 />
               </div>
 

@@ -22,6 +22,7 @@ export type Registro = {
   numeroSessao: number | null
   data: string
   presenca: boolean
+  valor_sessao: number | null
   observacao: string
   material: string
   links: string[]
@@ -117,16 +118,16 @@ export const notasMoyses: Record<string, unknown> = {
 // ---------------------------------------------------------------------------
 
 export const registrosIniciais: Registro[] = [
-  { id: 1,  paciente: 'Bernardo Antonio L.F.',    tipoSessao: 'Sessão',                  numeroSessao: 111, data: '2025-12-16', presenca: true,  observacao: '',                   material: 'Caixas, bambolês, bastões e cordas', links: ['https://youtube.com/watch?v=abc111'], notasSessaoJson: notasBernardo },
-  { id: 2,  paciente: 'Angelo Gustavo P. Holub',  tipoSessao: 'Sessão',                  numeroSessao: 77,  data: '2025-12-18', presenca: true,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: notasAngelo },
-  { id: 3,  paciente: 'Lorenzo de Souza Bueno',   tipoSessao: 'Anamnese',                numeroSessao: 74,  data: '2025-12-17', presenca: true,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: ['https://youtube.com/watch?v=xyz74', 'https://drive.google.com/file/d/abc'], notasSessaoJson: notasLorenzo },
-  { id: 4,  paciente: 'Pietro Bizinelli Amorim',  tipoSessao: 'Sessão',                  numeroSessao: null, data: '2025-11-04', presenca: false, observacao: 'Bambolês e tecidos', material: '-',                                  links: [],                                     notasSessaoJson: null },
-  { id: 5,  paciente: 'Isadora Furman',           tipoSessao: 'Sessão família',           numeroSessao: 29,  data: '2025-12-17', presenca: true,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
-  { id: 6,  paciente: 'Matteo Prado Oliveira',    tipoSessao: 'Sessão',                  numeroSessao: 33,  data: '2025-12-18', presenca: true,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
-  { id: 7,  paciente: 'Vinícius Augusto Padilha', tipoSessao: 'Devolutiva família',      numeroSessao: 38,  data: '2025-12-12', presenca: true,  observacao: '',                   material: 'Caixas, bastões e cordas',           links: ['https://youtube.com/watch?v=vin38'],  notasSessaoJson: notasVinicius },
-  { id: 8,  paciente: 'Moysés Costa de Almeida',  tipoSessao: 'Sessão',                  numeroSessao: 41,  data: '2025-12-18', presenca: true,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: notasMoyses },
-  { id: 9,  paciente: 'Henrique Pistelli Protz',  tipoSessao: 'Reunião com a escola',    numeroSessao: 19,  data: '2025-12-17', presenca: true,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
-  { id: 10, paciente: 'Rafaela de Souza Bueno',   tipoSessao: 'Sessão em grupo',         numeroSessao: 55,  data: '2025-12-17', presenca: true,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
+  { id: 1,  paciente: 'Bernardo Antonio L.F.',    tipoSessao: 'Sessão',                  numeroSessao: 111, data: '2025-12-16', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, bambolês, bastões e cordas', links: ['https://youtube.com/watch?v=abc111'], notasSessaoJson: notasBernardo },
+  { id: 2,  paciente: 'Angelo Gustavo P. Holub',  tipoSessao: 'Sessão',                  numeroSessao: 77,  data: '2025-12-18', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: notasAngelo },
+  { id: 3,  paciente: 'Lorenzo de Souza Bueno',   tipoSessao: 'Anamnese',                numeroSessao: 74,  data: '2025-12-17', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: ['https://youtube.com/watch?v=xyz74', 'https://drive.google.com/file/d/abc'], notasSessaoJson: notasLorenzo },
+  { id: 4,  paciente: 'Pietro Bizinelli Amorim',  tipoSessao: 'Sessão',                  numeroSessao: null, data: '2025-11-04', presenca: false, valor_sessao: null, observacao: 'Bambolês e tecidos', material: '-',                                  links: [],                                     notasSessaoJson: null },
+  { id: 5,  paciente: 'Isadora Furman',           tipoSessao: 'Sessão família',           numeroSessao: 29,  data: '2025-12-17', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
+  { id: 6,  paciente: 'Matteo Prado Oliveira',    tipoSessao: 'Sessão',                  numeroSessao: 33,  data: '2025-12-18', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
+  { id: 7,  paciente: 'Vinícius Augusto Padilha', tipoSessao: 'Devolutiva família',      numeroSessao: 38,  data: '2025-12-12', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, bastões e cordas',           links: ['https://youtube.com/watch?v=vin38'],  notasSessaoJson: notasVinicius },
+  { id: 8,  paciente: 'Moysés Costa de Almeida',  tipoSessao: 'Sessão',                  numeroSessao: 41,  data: '2025-12-18', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: notasMoyses },
+  { id: 9,  paciente: 'Henrique Pistelli Protz',  tipoSessao: 'Reunião com a escola',    numeroSessao: 19,  data: '2025-12-17', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
+  { id: 10, paciente: 'Rafaela de Souza Bueno',   tipoSessao: 'Sessão em grupo',         numeroSessao: 55,  data: '2025-12-17', presenca: true,  valor_sessao: 150,  observacao: '',                   material: 'Caixas, tecidos e cordas',           links: [],                                     notasSessaoJson: null },
 ]
 
 // ---------------------------------------------------------------------------

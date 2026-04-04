@@ -5,26 +5,23 @@ import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import {
   Home, Users, ClipboardList, CalendarDays,
-  DollarSign, BarChart2, Settings, LogOut, PanelLeft,
+  DollarSign, BarChart2, Settings, LogOut, PanelLeft, Package, UserCog,
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { contarPausados } from '@/lib/mock-pacientes'
+import { usePermissions } from '@/hooks/use-permissions'
+import type { Role } from '@/types'
 
-const navMain = [
-  { title: 'Início',      href: '/dashboard',             icon: Home },
-  { title: 'Pacientes',   href: '/dashboard/pacientes',   icon: Users },
-  { title: 'Registros',   href: '/dashboard/registros',   icon: ClipboardList },
-  { title: 'Agenda',      href: '/dashboard/agenda',      icon: CalendarDays },
-  { title: 'Relatórios',  href: '/dashboard/relatorios',  icon: BarChart2 },
-  { title: 'Financeiro',  href: '/dashboard/financeiro',  icon: DollarSign },
-]
-
-const navAdmin = [
-  { title: 'Configurações', href: '/dashboard/configuracoes', icon: Settings },
-]
+function roleLabel(role: Role | null): string {
+  switch (role) {
+    case 'super_admin': return 'Super Admin'
+    case 'admin': return 'Admin'
+    case 'usuario': return 'Usuário'
+    default: return 'Usuário'
+  }
+}
 
 function NavItem({
   item,
@@ -79,7 +76,7 @@ export function AppSidebar() {
   const [email, setEmail] = useState('')
   const [initials, setInitials] = useState('CL')
   const [collapsed, setCollapsed] = useState(false)
-  const pausados = contarPausados()
+  const { role, can, isSuperAdmin, isAdmin } = usePermissions()
 
   useEffect(() => {
     const supabase = createClient()
@@ -170,27 +167,40 @@ export function AppSidebar() {
               Principal
             </p>
           )}
-          {navMain.map((item) => (
-            <NavItem
-              key={item.href}
-              item={item}
-              active={isActive(item.href)}
-              collapsed={collapsed}
-              badge={item.href === '/dashboard/pacientes' ? pausados : undefined}
-            />
-          ))}
+          <NavItem item={{ title: 'Início', href: '/dashboard', icon: Home }} active={isActive('/dashboard')} collapsed={collapsed} />
+          {can('pacientes') && (
+            <NavItem item={{ title: 'Pacientes', href: '/dashboard/pacientes', icon: Users }} active={isActive('/dashboard/pacientes')} collapsed={collapsed} />
+          )}
+          {can('registros') && (
+            <NavItem item={{ title: 'Registros', href: '/dashboard/registros', icon: ClipboardList }} active={isActive('/dashboard/registros')} collapsed={collapsed} />
+          )}
+          {can('agenda') && (
+            <NavItem item={{ title: 'Agenda', href: '/dashboard/agenda', icon: CalendarDays }} active={isActive('/dashboard/agenda')} collapsed={collapsed} />
+          )}
+          {can('relatorios') && (
+            <NavItem item={{ title: 'Relatórios', href: '/dashboard/relatorios', icon: BarChart2 }} active={isActive('/dashboard/relatorios')} collapsed={collapsed} />
+          )}
+          {can('financeiro') && (
+            <NavItem item={{ title: 'Financeiro', href: '/dashboard/financeiro', icon: DollarSign }} active={isActive('/dashboard/financeiro')} collapsed={collapsed} />
+          )}
         </div>
 
-        <div className="space-y-0.5">
-          {!collapsed && (
-            <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-white/60 mb-2">
-              Administração
-            </p>
-          )}
-          {navAdmin.map((item) => (
-            <NavItem key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
-          ))}
-        </div>
+        {(isAdmin || isSuperAdmin) && (
+          <div className="space-y-0.5">
+            {!collapsed && (
+              <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-white/60 mb-2">
+                Administração
+              </p>
+            )}
+            <NavItem item={{ title: 'Usuários', href: '/dashboard/usuarios', icon: UserCog }} active={isActive('/dashboard/usuarios')} collapsed={collapsed} />
+            {isSuperAdmin && (
+              <>
+                <NavItem item={{ title: 'Planos', href: '/dashboard/planos', icon: Package }} active={isActive('/dashboard/planos')} collapsed={collapsed} />
+                <NavItem item={{ title: 'Configurações', href: '/dashboard/configuracoes', icon: Settings }} active={isActive('/dashboard/configuracoes')} collapsed={collapsed} />
+              </>
+            )}
+          </div>
+        )}
       </nav>
 
       <div className="mx-3 h-px bg-white/20" />
@@ -224,7 +234,7 @@ export function AppSidebar() {
                 {email || 'Usuário'}
               </p>
               <p className="text-[10px] text-white/75 mt-0.5 leading-none">
-                Administrador
+                {roleLabel(role)}
               </p>
             </div>
             <button

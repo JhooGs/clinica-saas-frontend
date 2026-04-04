@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Montserrat } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
+import { Providers } from './providers'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -12,6 +13,14 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: 'Clinitra',
   description: 'Sistema de gestão para clínicas',
+  icons: {
+    icon: [
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/site.webmanifest',
 }
 
 export default function RootLayout({
@@ -22,7 +31,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${montserrat.variable} font-sans antialiased`}>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
         <Toaster />
       </body>
     </html>

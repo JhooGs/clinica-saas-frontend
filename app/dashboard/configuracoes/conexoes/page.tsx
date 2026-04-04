@@ -1,7 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
-import { Plug, Calendar, Video, MessageSquare, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
+import { Plug, Calendar, MessageSquare, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 import { useGoogleCalendar } from '@/hooks/use-google-calendar'
 
 export default function ConexoesPage() {
@@ -125,18 +125,22 @@ export default function ConexoesPage() {
           )}
         </div>
 
-        {/* Zoom — Em breve */}
+        {/* Google Drive — Em breve */}
         <div className="rounded-xl border bg-card/50 shadow-sm p-4 sm:p-5 opacity-60">
           <div className="flex items-center gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border shadow-sm">
-              <Video className="h-5 w-5 text-blue-500" />
+              <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none">
+                <path d="M5 24l4.5-8h13L27 24H5z" fill="#1e88e5"/>
+                <path d="M11.5 8L5 24h7l6.5-16h-7z" fill="#4caf50"/>
+                <path d="M20.5 8L27 24h-7l-6.5-16h6.5z" fill="#fdd835"/>
+              </svg>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-slate-800">Zoom</h3>
+                <h3 className="text-sm font-semibold text-slate-800">Google Drive</h3>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Em breve</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Gere links de videoconferência automaticamente para sessões online.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Faça backup dos arquivos dos registros no seu Google Drive de forma automática.</p>
             </div>
           </div>
         </div>

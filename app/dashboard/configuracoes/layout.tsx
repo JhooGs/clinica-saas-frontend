@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { SlidersHorizontal, Database, Plug, Tag } from 'lucide-react'
+import { SlidersHorizontal, Database, Plug, Banknote } from 'lucide-react'
 
 const configNav = [
-  { title: 'Geral',           href: '/dashboard/configuracoes',              icon: SlidersHorizontal },
-  { title: 'Tipos de Sessão', href: '/dashboard/configuracoes/tipos-sessao', icon: Tag },
-  { title: 'Dados',           href: '/dashboard/configuracoes/dados',         icon: Database },
-  { title: 'Conexões',        href: '/dashboard/configuracoes/conexoes',      icon: Plug },
+  { title: 'Geral',       href: '/dashboard/configuracoes',            icon: SlidersHorizontal },
+  { title: 'Financeiro',  href: '/dashboard/configuracoes/financeiro', icon: Banknote },
+  { title: 'Dados',       href: '/dashboard/configuracoes/dados',      icon: Database },
+  { title: 'Conexões',    href: '/dashboard/configuracoes/conexoes',   icon: Plug },
 ]
 
 export default function ConfiguracoesLayout({ children }: { children: React.ReactNode }) {
