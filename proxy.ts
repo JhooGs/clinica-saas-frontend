@@ -32,8 +32,9 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && request.nextUrl.pathname.startsWith('/auth')) {
-    // Permitir acesso a /auth/aguardando-confirmacao mesmo autenticado
-    if (!request.nextUrl.pathname.startsWith('/auth/aguardando-confirmacao')) {
+    // Permitir acesso a estas rotas mesmo autenticado
+    const rotasPermitidas = ['/auth/aguardando-confirmacao', '/auth/nova-senha']
+    if (!rotasPermitidas.some(r => request.nextUrl.pathname.startsWith(r))) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   }

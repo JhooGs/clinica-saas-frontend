@@ -7,6 +7,8 @@ import { ArrowRight, Eye, EyeOff, Mail, Lock } from 'lucide-react'
 import Image from 'next/image'
 import { toast } from 'sonner'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -22,14 +24,65 @@ export default function LoginPage() {
     e.preventDefault()
     setErro('')
     setCarregando(true)
+
+    // 1. Verificar bloqueio antes de tentar login
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/bloqueado?email=${encodeURIComponent(email)}`)
+      if (res.ok) {
+        const status = await res.json()
+        if (status.bloqueado) {
+          const msg = `Conta bloqueada por excesso de tentativas. Tente novamente em ${status.minutos_restantes} minuto(s).`
+          setErro(msg)
+          toast.error('Acesso bloqueado', { description: msg })
+          setCarregando(false)
+          return
+        }
+      }
+    } catch {
+      // Se o backend estiver fora, continuar normalmente
+    }
+
+    // 2. Tentar login no Supabase
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
+
     if (error) {
-      setErro('E-mail ou senha incorretos.')
-      toast.error('Erro ao entrar', { description: 'E-mail ou senha incorretos.' })
+      // E-mail ainda não confirmado — não contabilizar como tentativa errada
+      if (error.message?.toLowerCase().includes('email not confirmed')) {
+        const msg = 'Você ainda não confirmou seu e-mail. Verifique sua caixa de entrada e clique no link de confirmação.'
+        setErro(msg)
+        toast.error('E-mail não confirmado', { description: msg })
+        setCarregando(false)
+        return
+      }
+
+      // 3. Registrar falha e obter contagem atualizada
+      let mensagem = 'E-mail ou senha incorretos.'
+      try {
+        const res = await fetch(`${API_URL}/api/v1/auth/tentativa-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        })
+        if (res.ok) {
+          const dados = await res.json()
+          if (dados.bloqueado) {
+            const mins = Math.ceil(dados.segundos_restantes / 60)
+            mensagem = `Conta bloqueada por excesso de tentativas. Tente novamente em ${mins} minuto(s).`
+          } else if (dados.tentativas_restantes > 0) {
+            mensagem = `E-mail ou senha incorretos. ${dados.tentativas_restantes} tentativa(s) restante(s).`
+          }
+        }
+      } catch {
+        // Backend indisponível — mostrar erro genérico
+      }
+
+      setErro(mensagem)
+      toast.error('Erro ao entrar', { description: mensagem })
       setCarregando(false)
       return
     }
+
     router.push('/dashboard')
     router.refresh()
   }
@@ -42,7 +95,6 @@ export default function LoginPage() {
         className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #0099cc 0%, #04c2fb 55%, #00d8f5 100%)' }}
       >
-        {/* Logo grande centralizado no topo */}
         <div className="relative z-10 flex flex-col items-start gap-3">
           <Image
             src="/logo.png"
@@ -56,7 +108,6 @@ export default function LoginPage() {
           </span>
         </div>
 
-        {/* Conteúdo central */}
         <div className="relative z-10 space-y-8">
           <div className="space-y-4">
             <h1 className="text-4xl font-bold text-white leading-tight drop-shadow">
@@ -65,16 +116,13 @@ export default function LoginPage() {
               <br />
               da sua clínica
             </h1>
-
             <p className="text-white/80 text-sm leading-relaxed max-w-sm">
               Centralize pacientes, relatórios e financeiro em um único lugar.
               Analise e organize tudo com inteligência.
             </p>
           </div>
-
         </div>
 
-        {/* Footer */}
         <div className="relative z-10">
           <p className="text-white/50 text-xs">
             © 2026 Clinitra. Todos os direitos reservados.
@@ -83,27 +131,23 @@ export default function LoginPage() {
       </div>
 
       {/* ── Lado direito — Formulário ── */}
-      <div className="flex w-full lg:w-1/2 flex-col justify-center px-6 py-12 sm:px-12 lg:px-20 xl:px-24 bg-white dark:bg-[#0d1117]">
+      <div className="flex w-full lg:w-1/2 flex-col justify-center px-6 py-12 sm:px-12 lg:px-20 xl:px-24 bg-white">
         <div className="mx-auto w-full max-w-sm">
 
-          {/* Header */}
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">
               Entre na sua conta
             </h2>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-2 text-sm text-gray-500">
               Acesse o painel de gestão da sua clínica
             </p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleLogin} className="mt-10 space-y-6">
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-900">
-                E-mail
-              </label>
+              <label className="block text-sm font-medium text-gray-900">E-mail</label>
               <div className="relative mt-2">
                 <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${emailInvalido || camposComErro ? 'text-violet-500' : 'text-gray-400'}`} />
                 <input
@@ -125,16 +169,14 @@ export default function LoginPage() {
             {/* Senha */}
             <div>
               <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-900">
-                  Senha
-                </label>
-                <button
-                  type="button"
+                <label className="block text-sm font-medium text-gray-900">Senha</label>
+                <a
+                  href="/auth/recuperar-senha"
                   className="text-sm font-medium transition-opacity hover:opacity-80"
                   style={{ color: '#04c2fb' }}
                 >
                   Esqueci minha senha
-                </button>
+                </a>
               </div>
               <div className="relative mt-2">
                 <Lock className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${camposComErro ? 'text-violet-500' : 'text-gray-400'}`} />
@@ -192,8 +234,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Link cadastro */}
-          <p className="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-10 text-center text-sm text-gray-500">
             Não tem uma conta?{' '}
             <a
               href="/auth/cadastro"

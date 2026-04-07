@@ -82,8 +82,14 @@ function ModalConvidar({ onFechar }: { onFechar: () => void }) {
       queryClient.invalidateQueries({ queryKey: ['usuarios'] })
       onFechar()
     },
-    onError: () => {
-      toast.error('Erro ao enviar convite', { description: 'Tente novamente.' })
+    onError: (err: Error) => {
+      if (err.message.startsWith('API error 409')) {
+        toast.error('Usuário já cadastrado', {
+          description: 'Este e-mail já possui uma conta no Clinitra, verifique o e-mail para mais informações.',
+        })
+      } else {
+        toast.error('Erro ao enviar convite', { description: 'Tente novamente.' })
+      }
     },
   })
 
