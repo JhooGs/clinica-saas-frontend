@@ -12,8 +12,9 @@ import { useRegistroDraft } from '@/hooks/use-registro-draft'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ConfirmDelete } from '@/components/confirm-delete'
 import { chavePauta } from '@/components/modal-pauta'
-import { relatoriosPendentesIniciais, TIPOS_SESSAO } from '@/lib/mock-registros'
+import { TIPOS_SESSAO } from '@/lib/tipos-sessao'
 import { useRegistro, useAtualizarRegistro, useCriarRegistro } from '@/hooks/use-registros'
+import { useAgendamento } from '@/hooks/use-agenda'
 import { usePacientes } from '@/hooks/use-pacientes'
 import type { Registro } from '@/types'
 
@@ -682,14 +683,14 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
 
 function FormularioSessao({ id }: { id: string }) {
   const router = useRouter()
-  const agendamento = relatoriosPendentesIniciais.find(r => String(r.id) === id)
+  const { data: agendamento } = useAgendamento(id)
   const criarRegistro = useCriarRegistro()
   const { data: pacientesData } = usePacientes({ page_size: 200 })
 
   const [pacienteId, setPacienteId] = useState<string>('')
   const [form, setForm] = useState({
-    data: agendamento?.data ?? hoje(),
-    tipoSessao: agendamento?.tipo ?? 'Sessão',
+    data: hoje(),
+    tipoSessao: 'Sessão',
     numeroSessao: '',
     presenca: true,
     valorSessao: '',
@@ -709,20 +710,33 @@ function FormularioSessao({ id }: { id: string }) {
 
   const { carregarRascunho, salvarRascunho, descartarRascunho } = useRegistroDraft(id)
 
+  // Quando o agendamento carregar da API, pré-preenche o form e define o paciente
+  useEffect(() => {
+    if (!agendamento) return
+    startTransition(() => {
+      setPacienteId(agendamento.paciente_id)
+      setForm(prev => ({
+        ...prev,
+        data: agendamento.data ?? prev.data,
+        tipoSessao: agendamento.tipo_sessao ?? prev.tipoSessao,
+      }))
+    })
+  }, [agendamento?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const draft = carregarRascunho()
     if (!draft) return
     startTransition(() => {
       setForm({
         ...draft.form,
-        tipoSessao: draft.form.tipoSessao ?? agendamento?.tipo ?? 'Sessão',
+        tipoSessao: draft.form.tipoSessao ?? agendamento?.tipo_sessao ?? 'Sessão',
         valorSessao: (draft.form as Record<string, unknown>).valorSessao as string ?? '',
         links: draft.form.links ?? [],
       })
       setArquivos(draft.arquivos ?? [])
       setRascunhoRestaurado(true)
     })
-  }, [carregarRascunho, agendamento?.tipo])
+  }, [carregarRascunho, agendamento?.tipo_sessao])
 
   // Carrega pauta pré-sessão do localStorage
   useEffect(() => {
@@ -864,7 +878,7 @@ function FormularioSessao({ id }: { id: string }) {
             <User className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Paciente</p>
-              <p className="text-sm font-medium text-gray-800">{agendamento.paciente}</p>
+              <p className="text-sm font-medium text-gray-800">{agendamento.paciente_nome ?? '-'}</p>
             </div>
           </div>
           <div className="flex items-start gap-2">
@@ -878,7 +892,7 @@ function FormularioSessao({ id }: { id: string }) {
             <Clock className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Horário · Tipo</p>
-              <p className="text-sm font-medium text-gray-800">{agendamento.horario} · {agendamento.tipo}</p>
+              <p className="text-sm font-medium text-gray-800">{agendamento.horario} · {agendamento.tipo_sessao}</p>
             </div>
           </div>
         </div>

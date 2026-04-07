@@ -28,17 +28,7 @@ type PlanoAtendimento = {
   sessoEmGrupo: boolean
 }
 
-type SessaoGeradaLS = {
-  pacienteId: string  // UUID
-  paciente: string
-  data: string
-  horario: string
-  sessoEmGrupo?: boolean
-}
-
 // ── Constantes ───────────────────────────────────────────────────────────────
-
-const LS_RECORRENTES = 'clinitra_agenda_recorrentes'
 
 const DIAS_SEMANA = [
   { id: 1, label: 'Seg', nome: 'Segunda' },
@@ -76,6 +66,23 @@ function formatDiaSemana(dow: number): string {
 function formatDataCurta(iso: string): string {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
+}
+
+// Adiciona N minutos a um horário HH:MM, retornando HH:MM
+function addMinutes(horario: string, min: number): string {
+  const [hh, mm] = horario.split(':').map(Number)
+  const total = hh * 60 + mm + min
+  return `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`
+}
+
+// Verifica overlap de intervalos fechados; sem horarioFim assume +60min
+function overlapHorario(
+  a: { horario: string; horarioFim?: string },
+  b: { horario: string; horarioFim?: string },
+): boolean {
+  const fimA = a.horarioFim ?? addMinutes(a.horario, 60)
+  const fimB = b.horarioFim ?? addMinutes(b.horario, 60)
+  return a.horario < fimB && b.horario < fimA
 }
 
 // Gera array de 14 dias a partir de hoje
@@ -215,33 +222,37 @@ export function ModalHorarioRecorrente({
   const [sessoEmGrupo, setSessoEmGrupo] = useState(planoAtual.sessoEmGrupo)
   const [gruposExpandidos, setGruposExpandidos] = useState<Set<string>>(new Set())
 
-  // Reinicia quando o modal abre
+  // Reinicia quando o modal abre + limpa cache legado de localStorage
   useEffect(() => {
     if (open) {
       setSlots(initSlots())
       setSessoEmGrupo(planoAtual.sessoEmGrupo)
+      // Limpa o cache antigo de sessões recorrentes (substituído pela API)
+      try { localStorage.removeItem('clinitra_agenda_recorrentes') } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const dias14 = useMemo(() => gerar14Dias(), [])
 
-  // Todos os agendamentos existentes (base + localStorage de todos os pacientes)
+  // Todos os agendamentos existentes (API real passados como prop pelo parent)
   const agendamentosExistentes = useMemo(() => {
     const todos: {
       data: string
       horario: string
+      horarioFim?: string
       paciente: string
       pacientes: string[]   // lista de nomes (>1 quando for grupo)
       ehGrupo: boolean
     }[] = []
 
-    // Agendamentos da base mock
+    // Agendamentos da API real (passados como prop pelo parent)
     for (const ag of agendamentosBase) {
       const ehGrupo = ag.tipo === 'Sessão em grupo'
       todos.push({
         data: ag.data,
         horario: ag.horario,
+        horarioFim: ag.horarioFim,
         paciente: ag.paciente,
         // Copia o array para não mutar dados externos ao adicionar pacientes de grupo
         pacientes: ag.pacientes && ag.pacientes.length > 0
@@ -251,45 +262,6 @@ export function ModalHorarioRecorrente({
       })
     }
 
-    // Sessões recorrentes do localStorage
-    try {
-      const raw = localStorage.getItem(LS_RECORRENTES)
-      const recorrentes: SessaoGeradaLS[] = raw ? JSON.parse(raw) : []
-      const chaveBase = new Set(todos.map(a => `${a.data}_${a.horario}_${a.paciente}`))
-
-      // Mapa de grupos já existentes: "data_horario" -> índice em todos
-      const gruposExistentes = new Map<string, number>()
-      todos.forEach((ag, idx) => {
-        if (ag.ehGrupo) gruposExistentes.set(`${ag.data}_${ag.horario}`, idx)
-      })
-
-      for (const ag of recorrentes) {
-        const chave = `${ag.data}_${ag.horario}_${ag.paciente}`
-        if (chaveBase.has(chave)) continue
-
-        const chaveGrupo = `${ag.data}_${ag.horario}`
-        if (ag.sessoEmGrupo && gruposExistentes.has(chaveGrupo)) {
-          // Adiciona ao grupo existente em vez de criar novo card
-          const idx = gruposExistentes.get(chaveGrupo)!
-          if (!todos[idx].pacientes.includes(ag.paciente)) {
-            todos[idx].pacientes.push(ag.paciente)
-          }
-        } else {
-          todos.push({
-            data: ag.data,
-            horario: ag.horario,
-            paciente: ag.paciente,
-            pacientes: [ag.paciente],
-            ehGrupo: ag.sessoEmGrupo ?? false,
-          })
-          if (ag.sessoEmGrupo) {
-            gruposExistentes.set(chaveGrupo, todos.length - 1)
-          }
-        }
-        chaveBase.add(chave)
-      }
-    } catch {}
-
     return todos
   }, [agendamentosBase])
 
@@ -297,6 +269,7 @@ export function ModalHorarioRecorrente({
   const ocupadosPorData = useMemo(() => {
     const mapa = new Map<string, {
       horario: string
+      horarioFim?: string
       ehGrupo: boolean
       paciente: string
       pacientes: string[]
@@ -305,6 +278,7 @@ export function ModalHorarioRecorrente({
       if (!mapa.has(ag.data)) mapa.set(ag.data, [])
       mapa.get(ag.data)!.push({
         horario: ag.horario,
+        horarioFim: ag.horarioFim,
         ehGrupo: ag.ehGrupo,
         paciente: ag.paciente,
         pacientes: ag.pacientes,
@@ -346,7 +320,10 @@ export function ModalHorarioRecorrente({
   const conflitos = useMemo((): ConflitoCandidato[] => {
     return sessoesCandidatas.flatMap(cand => {
       const ocupados = ocupadosPorData.get(cand.data) ?? []
-      const colisao = ocupados.find(o => o.horario === cand.horario)
+      const colisao = ocupados.find(o => overlapHorario(
+        { horario: cand.horario },
+        { horario: o.horario, horarioFim: o.horarioFim },
+      ))
       if (!colisao) return []
       const tipo: ConflitoCandidato['tipo'] = sessoEmGrupo && colisao.ehGrupo ? 'aviso' : 'bloqueante'
       return [{ data: cand.data, horario: cand.horario, tipo }]

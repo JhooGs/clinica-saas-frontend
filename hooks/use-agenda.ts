@@ -2,6 +2,38 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import type { Agendamento, AgendamentoListResponse, AgendamentoCreatePayload, AgendamentoUpdatePayload } from '@/types'
 
+// ── Tipos para geração de recorrentes ────────────────────────────────────────
+
+export interface SlotRecorrenteInput {
+  dia_semana?: number   // 0-6 (semanal/quinzenal)
+  dia_mes?: number      // 1-28 (mensal)
+  horario: string       // HH:MM
+  horario_fim?: string  // HH:MM
+}
+
+export interface GerarRecorrentesInput {
+  paciente_id: string
+  recorrencia: 'semanal' | 'quinzenal' | 'mensal'
+  vezes_por_semana?: number | null
+  sessao_em_grupo?: boolean
+  tipo_sessao?: string
+  slots: SlotRecorrenteInput[]
+  semana_referencia?: string | null  // YYYY-MM-DD
+}
+
+export interface ConflitoInfo {
+  data: string
+  horario: string
+  horario_fim: string
+  motivo: string
+}
+
+export interface GerarRecorrentesResult {
+  criados: number
+  cancelados: number
+  conflitos: ConflitoInfo[]
+}
+
 export interface AgendaFilter {
   data_inicio: string   // YYYY-MM-DD — obrigatório
   data_fim: string      // YYYY-MM-DD — obrigatório
@@ -71,6 +103,20 @@ export function useCancelarAgendamento() {
   return useMutation<void, Error, string>({
     mutationFn: (id) =>
       apiFetch<void>(`/api/v1/agendamentos/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agenda'] })
+    },
+  })
+}
+
+export function useGerarAgendamentosRecorrentes() {
+  const queryClient = useQueryClient()
+  return useMutation<GerarRecorrentesResult, Error, GerarRecorrentesInput>({
+    mutationFn: (payload) =>
+      apiFetch<GerarRecorrentesResult>('/api/v1/agendamentos/recorrentes', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agenda'] })
     },

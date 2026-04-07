@@ -10,6 +10,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { toast } from 'sonner'
 import { useTransacoes, useCriarTransacao, useAtualizarTransacao, useExcluirTransacao } from '@/hooks/use-financeiro'
+import { usePacientes } from '@/hooks/use-pacientes'
 import type { Financeiro, FormaPagamento } from '@/types'
 
 import type { LucideIcon } from 'lucide-react'
@@ -473,9 +474,26 @@ function ModalNovaTransacao({
     descricao: '',
     valor: '',
     formaPagamento: 'pix' as FormaPagamento,
+    atreladoPaciente: false,
+    pacienteId: '',
+    pacienteBusca: '',
   })
+  const [pacienteDropdownAberto, setPacienteDropdownAberto] = useState(false)
+  const pacienteContainerRef = useRef<HTMLDivElement>(null)
   const [confirmarSair, setConfirmarSair] = useState(false)
   const criarTransacao = useCriarTransacao()
+  const { data: pacientesData } = usePacientes({ ativo: true, page_size: 500 })
+  const pacientesDisponiveis = pacientesData?.items ?? []
+
+  useEffect(() => {
+    function handleFora(e: MouseEvent) {
+      if (pacienteContainerRef.current && !pacienteContainerRef.current.contains(e.target as Node)) {
+        setPacienteDropdownAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleFora)
+    return () => document.removeEventListener('mousedown', handleFora)
+  }, [])
 
   const vencimentoPadrao = useMemo(() => calcularVencimentoPadrao(), [])
 
@@ -487,7 +505,7 @@ function ModalNovaTransacao({
     f('valor', formatarMoeda(e.target.value))
   }
 
-  const temDados = form.descricao !== '' || form.valor !== ''
+  const temDados = form.descricao !== '' || form.valor !== '' || form.pacienteId !== ''
 
   function tentarFechar() {
     if (temDados) setConfirmarSair(true)
@@ -509,6 +527,7 @@ function ModalNovaTransacao({
         valor: valorNum,
         forma_pagamento: form.formaPagamento,
         data_vencimento: vencimentoPadrao?.iso,
+        paciente_id: form.atreladoPaciente && form.pacienteId ? form.pacienteId : undefined,
       })
       toast.success('Transação registrada', {
         description: `${form.tipo === 'receita' ? 'Entrada' : 'Saída'} de ${formatBRL(valorNum)} adicionada.`,
@@ -576,6 +595,96 @@ function ModalNovaTransacao({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Atrelado a um paciente */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                const novoValor = !form.atreladoPaciente
+                setForm(prev => ({
+                  ...prev,
+                  atreladoPaciente: novoValor,
+                  pacienteId: novoValor ? prev.pacienteId : '',
+                  pacienteBusca: novoValor ? prev.pacienteBusca : '',
+                }))
+                if (!novoValor) setPacienteDropdownAberto(false)
+              }}
+              className="flex items-center gap-2.5 w-full group"
+            >
+              <div className={cn(
+                'relative w-9 h-5 rounded-full transition-colors duration-200 shrink-0',
+                form.atreladoPaciente ? 'bg-[#04c2fb]' : 'bg-gray-200'
+              )}>
+                <span className={cn(
+                  'absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200',
+                  form.atreladoPaciente ? 'translate-x-4' : 'translate-x-0'
+                )} />
+              </div>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                Atrelado a um paciente
+              </span>
+            </button>
+
+            {form.atreladoPaciente && (
+              <div ref={pacienteContainerRef} className="relative">
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    value={form.pacienteBusca}
+                    onChange={e => {
+                      setForm(prev => ({ ...prev, pacienteBusca: e.target.value, pacienteId: '' }))
+                      setPacienteDropdownAberto(true)
+                    }}
+                    onFocus={() => setPacienteDropdownAberto(true)}
+                    placeholder="Buscar paciente..."
+                    className="w-full rounded-lg border bg-white/80 pl-9 pr-8 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                  />
+                  {form.pacienteBusca && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, pacienteId: '', pacienteBusca: '' }))
+                        setPacienteDropdownAberto(false)
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-gray-700"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {pacienteDropdownAberto && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-44 overflow-y-auto">
+                    {pacientesDisponiveis
+                      .filter(p => p.nome.toLowerCase().includes(form.pacienteBusca.toLowerCase()))
+                      .slice(0, 20)
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onMouseDown={e => {
+                            e.preventDefault()
+                            setForm(prev => ({ ...prev, pacienteId: p.id, pacienteBusca: p.nome }))
+                            setPacienteDropdownAberto(false)
+                          }}
+                          className={cn(
+                            'flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors',
+                            form.pacienteId === p.id && 'bg-[#04c2fb]/5 font-medium text-[#04c2fb]'
+                          )}
+                        >
+                          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          {p.nome}
+                        </button>
+                      ))
+                    }
+                    {pacientesDisponiveis.filter(p => p.nome.toLowerCase().includes(form.pacienteBusca.toLowerCase())).length === 0 && (
+                      <p className="px-3 py-2 text-xs italic text-muted-foreground">Nenhum paciente encontrado</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Descrição */}

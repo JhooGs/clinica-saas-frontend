@@ -4,11 +4,11 @@ import { useState, useEffect, useRef, useMemo, startTransition } from 'react'
 import { X, AlertTriangle, Search, Users, Info } from 'lucide-react'
 import { cn, proximaHoraCheia } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
-import { TIPOS_SESSAO } from '@/lib/mock-registros'
 import { ModalPortal } from '@/components/modal-portal'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useCriarAgendamento, useAtualizarAgendamento } from '@/hooks/use-agenda'
+import { useTiposSessao } from '@/hooks/use-planos'
 import { toast } from 'sonner'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -29,10 +29,10 @@ function horarioFimPadrao(inicio: string): string {
   return `${String(fimH).padStart(2, '0')}:${String(min).padStart(2, '0')}`
 }
 
-// Detecta se o tipo está fora da lista (modo edição com tipo custom)
-function resolverTipoForm(tipo: string): { tipo: string; tipoCustom: string } {
-  const na_lista = (TIPOS_SESSAO as readonly string[]).includes(tipo)
-  if (na_lista || tipo === '') return { tipo, tipoCustom: '' }
+// Detecta se o tipo está fora da lista conhecida (modo edição com tipo custom)
+// lista é opcional: quando vazia, assume que o tipo é válido (dados ainda carregando)
+function resolverTipoForm(tipo: string, lista: string[] = []): { tipo: string; tipoCustom: string } {
+  if (lista.length === 0 || lista.includes(tipo) || tipo === '') return { tipo, tipoCustom: '' }
   return { tipo: 'Outros', tipoCustom: tipo }
 }
 
@@ -378,6 +378,8 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
   const [form, setForm] = useState<FormAgendamento>(() => formDe(agendamento))
   const criarAgendamento = useCriarAgendamento()
   const atualizarAgendamento = useAtualizarAgendamento()
+  const { data: tiposSessaoData } = useTiposSessao()
+  const tiposSessao = tiposSessaoData?.items?.map(t => t.nome) ?? []
   const { data: pacientesData } = usePacientes({ ativo: true, page_size: 500 })
   const pacientesDisponiveis: PacienteOpcao[] = (pacientesData?.items ?? []).map(p => ({
     id: p.id,
@@ -684,7 +686,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
                   className={cn(selectBase, erroVisivel('tipo') ? inputErro : inputOk)}
                 >
                   <option value="">Selecionar tipo</option>
-                  {TIPOS_SESSAO.map(t => (
+                  {tiposSessao.map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>

@@ -11,8 +11,9 @@ import {
   Clock, X, Sparkles, PowerOff, CalendarRange, Loader2,
 } from 'lucide-react'
 import { cn, extractTiptapText } from '@/lib/utils'
-import { AGENDAMENTOS_BASE } from '@/lib/mock-agenda'
 import { usePacotes, useTiposSessao, useSalvarPlanoAtendimento } from '@/hooks/use-planos'
+import { useAgendamentos, useGerarAgendamentosRecorrentes } from '@/hooks/use-agenda'
+import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ModalHorarioRecorrente } from '@/components/modal-horario-recorrente'
@@ -136,141 +137,6 @@ const MODOS_COBRANCA: {
     corTag: 'bg-violet-100 text-violet-700 border-violet-200',
   },
 ]
-
-/* ── Helpers de sessões recorrentes ──────────────────── */
-
-const LS_RECORRENTES = 'clinitra_agenda_recorrentes'
-
-type SessaoGerada = {
-  id: string
-  pacienteId: string  // UUID
-  paciente: string
-  tipo: string
-  data: string
-  horario: string
-  source: 'recorrente'
-  recorrente: true
-  geradoEm: string
-  sessoEmGrupo: boolean
-}
-
-function _toISO(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-type ResultadoGeracao = {
-  salvas: SessaoGerada[]
-  conflitos: { data: string; horario: string; pacienteExistente: string }[]
-  conflitosGrupo: { data: string; horario: string; pacienteExistente: string }[]
-}
-
-function gerarSessoesRecorrentes(
-  pacienteId: string,
-  pacienteNome: string,
-  plano: PlanoAtendimento,
-): ResultadoGeracao {
-  if (!plano.agenda || !plano.recorrencia || plano.agenda.slots.length === 0) {
-    return { salvas: [], conflitos: [], conflitosGrupo: [] }
-  }
-  const slots = plano.agenda.slots.filter(s => s.horario)
-  if (slots.length === 0) return { salvas: [], conflitos: [], conflitosGrupo: [] }
-
-  const sessoEmGrupo = plano.sessoEmGrupo ?? false
-
-  // Mapa de horários ocupados: "data_horario" → { paciente, ehGrupo }
-  const ocupados = new Map<string, { paciente: string; ehGrupo: boolean }>()
-  for (const ag of AGENDAMENTOS_BASE) {
-    ocupados.set(`${ag.data}_${ag.horario}`, {
-      paciente: ag.paciente,
-      ehGrupo: ag.tipo === 'Sessão em grupo',
-    })
-  }
-  try {
-    const raw = localStorage.getItem(LS_RECORRENTES)
-    const outrasRecorrentes: SessaoGerada[] = raw ? JSON.parse(raw) : []
-    for (const ag of outrasRecorrentes) {
-      if (ag.pacienteId !== pacienteId) {
-        ocupados.set(`${ag.data}_${ag.horario}`, {
-          paciente: ag.paciente,
-          ehGrupo: ag.sessoEmGrupo ?? false,
-        })
-      }
-    }
-  } catch {}
-
-  const salvas: SessaoGerada[] = []
-  const conflitos: ResultadoGeracao['conflitos'] = []
-  const conflitosGrupo: ResultadoGeracao['conflitosGrupo'] = []
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
-  const agora = new Date().toISOString()
-
-  for (let d = 0; d <= 56; d++) {
-    const data = new Date(hoje)
-    data.setDate(hoje.getDate() + d)
-    const dow = data.getDay()
-    const diaMes = data.getDate()
-    const dataISO = _toISO(data)
-    const semanaIdx = Math.floor(d / 7)
-
-    for (const slot of slots) {
-      let incluir = false
-      if (plano.recorrencia === 'semanal' && slot.diaSemana === dow) incluir = true
-      else if (plano.recorrencia === 'quinzenal' && slot.diaSemana === dow && semanaIdx % 2 === 0) incluir = true
-      else if (plano.recorrencia === 'mensal' && slot.diaMes === diaMes) incluir = true
-
-      if (!incluir) continue
-
-      const chave = `${dataISO}_${slot.horario}`
-      const ocupacao = ocupados.get(chave)
-
-      if (ocupacao) {
-        // Grupo + grupo → aviso mas salva mesmo assim
-        if (sessoEmGrupo && ocupacao.ehGrupo) {
-          conflitosGrupo.push({ data: dataISO, horario: slot.horario, pacienteExistente: ocupacao.paciente })
-          salvas.push({
-            id: `rec_${pacienteId}_${dataISO}_${slot.horario.replace(':', '')}`,
-            pacienteId,
-            paciente: pacienteNome,
-            tipo: 'Sessão em grupo',
-            data: dataISO,
-            horario: slot.horario,
-            source: 'recorrente',
-            recorrente: true,
-            geradoEm: agora,
-            sessoEmGrupo: true,
-          })
-        } else {
-          // Solo+solo, solo+grupo ou grupo+solo → bloqueia
-          conflitos.push({ data: dataISO, horario: slot.horario, pacienteExistente: ocupacao.paciente })
-        }
-      } else {
-        salvas.push({
-          id: `rec_${pacienteId}_${dataISO}_${slot.horario.replace(':', '')}`,
-          pacienteId,
-          paciente: pacienteNome,
-          tipo: sessoEmGrupo ? 'Sessão em grupo' : 'Sessão',
-          data: dataISO,
-          horario: slot.horario,
-          source: 'recorrente',
-          recorrente: true,
-          geradoEm: agora,
-          sessoEmGrupo,
-        })
-      }
-    }
-  }
-  return { salvas, conflitos, conflitosGrupo }
-}
-
-function salvarSessoesLocalStorage(pacienteId: string, sessoes: SessaoGerada[]) {
-  try {
-    const raw = localStorage.getItem(LS_RECORRENTES)
-    const existentes: SessaoGerada[] = raw ? JSON.parse(raw) : []
-    const semPaciente = existentes.filter(s => s.pacienteId !== pacienteId)
-    localStorage.setItem(LS_RECORRENTES, JSON.stringify([...semPaciente, ...sessoes]))
-  } catch {}
-}
 
 function descRecorrencia(recorrencia: Recorrencia | null, vezesPorSemana: number | null): string {
   if (!recorrencia) return '—'
@@ -480,6 +346,25 @@ function CardPlano({
   const [form, setForm] = useState<PlanoAtendimento>(planoInicial)
   const [modalHorarioAberto, setModalHorarioAberto] = useState(false)
   const [confirmarNavPlanos, setConfirmarNavPlanos] = useState(false)
+  const gerarRecorrentes = useGerarAgendamentosRecorrentes()
+
+  // Agendamentos reais das próximas 8 semanas para o modal de horário
+  const hoje = new Date()
+  const data_inicio = hoje.toISOString().slice(0, 10)
+  const data_fim = new Date(hoje.getTime() + 56 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const { data: agendamentosData } = useAgendamentos({ data_inicio, data_fim })
+  const agendamentosBase: AgendamentoComSource[] = (agendamentosData?.items ?? []).map(ag => ({
+    id: ag.id,
+    paciente: ag.paciente_nome ?? '',
+    paciente_id: ag.paciente_id,
+    pacientes: ag.pacientes_ids ? [ag.paciente_nome ?? ''] : undefined,
+    pacientes_ids: ag.pacientes_ids?.map(String),
+    tipo: ag.tipo_sessao,
+    data: ag.data,
+    horario: ag.horario,
+    horarioFim: ag.horario_fim,
+    source: 'clinitra' as const,
+  }))
 
   function planoFoiAlterado(): boolean {
     return JSON.stringify(form) !== JSON.stringify(planoInicial)
@@ -509,7 +394,7 @@ function CardPlano({
     return new Set(horarios).size < horarios.length
   })()
 
-  function salvar() {
+  async function salvar() {
     if (temConflitoHorario) {
       toast.error('Conflito de horário', { description: 'Dois slots não podem ter o mesmo horário. Ajuste antes de salvar.' })
       return
@@ -517,14 +402,38 @@ function CardPlano({
     onSalvar(form)
     setEditando(false)
 
-    const { salvas } = gerarSessoesRecorrentes(pacienteId, pacienteNome, form)
-    salvarSessoesLocalStorage(pacienteId, salvas)
-
-    if (salvas.length > 0) {
-      const fmt = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
-      toast.success('Plano salvo', {
-        description: `Sessões agendadas de ${fmt(salvas[0].data)} a ${fmt(salvas[salvas.length - 1].data)}.`,
-      })
+    // Gerar sessões recorrentes no backend (substitui localStorage)
+    if (form.agenda && form.recorrencia && form.agenda.slots.length > 0) {
+      try {
+        const result = await gerarRecorrentes.mutateAsync({
+          paciente_id: pacienteId,
+          recorrencia: form.recorrencia,
+          vezes_por_semana: form.vezesPorSemana,
+          sessao_em_grupo: form.sessoEmGrupo,
+          tipo_sessao: form.sessoEmGrupo ? 'Sessão em grupo' : 'Sessão',
+          slots: form.agenda.slots.map(s => ({
+            dia_semana: s.diaSemana,
+            dia_mes: s.diaMes,
+            horario: s.horario,
+          })),
+        })
+        const bloqueantes = result.conflitos.filter(c => c.motivo.startsWith('Conflito'))
+        if (result.criados > 0 && bloqueantes.length === 0) {
+          toast.success('Plano salvo', {
+            description: `${result.criados} sessão(ões) agendada(s) para as próximas 8 semanas.`,
+          })
+        } else if (result.criados > 0) {
+          toast.success('Plano salvo', {
+            description: `${result.criados} sessão(ões) agendada(s). ${bloqueantes.length} conflito(s) ignorado(s).`,
+          })
+        } else {
+          toast.success('Plano salvo', { description: 'Nenhuma sessão gerada — todos os horários conflitam.' })
+        }
+      } catch {
+        toast.error('Erro ao gerar agenda', {
+          description: 'O plano foi salvo, mas não foi possível gerar as sessões. Tente novamente.',
+        })
+      }
     } else {
       toast.success('Plano salvo', { description: 'Alterações salvas com sucesso.' })
     }
@@ -1165,7 +1074,7 @@ function CardPlano({
           pacienteId={pacienteId}
           pacienteNome={pacienteNome}
           planoAtual={form}
-          agendamentosBase={AGENDAMENTOS_BASE}
+          agendamentosBase={agendamentosBase}
         />
       )}
     </div>

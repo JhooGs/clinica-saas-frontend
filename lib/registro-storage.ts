@@ -9,7 +9,7 @@ const BUCKET = 'registros'
 
 export async function uploadImagem(
   file: File,
-  agendamentoId: number,
+  agendamentoId: string,
 ): Promise<string> {
   const supabase = createClient()
 
@@ -33,7 +33,7 @@ export async function uploadImagem(
 
 export async function uploadArquivo(
   file: File,
-  agendamentoId: number,
+  agendamentoId: string,
 ): Promise<UploadedFile> {
   const supabase = createClient()
 
