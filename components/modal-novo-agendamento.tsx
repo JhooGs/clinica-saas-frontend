@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, startTransition } from 'react'
-import { X, AlertTriangle, Search, Users, Info } from 'lucide-react'
+import { X, AlertTriangle, Search, Users, Info, User } from 'lucide-react'
 import { cn, proximaHoraCheia } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ModalPortal } from '@/components/modal-portal'
@@ -281,14 +281,15 @@ function PacienteMultiSelect({
                       onMouseDown={e => { e.preventDefault(); if (!inativo) adicionarPaciente(pac) }}
                       onMouseEnter={() => !inativo && setIndiceAtivo(i)}
                       className={cn(
-                        'w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between gap-2',
+                        'w-full px-3 py-2 text-left text-sm transition-colors flex items-center gap-2',
                         inativo
                           ? 'text-gray-400 cursor-not-allowed'
                           : i === indiceAtivo
                             ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
-                            : 'text-gray-700 hover:bg-gray-50'
+                            : 'text-gray-700 hover:bg-[#04c2fb]/8 hover:text-[#04c2fb]'
                       )}
                     >
+                      <User className="h-3.5 w-3.5 shrink-0 opacity-60" />
                       <span className="truncate">{pac.nome}</span>
                       {inativo && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 shrink-0">

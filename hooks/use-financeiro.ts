@@ -17,6 +17,7 @@ export interface FinanceiroCreatePayload {
   tipo: 'receita' | 'despesa'
   descricao: string
   valor: number
+  data_referencia: string  // YYYY-MM obrigatório
   data_vencimento?: string // YYYY-MM-DD
   forma_pagamento?: FormaPagamento
 }
@@ -25,7 +26,8 @@ export interface FinanceiroUpdatePayload {
   status?: 'pendente' | 'pago' | 'atrasado' | 'cancelado'
   valor?: number
   descricao?: string
-  data_pagamento?: string // YYYY-MM-DD
+  data_referencia?: string // YYYY-MM
+  data_pagamento?: string  // YYYY-MM-DD
   forma_pagamento?: FormaPagamento
 }
 

@@ -66,9 +66,9 @@ const MODULOS: Record<Modulo, { label: string; icon: React.ElementType; colunas:
   financeiro: {
     label: 'Financeiro',
     icon: DollarSign,
-    colunas: ['tipo', 'descricao', 'valor', 'status', 'data_pagamento', 'paciente_nome'],
+    colunas: ['tipo', 'descricao', 'valor', 'status', 'data_referencia', 'data_pagamento', 'paciente_nome'],
     descricao: 'Traga o histórico de receitas e despesas da clínica, incluindo pagamentos de sessões passadas.',
-    exemplo: 'Tipo, valor, status, data de pagamento...',
+    exemplo: 'Tipo, valor, status, data de referência...',
     cor: 'text-emerald-600',
     corBg: 'bg-emerald-50',
     corBorda: 'border-emerald-400',
@@ -100,6 +100,7 @@ const COLUNAS_INFO: Record<Modulo, ColInfo[]> = {
     { campo: 'descricao', desc: 'Descrição do lançamento', obrigatorio: true },
     { campo: 'valor', desc: 'Valor em reais, ex: 200,00 (sem R$)', obrigatorio: true },
     { campo: 'status', desc: '"pendente", "pago", "atrasado" ou "cancelado"', obrigatorio: false },
+    { campo: 'data_referencia', desc: 'Mês de competência no formato MM/AAAA, ex: 04/2025 (padrão: mês atual)', obrigatorio: false },
     { campo: 'data_pagamento', desc: 'Data em que o pagamento foi realizado (DD/MM/AAAA)', obrigatorio: false },
     { campo: 'paciente_nome', desc: 'Nome exato do paciente já cadastrado', obrigatorio: false },
   ],
@@ -111,11 +112,6 @@ const COLUNAS_INFO: Record<Modulo, ColInfo[]> = {
     { campo: 'valor_sessao', desc: 'Valor cobrado, ex: 200,00 (sem R$)', obrigatorio: false },
     { campo: 'conteudo', desc: 'Anotações ou resumo da sessão', obrigatorio: false },
   ],
-}
-
-const AVISO_DEPENDENCIA: Record<string, string> = {
-  financeiro: 'Os pacientes precisam ser importados antes. Lançamentos vinculados a pacientes que ainda não estão cadastrados serão rejeitados.',
-  registros: 'Os pacientes precisam ser importados antes. Registros sem paciente correspondente na plataforma serão rejeitados.',
 }
 
 // ── Indicador de progresso ────────────────────────────────────────────────────
@@ -236,7 +232,7 @@ function resumirErros(erros: string[]): string {
 function exibirValor(coluna: string, valor: unknown): string {
   if (valor === null || valor === undefined || valor === '') return ''
   // Datas ISO → DD/MM/AAAA
-  if ((coluna === 'data_sessao' || coluna === 'data_nascimento' || coluna === 'data_pagamento') && typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}/.test(valor)) {
+  if ((coluna === 'data_sessao' || coluna === 'data_nascimento' || coluna === 'data_pagamento' || coluna === 'data_referencia') && typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}/.test(valor)) {
     const [y, m, d] = valor.split('T')[0].split('-')
     return `${d}/${m}/${y}`
   }
@@ -266,8 +262,6 @@ export default function ConfiguracoesDadosPage() {
 
   const { label: moduloLabel, colunas } = MODULOS[modulo]
   const colunasInfo = COLUNAS_INFO[modulo]
-  const aviso = AVISO_DEPENDENCIA[modulo]
-
   function selecionarModulo(m: Modulo) {
     setModulo(m)
     resetar()
@@ -377,7 +371,6 @@ export default function ConfiguracoesDadosPage() {
             Traga seus dados históricos para o Clinitra em poucos passos.
           </p>
         </div>
-        <IndicadorPassos step={step} />
       </div>
 
       {/* Seleção de módulo */}
@@ -425,17 +418,6 @@ export default function ConfiguracoesDadosPage() {
       {/* Etapa 1: Upload ─────────────────────────────────────────────────────── */}
       {step === 'upload' && (
         <div className="space-y-4">
-
-          {/* Aviso de dependência */}
-          {aviso && (
-            <div className="flex items-start gap-2.5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
-              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-amber-800 mb-0.5">Atenção antes de começar</p>
-                <p className="text-xs text-amber-700">{aviso}</p>
-              </div>
-            </div>
-          )}
 
           {/* Passo 1: Baixar modelo */}
           <Card>

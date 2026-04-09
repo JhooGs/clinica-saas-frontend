@@ -46,6 +46,7 @@ export interface Financeiro {
   descricao: string
   valor: number
   status: 'pendente' | 'pago' | 'atrasado' | 'cancelado'
+  data_referencia: string  // YYYY-MM — mês/ano de referência da transação
   data_vencimento?: string
   data_pagamento?: string
   data_sessao?: string

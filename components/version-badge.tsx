@@ -22,11 +22,13 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
-    version: 'v0.9',
+    version: 'v0.3',
     date: '9 de abril de 2026',
     changes: [
       { category: 'Changed', description: 'Alterado layout da página de importação de dados históricos para deixar mais claro as etapas de atualização.' },
+      { category: 'Changed', description: 'Alterado forma como é interpretado o financeiro, agora a base é o mês/ano de referência da transação.' },
       { category: 'Fixed', description: 'Resolvido bug na importação de dados históricos que impedia a atualização dos dados.' },
+      { category: 'Fixed', description: 'Resolvido bug na importação de dados financeiro onde os valores eram interpretados errados.' },
       { category: 'Added', description: 'Adicionado versão badge para mostrar a versão do app.' },
     ],
   },

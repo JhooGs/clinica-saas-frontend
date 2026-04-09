@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import type { DateRange } from 'react-day-picker'
-import { TrendingUp, TrendingDown, Clock, AlertCircle, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Loader2, Receipt, User, CalendarDays, Banknote, Info, FileText, Trash2, QrCode, CreditCard, ArrowLeftRight, Building2, ChevronDown, Check } from 'lucide-react'
+import { TrendingUp, TrendingDown, Clock, AlertCircle, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Loader2, Receipt, User, CalendarDays, Banknote, Info, FileText, Trash2, QrCode, CreditCard, ArrowLeftRight, Building2, ChevronDown, Check, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ModalPortal } from '@/components/modal-portal'
 import { DatePicker } from '@/components/ui/date-picker'
-import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { MonthYearPicker } from '@/components/ui/month-year-picker'
 import { toast } from 'sonner'
 import { useTransacoes, useCriarTransacao, useAtualizarTransacao, useExcluirTransacao } from '@/hooks/use-financeiro'
 import { usePacientes } from '@/hooks/use-pacientes'
@@ -105,7 +104,21 @@ function hoje() {
   return new Date().toISOString().slice(0, 10)
 }
 
-type SortKey = 'criado_em' | 'descricao' | 'tipo' | 'valor' | 'status'
+function mesAtualYYYYMM() {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  return `${d.getFullYear()}-${m}`
+}
+
+/** Converte "YYYY-MM" → "MM/YYYY" para exibição */
+function formatReferencia(yyyymm: string | undefined): string {
+  if (!yyyymm) return '-'
+  const [year, month] = yyyymm.split('-')
+  if (!year || !month) return yyyymm
+  return `${month}/${year}`
+}
+
+type SortKey = 'data_referencia' | 'descricao' | 'tipo' | 'valor' | 'status'
 type SortDir = 'asc' | 'desc'
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -308,6 +321,10 @@ function ModalDetalheTransacao({
               </div>
             )}
             <div className="flex items-center justify-between py-2.5">
+              <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Referência</span>
+              <span className="text-sm font-medium text-gray-800">{formatReferencia(transacao.data_referencia)}</span>
+            </div>
+            <div className="flex items-center justify-between py-2.5">
               <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Criado em</span>
               <span className="text-sm text-gray-700">{formatData(transacao.criado_em)}</span>
             </div>
@@ -484,6 +501,7 @@ function ModalNovaTransacao({
     atreladoPaciente: false,
     pacienteId: '',
     pacienteBusca: '',
+    dataReferencia: mesAtualYYYYMM(),
   })
   const [pacienteDropdownAberto, setPacienteDropdownAberto] = useState(false)
   const pacienteContainerRef = useRef<HTMLDivElement>(null)
@@ -521,6 +539,10 @@ function ModalNovaTransacao({
 
   async function salvar() {
     if (!form.descricao.trim() || !form.valor) return
+    if (!form.dataReferencia) {
+      toast.error('Informe o mês de referência')
+      return
+    }
     const digits = form.valor.replace(/\D/g, '')
     const valorNum = parseInt(digits, 10) / 100
     if (!valorNum || isNaN(valorNum)) {
@@ -532,6 +554,7 @@ function ModalNovaTransacao({
         tipo: form.tipo,
         descricao: form.descricao.trim(),
         valor: valorNum,
+        data_referencia: form.dataReferencia,
         forma_pagamento: form.formaPagamento,
         data_vencimento: vencimentoPadrao?.iso,
         paciente_id: form.atreladoPaciente && form.pacienteId ? form.pacienteId : undefined,
@@ -637,7 +660,7 @@ function ModalNovaTransacao({
             {form.atreladoPaciente && (
               <div ref={pacienteContainerRef} className="relative">
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
                   <input
                     value={form.pacienteBusca}
                     onChange={e => {
@@ -646,7 +669,7 @@ function ModalNovaTransacao({
                     }}
                     onFocus={() => setPacienteDropdownAberto(true)}
                     placeholder="Buscar paciente..."
-                    className="w-full rounded-lg border bg-white/80 pl-9 pr-8 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                    className="w-full rounded-lg border border-gray-200 bg-white/80 pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
                   />
                   {form.pacienteBusca && (
                     <button
@@ -662,31 +685,44 @@ function ModalNovaTransacao({
                   )}
                 </div>
                 {pacienteDropdownAberto && (
-                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-44 overflow-y-auto">
+                  <div
+                    className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-gray-200 shadow-lg overflow-hidden"
+                    style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
+                  >
                     {pacientesDisponiveis
                       .filter(p => p.nome.toLowerCase().includes(form.pacienteBusca.toLowerCase()))
-                      .slice(0, 20)
-                      .map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onMouseDown={e => {
-                            e.preventDefault()
-                            setForm(prev => ({ ...prev, pacienteId: p.id, pacienteBusca: p.nome }))
-                            setPacienteDropdownAberto(false)
-                          }}
-                          className={cn(
-                            'flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors',
-                            form.pacienteId === p.id && 'bg-[#04c2fb]/5 font-medium text-[#04c2fb]'
-                          )}
-                        >
-                          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          {p.nome}
-                        </button>
-                      ))
-                    }
-                    {pacientesDisponiveis.filter(p => p.nome.toLowerCase().includes(form.pacienteBusca.toLowerCase())).length === 0 && (
-                      <p className="px-3 py-2 text-xs italic text-muted-foreground">Nenhum paciente encontrado</p>
+                      .slice(0, 8)
+                      .length > 0 ? (
+                      <div className="max-h-48 overflow-y-auto py-1">
+                        {pacientesDisponiveis
+                          .filter(p => p.nome.toLowerCase().includes(form.pacienteBusca.toLowerCase()))
+                          .slice(0, 8)
+                          .map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={e => {
+                                e.preventDefault()
+                                setForm(prev => ({ ...prev, pacienteId: p.id, pacienteBusca: p.nome }))
+                                setPacienteDropdownAberto(false)
+                              }}
+                              className={cn(
+                                'w-full px-3 py-2 text-left text-sm transition-colors flex items-center gap-2',
+                                form.pacienteId === p.id
+                                  ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
+                                  : 'text-gray-700 hover:bg-[#04c2fb]/8 hover:text-[#04c2fb]'
+                              )}
+                            >
+                              <User className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                              {p.nome}
+                            </button>
+                          ))
+                        }
+                      </div>
+                    ) : (
+                      <div className="px-3 py-3 text-center">
+                        <p className="text-xs italic text-muted-foreground">Nenhum paciente encontrado</p>
+                      </div>
                     )}
                   </div>
                 )}
@@ -734,6 +770,22 @@ function ModalNovaTransacao({
             />
           </div>
 
+          {/* Mês de referência — obrigatório */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Mês de referência <span className="text-red-500">*</span>
+            </label>
+            <MonthYearPicker
+              value={form.dataReferencia}
+              onChange={v => f('dataReferencia', v)}
+              placeholder="Selecione o mês"
+              hasError={!form.dataReferencia}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              A qual mês/ano esta transação se refere (ex: sessões de março → 03/2025)
+            </p>
+          </div>
+
           {/* Vencimento — somente leitura, vem das configurações */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vencimento</label>
@@ -779,7 +831,7 @@ function ModalNovaTransacao({
           </button>
           <button
             onClick={salvar}
-            disabled={criarTransacao.isPending || !form.descricao.trim() || !form.valor}
+            disabled={criarTransacao.isPending || !form.descricao.trim() || !form.valor || !form.dataReferencia}
             className="rounded-lg px-5 py-2 text-sm font-medium text-white transition-colors hover:brightness-110 disabled:opacity-50 flex items-center gap-2"
             style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
           >
@@ -801,11 +853,14 @@ export default function FinanceiroPage() {
   const [transacaoSelecionada, setTransacaoSelecionada] = useState<Financeiro | null>(null)
   const [excluindoTransacao, setExcluindoTransacao] = useState<Financeiro | null>(null)
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'receita' | 'despesa'>('todos')
-  const [filtroPeriodo, setFiltroPeriodo] = useState<DateRange | undefined>(undefined)
-  const [sortKey, setSortKey] = useState<SortKey>('criado_em')
+  const [filtroMes, setFiltroMes] = useState<string>(mesAtualYYYYMM())
+  const [sortKey, setSortKey] = useState<SortKey>('data_referencia')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
-  const { data, isLoading } = useTransacoes()
+  const { data, isLoading } = useTransacoes({
+    mes: filtroMes || undefined,
+    tipo: filtroTipo !== 'todos' ? filtroTipo : undefined,
+  })
   const excluirTransacao = useExcluirTransacao()
 
   async function confirmarExclusao() {
@@ -832,29 +887,13 @@ export default function FinanceiroPage() {
     }
   }
 
-  const filtroInicio = filtroPeriodo?.from
-  const filtroFim    = filtroPeriodo?.to
-
   const lista = useMemo(() => {
-    const filtered = transacoes.filter(t => {
-      if (filtroTipo !== 'todos' && t.tipo !== filtroTipo) return false
-      if (filtroInicio || filtroFim) {
-        const iso = t.criado_em.endsWith('Z') || t.criado_em.includes('+') ? t.criado_em : t.criado_em + 'Z'
-        const dt = new Date(iso)
-        if (filtroInicio && dt < filtroInicio) return false
-        if (filtroFim   && dt > filtroFim)    return false
-      }
-      return true
-    })
-
-    return [...filtered].sort((a, b) => {
+    return [...transacoes].sort((a, b) => {
       let cmp = 0
       switch (sortKey) {
-        case 'criado_em': {
-          const toUtc = (s: string) => new Date(s.endsWith('Z') || s.includes('+') ? s : s + 'Z').getTime()
-          cmp = toUtc(a.criado_em) - toUtc(b.criado_em)
+        case 'data_referencia':
+          cmp = (a.data_referencia ?? '').localeCompare(b.data_referencia ?? '')
           break
-        }
         case 'descricao':
           cmp = a.descricao.localeCompare(b.descricao, 'pt-BR')
           break
@@ -870,7 +909,7 @@ export default function FinanceiroPage() {
       }
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [transacoes, filtroTipo, filtroInicio, filtroFim, sortKey, sortDir])
+  }, [transacoes, sortKey, sortDir])
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -960,11 +999,13 @@ export default function FinanceiroPage() {
 
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
-        <DateRangePicker
-          value={filtroPeriodo}
-          onChange={setFiltroPeriodo}
-          placeholder="Filtrar por período"
-        />
+        <div className="w-44">
+          <MonthYearPicker
+            value={filtroMes}
+            onChange={setFiltroMes}
+            placeholder="Selecionar mês"
+          />
+        </div>
         <div className="flex items-center gap-2">
           {(['todos', 'receita', 'despesa'] as const).map(f => (
             <button
@@ -982,12 +1023,12 @@ export default function FinanceiroPage() {
             </button>
           ))}
         </div>
-        {(filtroPeriodo?.from || filtroTipo !== 'todos') && (
+        {(filtroMes !== mesAtualYYYYMM() || filtroTipo !== 'todos') && (
           <button
-            onClick={() => { setFiltroPeriodo(undefined); setFiltroTipo('todos') }}
+            onClick={() => { setFiltroMes(mesAtualYYYYMM()); setFiltroTipo('todos') }}
             className="text-xs text-muted-foreground hover:text-foreground underline"
           >
-            Limpar filtros
+            Mês atual
           </button>
         )}
         <span className="ml-auto text-xs text-muted-foreground">{lista.length} registro(s)</span>
@@ -999,8 +1040,8 @@ export default function FinanceiroPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th onClick={() => handleSort('criado_em')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="criado_em" sortKey={sortKey} sortDir={sortDir} /></span>
+                <th onClick={() => handleSort('data_referencia')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Referência <SortIcon col="data_referencia" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th onClick={() => handleSort('descricao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                   <span className="inline-flex items-center gap-1.5">Descrição <SortIcon col="descricao" sortKey={sortKey} sortDir={sortDir} /></span>
@@ -1032,7 +1073,7 @@ export default function FinanceiroPage() {
                   className="group hover:bg-muted/20 transition-colors cursor-pointer"
                 >
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    <div>{formatData(t.criado_em)}</div>
+                    <div className="font-medium text-gray-700">{formatReferencia(t.data_referencia)}</div>
                     {t.data_pagamento && (
                       <div className="text-[11px] text-green-600">pago {formatData(t.data_pagamento)}</div>
                     )}

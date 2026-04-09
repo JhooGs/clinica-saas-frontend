@@ -859,10 +859,7 @@ export default function PlanosPage() {
                           </span>
                         )}
                       </div>
-                      <div className={cn(
-                        'flex items-center gap-0.5 w-16 justify-end transition-opacity',
-                        'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
-                      )}>
+                      <div className="flex items-center gap-0.5 w-16 justify-end">
                         <button
                           onClick={() => setModalTipo({ modo: 'editar', tipo })}
                           title="Editar"
@@ -984,7 +981,7 @@ export default function PlanosPage() {
                         <button
                           onClick={e => { e.stopPropagation(); setExcluindoPacote(pacote) }}
                           title="Remover"
-                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-colors shrink-0"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
