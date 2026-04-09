@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -103,9 +103,15 @@ function Campo({
 // ─── Página principal ────────────────────────────────────────────────────────
 
 export default function ConfiguracoesGeralPage() {
-  const [form, setForm] = useState<ConfigGeral>(carregarConfig)
-  const [salvo, setSalvo] = useState<ConfigGeral>(carregarConfig)
+  const [form, setForm] = useState<ConfigGeral>(VAZIO)
+  const [salvo, setSalvo] = useState<ConfigGeral>(VAZIO)
   const [buscandoCEP, setBuscandoCEP] = useState(false)
+
+  useEffect(() => {
+    const config = carregarConfig()
+    setForm(config)
+    setSalvo(config)
+  }, [])
   const [hoverLogo, setHoverLogo] = useState(false)
   const inputFileRef = useRef<HTMLInputElement>(null)
 

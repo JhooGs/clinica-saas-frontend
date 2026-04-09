@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Montserrat } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { Providers } from './providers'
@@ -9,6 +9,14 @@ const montserrat = Montserrat({
   variable: '--font-montserrat',
   weight: ['300', '400', '500', '600', '700'],
 })
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#04c2fb',
+}
 
 export const metadata: Metadata = {
   title: 'Clinitra',
