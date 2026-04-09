@@ -3,6 +3,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { MobileHeader } from '@/components/mobile-header'
 import { PageTransition } from '@/components/page-transition'
 import { NotificationsBell } from '@/components/notifications-bell'
+import { VersionBadge } from '@/components/version-badge'
 
 export default function DashboardLayout({
   children,
@@ -24,6 +25,7 @@ export default function DashboardLayout({
           <PageTransition>{children}</PageTransition>
         </main>
       </div>
+      <VersionBadge />
     </div>
   )
 }
