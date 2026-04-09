@@ -93,7 +93,8 @@ function ModalNovoPaciente({
 
   const ehAdulto = useMemo(() => {
     if (!form.dataNascimento) return false
-    const nasc = new Date(form.dataNascimento)
+    const [ny, nm, nd] = form.dataNascimento.split('-').map(Number)
+    const nasc = new Date(ny, nm - 1, nd)
     if (isNaN(nasc.getTime())) return false
     const agora = new Date()
     const aniversarioEsteAno = new Date(agora.getFullYear(), nasc.getMonth(), nasc.getDate())

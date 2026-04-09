@@ -91,7 +91,8 @@ function derivePendentesFromHoje(atendimentos: AtendimentoUI[], now: Date): Rela
 function diasDesde(dataISO: string): number {
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
-  const alvo = new Date(dataISO + 'T00:00:00')
+  const [ay, am, ad] = dataISO.split('-').map(Number)
+  const alvo = new Date(ay, am - 1, ad)
   return Math.floor((hoje.getTime() - alvo.getTime()) / (1000 * 60 * 60 * 24))
 }
 

@@ -132,7 +132,14 @@ function formatValor(v: number) {
 
 function formatData(iso: string | undefined) {
   if (!iso) return '-'
-  return new Date(iso).toLocaleDateString('pt-BR')
+  // Data pura (YYYY-MM-DD): construir como data local para evitar deslocamento UTC
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('pt-BR')
+  }
+  // Datetime: backend grava em UTC sem 'Z' — adiciona Z para o browser converter corretamente para BRT
+  const utc = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z'
+  return new Date(utc).toLocaleDateString('pt-BR')
 }
 
 function statusLabel(status: Financeiro['status']) {
@@ -832,7 +839,8 @@ export default function FinanceiroPage() {
     const filtered = transacoes.filter(t => {
       if (filtroTipo !== 'todos' && t.tipo !== filtroTipo) return false
       if (filtroInicio || filtroFim) {
-        const dt = new Date(t.criado_em)
+        const iso = t.criado_em.endsWith('Z') || t.criado_em.includes('+') ? t.criado_em : t.criado_em + 'Z'
+        const dt = new Date(iso)
         if (filtroInicio && dt < filtroInicio) return false
         if (filtroFim   && dt > filtroFim)    return false
       }
@@ -842,9 +850,11 @@ export default function FinanceiroPage() {
     return [...filtered].sort((a, b) => {
       let cmp = 0
       switch (sortKey) {
-        case 'criado_em':
-          cmp = new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+        case 'criado_em': {
+          const toUtc = (s: string) => new Date(s.endsWith('Z') || s.includes('+') ? s : s + 'Z').getTime()
+          cmp = toUtc(a.criado_em) - toUtc(b.criado_em)
           break
+        }
         case 'descricao':
           cmp = a.descricao.localeCompare(b.descricao, 'pt-BR')
           break
