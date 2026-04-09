@@ -53,7 +53,7 @@ const MODULOS: Record<Modulo, { label: string; icon: React.ElementType; colunas:
   pacientes: {
     label: 'Pacientes',
     icon: Users,
-    colunas: ['nome', 'cpf', 'data_nascimento', 'telefone', 'email'],
+    colunas: ['nome', 'cpf', 'data_nascimento', 'telefone', 'email', 'status', 'responsavel'],
   },
   financeiro: {
     label: 'Financeiro',
