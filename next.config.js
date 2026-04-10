@@ -1,6 +1,4 @@
-import type { NextConfig } from "next";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+/** @type {import('next').NextConfig} */
 const withPWA = require("next-pwa")({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
@@ -9,7 +7,7 @@ const withPWA = require("next-pwa")({
   runtimeCaching: [
     {
       // Chamadas ao backend FastAPI — network-first (sempre tenta API, fallback para cache)
-      urlPattern: /^https?:\/\/.*\/api\/.*/i,
+      urlPattern: /^https?:\/\/(localhost:8000|api\.clinitra\.com).*/i,
       handler: "NetworkFirst",
       options: {
         cacheName: "api-cache",
@@ -49,9 +47,9 @@ const securityHeaders = [
   },
 ];
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   productionBrowserSourceMaps: false,
-  turbopack: {},
 
   async headers() {
     return [
@@ -63,4 +61,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+module.exports = withPWA(nextConfig);
