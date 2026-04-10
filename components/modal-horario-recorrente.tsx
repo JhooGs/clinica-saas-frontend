@@ -336,7 +336,7 @@ export function ModalHorarioRecorrente({
   }
 
   const conflitos = useMemo((): ConflitoCandidato[] => {
-    return sessoesCandidatas.flatMap(cand => {
+    return sessoesCandidatas.flatMap<ConflitoCandidato>(cand => {
       const ocupados = ocupadosPorData.get(cand.data) ?? []
       const colisao = ocupados.find(o => overlapHorario(
         { horario: cand.horario },
