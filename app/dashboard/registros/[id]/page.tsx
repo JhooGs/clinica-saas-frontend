@@ -802,6 +802,7 @@ function FormularioSessao({ id }: { id: string }) {
     criarRegistro.mutate(
       {
         paciente_id: pacienteId,
+        agendamento_id: id,  // vincula 1:1 com o agendamento de origem
         tipo_sessao: form.tipoSessao || undefined,
         presenca: form.presenca,
         valor_sessao: form.valorSessao ? parseFloat(form.valorSessao) : undefined,

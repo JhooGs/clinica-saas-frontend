@@ -1,8 +1,19 @@
-import Link from 'next/link'
+'use client'
+
 import Image from 'next/image'
 import { MailCheck } from 'lucide-react'
+import { createClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function AguardandoConfirmacaoPage() {
+  const router = useRouter()
+
+  async function handleSair() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+  }
+
   return (
     <div
       className="flex min-h-screen flex-col items-center justify-center px-6"
@@ -24,13 +35,13 @@ export default function AguardandoConfirmacaoPage() {
           </p>
         </div>
 
-        <Link
-          href="/auth/login"
+        <button
+          onClick={handleSair}
           className="inline-block text-sm font-semibold transition-opacity hover:opacity-80"
           style={{ color: '#04c2fb' }}
         >
-          Voltar para o login
-        </Link>
+          Sair e voltar para o login
+        </button>
       </div>
     </div>
   )

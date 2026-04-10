@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const withPWA = require("next-pwa")({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
@@ -50,6 +51,11 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   productionBrowserSourceMaps: false,
+
+  // Silencia o aviso de "webpack config sem turbopack config" no dev.
+  // next-pwa usa webpack internamente mas fica desativado em dev.
+  // O build de produção usa --webpack explicitamente (ver package.json).
+  turbopack: {},
 
   async headers() {
     return [

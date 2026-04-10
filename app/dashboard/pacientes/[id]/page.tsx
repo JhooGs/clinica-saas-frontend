@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, Fragment } from 'react'
+import { useState, Fragment, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePaciente, useAtualizarPaciente } from '@/hooks/use-pacientes'
 import {
@@ -11,14 +11,19 @@ import {
   Clock, X, Sparkles, PowerOff, CalendarRange, Loader2,
 } from 'lucide-react'
 import { cn, extractTiptapText } from '@/lib/utils'
+import { createClient } from '@/lib/supabase'
 import { usePacotes, useTiposSessao, useSalvarPlanoAtendimento } from '@/hooks/use-planos'
-import { useAgendamentos, useGerarAgendamentosRecorrentes } from '@/hooks/use-agenda'
+import { useAgendamentos, useGerarAgendamentosRecorrentes, useCancelarAgendaFuturaPaciente } from '@/hooks/use-agenda'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ModalHorarioRecorrente } from '@/components/modal-horario-recorrente'
+import { ModalConfirmarAgendaFutura } from '@/components/modal-confirmar-agenda-futura'
+import type { TipoAcaoAgenda } from '@/components/modal-confirmar-agenda-futura'
 import { toast } from 'sonner'
 import type { Pacote, TipoSessao } from '@/lib/types/planos'
+import { useRegistros } from '@/hooks/use-registros'
+import type { Registro } from '@/types'
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -45,6 +50,7 @@ type PlanoAtendimento = {
   sessoEmGrupo: boolean
   vigenciaInicio?: string | null  // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
   vigenciaFim?: string | null     // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
+  terapeutaId?: string | null     // UUID do terapeuta logado no momento do save
 }
 
 const RECORRENCIAS: { id: Recorrencia; label: string; desc: string }[] = [
@@ -147,17 +153,6 @@ function descRecorrencia(recorrencia: Recorrencia | null, vezesPorSemana: number
   return RECORRENCIAS.find(r => r.id === recorrencia)?.desc ?? recorrencia
 }
 
-type Sessao = {
-  id: number
-  numero: number
-  data: string
-  tipoSessao: string
-  presenca: boolean
-  material: string
-  links: string[]
-  notasSessaoJson: Record<string, unknown> | null
-}
-
 type PacienteCompleto = {
   id: string  // UUID
   ativo: boolean
@@ -194,80 +189,6 @@ function calcularIdade(dataNascBR: string): number {
   let idade = hoje.getFullYear() - nasc.getFullYear()
   if (hoje.getMonth() < m - 1 || (hoje.getMonth() === m - 1 && hoje.getDate() < d)) idade--
   return idade
-}
-
-/* ── Notas mock para sessões ──────────────────────── */
-
-const notasMock: (Record<string, unknown> | null)[] = [
-  {
-    type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Sessão com excelente engajamento. Paciente demonstrou melhora significativa no controle postural durante as atividades com bambolês. Trabalhou-se coordenação bilateral e planejamento motor com circuito de obstáculos. Vocalização espontânea durante a atividade lúdica.' }] }],
-  },
-  {
-    type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Foco em regulação sensorial com pressão profunda. Boa tolerância ao toque leve com tecidos. Realizou sequência de 4 movimentos de imitação com sucesso. Família relatou melhora no sono durante a semana — continuar protocolo atual.' }] }],
-  },
-  null,
-  {
-    type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Trabalho de equilíbrio dinâmico com prancha e bastões. Progressão notável: completou o circuito em tempo recorde. Introduzido o conceito de movimento cruzado (crossing midline) com êxito. Próxima sessão: ampliar para dois planos simultâneos.' }] }],
-  },
-  null,
-  {
-    type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Integração bilateral com bolas de diferentes pesos e texturas. Coordenação óculo-manual em desenvolvimento — acertou 7 de 10 lançamentos. Paciente pediu para repetir a atividade com caixas: boa indicação de preferência e autorregulação.' }] }],
-  },
-  null,
-  null,
-]
-
-/* ── Gerador de sessões fake ──────────────────────── */
-
-const tiposRotacao = [
-  'Sessão', 'Sessão', 'Sessão', 'Sessão família', 'Sessão',
-  'Anamnese', 'Sessão', 'Sessão em grupo', 'Sessão', 'Devolutiva família',
-  'Sessão', 'Sessão', 'Reunião com a escola', 'Sessão', 'Sessão',
-] as const
-
-function gerarSessoes(totalSessoes: number, totalFaltas: number): Sessao[] {
-  const sessoes: Sessao[] = []
-  const materiais = [
-    'Caixas, bambolês, bastões e cordas',
-    'Caixas, tecidos e cordas',
-    'Bolas, caixas e bambolês',
-    'Tecidos, bastões e bolas',
-    'Caixas e cordas',
-    'Bambolês, tecidos e bastões',
-    'Bolas, tecidos e cordas',
-    'Caixas, bolas e bambolês',
-  ]
-
-  const qtd = Math.min(15, totalSessoes)
-  const faltasRecentes = Math.min(totalFaltas, Math.floor(qtd * 0.3))
-  const faltaIndices = new Set<number>()
-  for (let i = 0; i < faltasRecentes; i++) {
-    faltaIndices.add(2 + i * 3)
-  }
-
-  for (let i = 0; i < qtd; i++) {
-    const numero = totalSessoes - i
-    const d = new Date(2026, 2, 17)
-    d.setDate(d.getDate() - i * 7)
-    const isFalta = faltaIndices.has(i)
-
-    sessoes.push({
-      id: numero,
-      numero,
-      data: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`,
-      tipoSessao: tiposRotacao[i % tiposRotacao.length],
-      presenca: !isFalta,
-      material: isFalta ? '-' : materiais[i % materiais.length],
-      links: isFalta ? [] : (i % 3 === 0 ? [`https://youtube.com/watch?v=sess${numero}`] : []),
-      notasSessaoJson: isFalta ? null : (notasMock[i % notasMock.length] ?? null),
-    })
-  }
-
-  return sessoes
 }
 
 /* ── Mapper API → PacienteCompleto ────────────────── */
@@ -346,7 +267,16 @@ function CardPlano({
   const [form, setForm] = useState<PlanoAtendimento>(planoInicial)
   const [modalHorarioAberto, setModalHorarioAberto] = useState(false)
   const [confirmarNavPlanos, setConfirmarNavPlanos] = useState(false)
+  const [modalAgendaPlano, setModalAgendaPlano] = useState<TipoAcaoAgenda | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const gerarRecorrentes = useGerarAgendamentosRecorrentes()
+  const cancelarAgendaFutura = useCancelarAgendaFuturaPaciente()
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null)
+    })
+  }, [])
 
   // Agendamentos reais das próximas 8 semanas para o modal de horário
   const hoje = new Date()
@@ -357,7 +287,9 @@ function CardPlano({
     id: ag.id,
     paciente: ag.paciente_nome ?? '',
     paciente_id: ag.paciente_id,
-    pacientes: ag.pacientes_ids ? [ag.paciente_nome ?? ''] : undefined,
+    pacientes: ag.pacientes_nomes?.length
+      ? ag.pacientes_nomes
+      : (ag.paciente_nome ? [ag.paciente_nome] : undefined),
     pacientes_ids: ag.pacientes_ids?.map(String),
     tipo: ag.tipo_sessao,
     data: ag.data,
@@ -387,55 +319,93 @@ function CardPlano({
     return tiposDisponiveis.find(t => t.id === tipoSessaoId)?.nome ?? tipoSessaoId
   }
 
-  // Detecta conflito de horário entre slots do mesmo plano (dois slots com mesmo horário)
+  // Detecta conflito de horário entre slots do mesmo plano.
+  // Só conflita quando dois slots têm o mesmo dia E o mesmo horário —
+  // dias diferentes podem reutilizar o mesmo horário sem problema.
   const temConflitoHorario = (() => {
     const slots = form.agenda?.slots ?? []
-    const horarios = slots.map(s => s.horario).filter(Boolean)
-    return new Set(horarios).size < horarios.length
+    const chaves = slots
+      .filter(s => s.horario)
+      .map(s => {
+        if (form.recorrencia === 'mensal') return `dm${s.diaMes ?? ''}_${s.horario}`
+        return `dow${s.diaSemana ?? ''}_${s.horario}`
+      })
+    return new Set(chaves).size < chaves.length
   })()
 
-  async function salvar() {
+  function salvar() {
     if (temConflitoHorario) {
       toast.error('Conflito de horário', { description: 'Dois slots não podem ter o mesmo horário. Ajuste antes de salvar.' })
       return
     }
-    onSalvar(form)
+
+    // Se o paciente tinha um plano e o pacote está sendo alterado ou removido,
+    // exibe o modal de aviso antes de prosseguir.
+    const pacoteAnterior = planoInicial.pacoteId
+    const pacoteNovo = form.pacoteId
+    if (pacoteAnterior !== null && pacoteAnterior !== pacoteNovo) {
+      const tipo: TipoAcaoAgenda = pacoteNovo === null ? 'remover_plano' : 'alterar_plano'
+      setModalAgendaPlano(tipo)
+      return
+    }
+
+    executarSalvar()
+  }
+
+  async function executarSalvar() {
+    setModalAgendaPlano(null)
+    const formComTerapeuta: PlanoAtendimento = { ...form, terapeutaId: currentUserId }
+    onSalvar(formComTerapeuta)
     setEditando(false)
 
-    // Gerar sessões recorrentes no backend (substitui localStorage)
-    if (form.agenda && form.recorrencia && form.agenda.slots.length > 0) {
+    // Se o novo plano não tem agenda configurada, cancelamos explicitamente a agenda futura
+    const semAgenda = !formComTerapeuta.agenda || !formComTerapeuta.recorrencia || formComTerapeuta.agenda.slots.length === 0
+    if (semAgenda) {
       try {
-        const result = await gerarRecorrentes.mutateAsync({
-          paciente_id: pacienteId,
-          recorrencia: form.recorrencia,
-          vezes_por_semana: form.vezesPorSemana,
-          sessao_em_grupo: form.sessoEmGrupo,
-          tipo_sessao: form.sessoEmGrupo ? 'Sessão em grupo' : 'Sessão',
-          slots: form.agenda.slots.map(s => ({
-            dia_semana: s.diaSemana,
-            dia_mes: s.diaMes,
-            horario: s.horario,
-          })),
-        })
-        const bloqueantes = result.conflitos.filter(c => c.motivo.startsWith('Conflito'))
-        if (result.criados > 0 && bloqueantes.length === 0) {
-          toast.success('Plano salvo', {
-            description: `${result.criados} sessão(ões) agendada(s) para as próximas 8 semanas.`,
-          })
-        } else if (result.criados > 0) {
-          toast.success('Plano salvo', {
-            description: `${result.criados} sessão(ões) agendada(s). ${bloqueantes.length} conflito(s) ignorado(s).`,
-          })
-        } else {
-          toast.success('Plano salvo', { description: 'Nenhuma sessão gerada — todos os horários conflitam.' })
-        }
+        const { cancelados } = await cancelarAgendaFutura.mutateAsync(pacienteId)
+        const desc = cancelados > 0
+          ? `${cancelados} agendamento(s) futuro(s) cancelado(s).`
+          : 'Nenhum agendamento futuro encontrado.'
+        toast.success('Plano salvo', { description: desc })
       } catch {
-        toast.error('Erro ao gerar agenda', {
-          description: 'O plano foi salvo, mas não foi possível gerar as sessões. Tente novamente.',
+        toast.error('Erro ao cancelar agenda', {
+          description: 'O plano foi salvo, mas não foi possível cancelar a agenda futura. Verifique manualmente.',
         })
       }
-    } else {
-      toast.success('Plano salvo', { description: 'Alterações salvas com sucesso.' })
+      return
+    }
+
+    // Gerar sessões recorrentes no backend (também cancela as antigas internamente)
+    try {
+      const result = await gerarRecorrentes.mutateAsync({
+        paciente_id: pacienteId,
+        recorrencia: formComTerapeuta.recorrencia!,
+        vezes_por_semana: formComTerapeuta.vezesPorSemana,
+        sessao_em_grupo: formComTerapeuta.sessoEmGrupo,
+        tipo_sessao: formComTerapeuta.sessoEmGrupo ? 'Sessão em grupo' : 'Sessão',
+        pacientes_ids: formComTerapeuta.sessoEmGrupo ? [pacienteId] : undefined,
+        slots: formComTerapeuta.agenda!.slots.map(s => ({
+          dia_semana: s.diaSemana,
+          dia_mes: s.diaMes,
+          horario: s.horario,
+        })),
+      })
+      const bloqueantes = result.conflitos.filter(c => c.motivo.startsWith('Conflito'))
+      if (result.criados > 0 && bloqueantes.length === 0) {
+        toast.success('Plano salvo', {
+          description: `${result.criados} sessão(ões) agendada(s) para as próximas 8 semanas.`,
+        })
+      } else if (result.criados > 0) {
+        toast.success('Plano salvo', {
+          description: `${result.criados} sessão(ões) agendada(s). ${bloqueantes.length} conflito(s) ignorado(s).`,
+        })
+      } else {
+        toast.success('Plano salvo', { description: 'Nenhuma sessão gerada — todos os horários conflitam.' })
+      }
+    } catch {
+      toast.error('Erro ao gerar agenda', {
+        description: 'O plano foi salvo, mas não foi possível gerar as sessões. Tente novamente.',
+      })
     }
   }
 
@@ -453,6 +423,15 @@ function CardPlano({
           router.push('/dashboard/planos')
         }}
         onCancelar={() => setConfirmarNavPlanos(false)}
+      />
+    )}
+    {modalAgendaPlano && (
+      <ModalConfirmarAgendaFutura
+        tipo={modalAgendaPlano}
+        nomePaciente={pacienteNome}
+        isLoading={cancelarAgendaFutura.isPending || gerarRecorrentes.isPending}
+        onConfirmar={executarSalvar}
+        onCancelar={() => setModalAgendaPlano(null)}
       />
     )}
     <div className={cn(
@@ -1095,8 +1074,10 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const { data: tiposData } = useTiposSessao()
   const pacotesDisponiveis = pacotesData?.items ?? []
   const tiposDisponiveis = tiposData?.items ?? []
+  const cancelarAgendaFuturaPaciente = useCancelarAgendaFuturaPaciente()
   const [editando, setEditando] = useState(false)
   const [confirmarDescartar, setConfirmarDescartar] = useState<'cancelar' | 'voltar' | null>(null)
+  const [confirmarInativar, setConfirmarInativar] = useState(false)
   const [form, setForm] = useState({
     nome: paciente.nome,
     responsavel: paciente.responsavel,
@@ -1107,19 +1088,21 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     ativo: paciente.ativo,
   })
 
-  const sessoes = useMemo(
-    () => gerarSessoes(paciente.totalSessoes, paciente.faltas),
-    [paciente.totalSessoes, paciente.faltas],
-  )
-  const [expandidoSessaoId, setExpandidoSessaoId] = useState<number | null>(null)
+  const { data: registrosData } = useRegistros({ paciente_id: paciente.id, page_size: 200 })
+  const registros: Registro[] = registrosData?.items ?? []
+  const totalSessoes = registros.length
+  const presencas = registros.filter(r => r.presenca).length
+  const faltas = totalSessoes - presencas
 
-  function toggleSessao(id: number) {
+  const [expandidoSessaoId, setExpandidoSessaoId] = useState<string | null>(null)
+
+  function toggleSessao(id: string) {
     setExpandidoSessaoId(prev => (prev === id ? null : id))
   }
 
   const idade = calcularIdade(paciente.dataNascimento)
-  const taxaPresenca = paciente.totalSessoes > 0
-    ? Math.round((paciente.presencas / paciente.totalSessoes) * 100)
+  const taxaPresenca = totalSessoes > 0
+    ? Math.round((presencas / totalSessoes) * 100)
     : 0
 
   // Snapshot do form no momento em que o usuário clicou em "Editar"
@@ -1207,31 +1190,55 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   }
 
   function toggleAtivo() {
-    const novoAtivo = !paciente.ativo
+    // Se está ativando, não precisa de confirmação
+    if (!paciente.ativo) {
+      executarReativar()
+      return
+    }
+    // Se está desativando, exibe o modal de aviso sobre a agenda futura
+    setConfirmarInativar(true)
+  }
+
+  function executarReativar() {
+    atualizarPaciente.mutate(
+      { id: paciente.id, payload: { ativo: true } },
+      {
+        onSuccess: () => {
+          setPaciente(prev => ({ ...prev, ativo: true, dataFim: null }))
+          setForm(prev => ({ ...prev, ativo: true, dataFim: '' }))
+          setPlano(_PLANO_VAZIO)
+          toast.success('Paciente reativado', { description: 'O paciente foi marcado como ativo. Configure o plano de atendimento.' })
+        },
+        onError: (err) => {
+          toast.error('Erro ao reativar', { description: err.message })
+        },
+      }
+    )
+  }
+
+  async function executarInativar() {
+    setConfirmarInativar(false)
     const hoje = new Date()
     const dataFimStr = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`
     atualizarPaciente.mutate(
-      { id: paciente.id, payload: { ativo: novoAtivo } },
+      { id: paciente.id, payload: { ativo: false } },
       {
-        onSuccess: () => {
-          setPaciente(prev => ({
-            ...prev,
-            ativo: novoAtivo,
-            dataFim: novoAtivo ? null : dataFimStr,
-          }))
-          setForm(prev => ({
-            ...prev,
-            ativo: novoAtivo,
-            dataFim: novoAtivo ? '' : brToIso(dataFimStr),
-          }))
-          if (novoAtivo) {
-            toast.success('Paciente reativado', { description: 'O paciente foi marcado como ativo.' })
-          } else {
-            toast.info('Paciente desativado', { description: 'O plano de atendimento foi suspenso.' })
+        onSuccess: async () => {
+          setPaciente(prev => ({ ...prev, ativo: false, dataFim: dataFimStr }))
+          setForm(prev => ({ ...prev, ativo: false, dataFim: brToIso(dataFimStr) }))
+          setPlano(_PLANO_VAZIO)
+          try {
+            const { cancelados } = await cancelarAgendaFuturaPaciente.mutateAsync(paciente.id)
+            const desc = cancelados > 0
+              ? `${cancelados} agendamento(s) futuro(s) cancelado(s). Plano zerado.`
+              : 'Plano zerado. Nenhum agendamento futuro encontrado.'
+            toast.info('Paciente desativado', { description: desc })
+          } catch {
+            toast.info('Paciente desativado', { description: 'Plano zerado. Verifique a agenda manualmente.' })
           }
         },
         onError: (err) => {
-          toast.error('Erro ao alterar status', { description: err.message })
+          toast.error('Erro ao desativar', { description: err.message })
         },
       }
     )
@@ -1247,6 +1254,17 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         <ConfirmDiscard
           onConfirmar={executarDescarte}
           onCancelar={() => setConfirmarDescartar(null)}
+        />
+      )}
+
+      {/* ── Confirmacao de inativacao ────────────── */}
+      {confirmarInativar && (
+        <ModalConfirmarAgendaFutura
+          tipo="inativar"
+          nomePaciente={paciente.nome}
+          isLoading={atualizarPaciente.isPending || cancelarAgendaFuturaPaciente.isPending}
+          onConfirmar={executarInativar}
+          onCancelar={() => setConfirmarInativar(false)}
         />
       )}
 
@@ -1303,9 +1321,9 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       {/* ── Cards de resumo ──────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {[
-          { label: 'Total Sessões', valor: paciente.totalSessoes, cor: 'text-gray-800',  bg: 'bg-blue-500/10',     icon: <Hash className="h-4 w-4 text-blue-500" /> },
-          { label: 'Presenças',     valor: paciente.presencas,    cor: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> },
-          { label: 'Faltas',        valor: paciente.faltas,       cor: 'text-red-500',     bg: 'bg-red-500/10',     icon: <XCircle className="h-4 w-4 text-red-500" /> },
+          { label: 'Total Sessões', valor: totalSessoes, cor: 'text-gray-800',  bg: 'bg-blue-500/10',     icon: <Hash className="h-4 w-4 text-blue-500" /> },
+          { label: 'Presenças',     valor: presencas,    cor: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> },
+          { label: 'Faltas',        valor: faltas,       cor: 'text-red-500',     bg: 'bg-red-500/10',     icon: <XCircle className="h-4 w-4 text-red-500" /> },
           { label: 'Taxa Presença', valor: `${taxaPresenca}%`,    cor: 'text-[#04c2fb]',   bg: 'bg-[#04c2fb]/10',   icon: <Activity className="h-4 w-4 text-[#04c2fb]" /> },
         ].map(card => (
           <div key={card.label} className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow">
@@ -1393,6 +1411,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
 
       {/* ── Plano ────────────────────────────────── */}
       <CardPlano
+        key={`plano-${String(paciente.ativo)}`}
         planoInicial={plano}
         onSalvar={(novoPlano) => {
           salvarPlanoMutation.mutate(novoPlano, {
@@ -1413,10 +1432,10 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           <div>
             <p className="text-sm font-semibold">Sessões Recentes</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Últimas {sessoes.length} de {paciente.totalSessoes} sessões registradas
+              {totalSessoes} sessões registradas
             </p>
           </div>
-          <span className="text-xs text-muted-foreground">{sessoes.length} exibida(s)</span>
+          <span className="text-xs text-muted-foreground">{totalSessoes} exibida(s)</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1432,17 +1451,21 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
               </tr>
             </thead>
             <tbody className="divide-y">
-              {sessoes.map(s => {
-                const textoPreview = extractTiptapText(s.notasSessaoJson, 70)
-                const textoCompleto = extractTiptapText(s.notasSessaoJson, 1000)
-                const aberto = expandidoSessaoId === s.id
-                const temNotas = !!s.notasSessaoJson && textoCompleto.length > 0
+              {registros.map(r => {
+                const textoPreview = extractTiptapText(r.conteudo_json, 70)
+                const textoCompleto = extractTiptapText(r.conteudo_json, 1000)
+                const aberto = expandidoSessaoId === r.id
+                const temNotas = !!r.conteudo_json && textoCompleto.length > 0
+                const links = r.link_youtube ? [r.link_youtube] : []
+                const dataFormatada = r.data_sessao
+                  ? isoToBr(r.data_sessao)
+                  : isoToBr(r.criado_em.slice(0, 10))
 
                 return (
-                  <Fragment key={s.id}>
+                  <Fragment key={r.id}>
                     <tr className="hover:bg-muted/20 transition-colors">
                       <td className="px-4 py-3 text-muted-foreground">
-                        {s.data}
+                        {dataFormatada}
                         {/* Mobile: notas preview abaixo da data */}
                         {temNotas && (
                           <div className="flex items-start gap-1 mt-1 md:hidden">
@@ -1454,19 +1477,19 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                       <td className="px-4 py-3">
                         <span className={cn(
                           'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
-                          s.presenca ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600',
+                          r.presenca ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600',
                         )}>
-                          <span className={cn('h-1.5 w-1.5 rounded-full', s.presenca ? 'bg-green-500' : 'bg-red-500')} />
-                          {s.presenca ? 'Presente' : 'Falta'}
+                          <span className={cn('h-1.5 w-1.5 rounded-full', r.presenca ? 'bg-green-500' : 'bg-red-500')} />
+                          {r.presenca ? 'Presente' : 'Falta'}
                         </span>
                       </td>
                       <td className="px-4 py-3 max-w-[130px]">
                         <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb] truncate max-w-full">
-                          {s.tipoSessao}
+                          {r.tipo_sessao ?? '—'}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={s.material}>
-                        {s.material}
+                      <td className="hidden md:table-cell px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={r.material ?? undefined}>
+                        {r.material ?? '—'}
                       </td>
                       {/* Coluna Notas — desktop */}
                       <td className="hidden md:table-cell px-4 py-3 max-w-[220px]">
@@ -1482,7 +1505,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                       {/* Botão editar */}
                       <td className="px-3 py-3 text-center">
                         <button
-                          onClick={() => router.push(`/dashboard/registros/${s.id}?editar=true`)}
+                          onClick={() => router.push(`/dashboard/registros/${r.id}?editar=true`)}
                           title="Editar sessão"
                           className="group/edit inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200"
                         >
@@ -1493,7 +1516,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                       <td className="px-3 py-3 text-right">
                         {temNotas && (
                           <button
-                            onClick={() => toggleSessao(s.id)}
+                            onClick={() => toggleSessao(r.id)}
                             title={aberto ? 'Fechar notas' : 'Ver notas'}
                             className={cn(
                               'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
@@ -1531,14 +1554,14 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                                 <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                                   {textoCompleto}
                                 </p>
-                                {(s.material && s.material !== '-') || s.links.length > 0 ? (
+                                {(r.material && r.material !== '-') || links.length > 0 ? (
                                   <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
-                                    {s.material && s.material !== '-' && (
+                                    {r.material && r.material !== '-' && (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
-                                        Material: {s.material}
+                                        Material: {r.material}
                                       </span>
                                     )}
-                                    {s.links.map((link, i) => (
+                                    {links.map((link, i) => (
                                       <a
                                         key={i}
                                         href={link}
@@ -1562,7 +1585,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   </Fragment>
                 )
               })}
-              {sessoes.length === 0 && (
+              {registros.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     Nenhuma sessão registrada.

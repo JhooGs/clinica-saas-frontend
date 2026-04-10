@@ -19,6 +19,8 @@ import {
   Trash2,
   AlertTriangle,
   NotebookPen,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 // relatoriosPendentesIniciais não é mais usado aqui — agenda mostra apenas hoje em diante
@@ -75,7 +77,6 @@ function limitesSemana(hojeIso: string): { inicio: string; fim: string } {
   return { inicio: toIso(seg), fim: toIso(dom) }
 }
 
-const SEMANA = limitesSemana(HOJE)
 
 
 // Mapeia Agendamento da API para AgendamentoComSource (tipo unificado com Google Calendar)
@@ -84,12 +85,15 @@ function agendamentoToComSource(a: Agendamento): AgendamentoComSource {
     id: a.id,
     paciente: a.paciente_nome ?? a.paciente_id,
     paciente_id: a.paciente_id,
-    pacientes: a.paciente_nome ? [a.paciente_nome] : undefined,
+    pacientes: a.pacientes_nomes?.length
+      ? a.pacientes_nomes
+      : (a.paciente_nome ? [a.paciente_nome] : undefined),
     pacientes_ids: a.pacientes_ids,
     tipo: a.tipo_sessao,
     data: a.data,
     horario: a.horario,
     horarioFim: a.horario_fim,
+    status: a.status,
     source: 'clinitra',
   }
 }
@@ -123,6 +127,17 @@ function badgeTipo(tipo: string, source?: string) {
   return 'bg-[#04c2fb]/8 text-[#04c2fb] border-[#04c2fb]/20'
 }
 
+/** Retorna true se a sessão já passou (data anterior a hoje, ou mesma data com horário+30min expirado) */
+function isPast(data: string, horario: string): boolean {
+  if (data < HOJE) return true
+  if (data > HOJE) return false
+  const now = new Date()
+  const [h, m] = horario.split(':').map(Number)
+  const cutoff = new Date()
+  cutoff.setHours(h, m + 30, 0, 0)
+  return now > cutoff
+}
+
 export default function AgendaPage() {
   const {
     connected,
@@ -135,7 +150,17 @@ export default function AgendaPage() {
     refresh,
   } = useGoogleCalendar()
 
-  const { data: apiData } = useAgendamentos({ data_inicio: SEMANA.inicio, data_fim: SEMANA.fim })
+  const [semanaOffset, setSemanaOffset] = useState(0)
+
+  const semana = useMemo(() => {
+    const [y, m, d] = HOJE.split('-').map(Number)
+    const base = new Date(y, m - 1, d)
+    base.setDate(base.getDate() + semanaOffset * 7)
+    const iso = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
+    return limitesSemana(iso)
+  }, [semanaOffset])
+
+  const { data: apiData } = useAgendamentos({ data_inicio: semana.inicio, data_fim: semana.fim })
   const cancelarAgendamento = useCancelarAgendamento()
 
   const [exportedIds, setExportedIds] = useState<Set<string>>(() => loadExportedIds())
@@ -160,8 +185,8 @@ export default function AgendaPage() {
       a => !clinitaKey.has(`${a.data}_${a.horario}_${a.paciente}`)
     )
     const todos = [...clinitaItems, ...recorrentesFiltrados, ...googleEvents]
-    return todos.filter(a => a.data >= HOJE && a.data <= SEMANA.fim)
-  }, [apiData, googleEvents, agendamentosRecorrentes])
+    return todos.filter(a => a.data >= semana.inicio && a.data <= semana.fim)
+  }, [apiData, googleEvents, agendamentosRecorrentes, semana])
 
   // Carrega quais agendamentos já têm pauta salva
   useEffect(() => {
@@ -364,7 +389,33 @@ export default function AgendaPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Agenda</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{formatDataBR(HOJE)} – {formatDataBR(SEMANA.fim)}</p>
+          <div className="flex items-center gap-1.5 mt-1">
+            <button
+              onClick={() => setSemanaOffset(o => o - 1)}
+              className="rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Semana anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {formatDataBR(semana.inicio)} – {formatDataBR(semana.fim)}
+            </span>
+            <button
+              onClick={() => setSemanaOffset(o => o + 1)}
+              className="rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Próxima semana"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            {semanaOffset !== 0 && (
+              <button
+                onClick={() => setSemanaOffset(0)}
+                className="ml-1 rounded-md border border-[#04c2fb]/30 bg-[#04c2fb]/8 px-2 py-0.5 text-xs font-medium text-[#04c2fb] hover:bg-[#04c2fb]/15 transition-colors"
+              >
+                Hoje
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -439,15 +490,17 @@ export default function AgendaPage() {
 
       {/* Cards resumo */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <p className="text-xs font-medium text-muted-foreground">Hoje</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight">{hoje}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">sessões agendadas</p>
-        </div>
+        {semanaOffset === 0 && (
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <p className="text-xs font-medium text-muted-foreground">Hoje</p>
+            <p className="mt-1.5 text-2xl font-bold tracking-tight">{hoje}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">sessões agendadas</p>
+          </div>
+        )}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <p className="text-xs font-medium text-muted-foreground">Total</p>
           <p className="mt-1.5 text-2xl font-bold tracking-tight">{total}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">nesta semana</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">na semana</p>
         </div>
         {connected && (
           <div className="rounded-xl border bg-blue-50 border-blue-100 p-4 shadow-sm">
@@ -463,6 +516,19 @@ export default function AgendaPage() {
 
       {/* Lista agrupada por dia */}
       <div className="space-y-6">
+        {grupos.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card py-14 text-center">
+            <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Nenhum agendamento nesta semana</p>
+              {semanaOffset === 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground/70">
+                  Clique em <span className="font-medium">+ Agendamento</span> para adicionar ou navegue para ver semanas futuras.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
         {grupos.map(([data, agendamentos]) => (
           <div key={data}>
             {/* Header do dia */}
@@ -471,122 +537,159 @@ export default function AgendaPage() {
                 'flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold',
                 data === HOJE
                   ? 'bg-[#04c2fb] text-white'
-                  : 'bg-muted text-muted-foreground'
+                  : data < HOJE
+                    ? 'bg-gray-200/70 text-gray-400'
+                    : 'bg-muted text-muted-foreground'
               )}>
                 <CalendarDays className="h-3.5 w-3.5" />
                 {labelData(data)}
               </div>
-              <span className="text-[11px] text-muted-foreground">{formatDataBR(data)}</span>
+              <span className={cn(
+                'text-[11px]',
+                data < HOJE ? 'text-gray-400' : 'text-muted-foreground'
+              )}>{formatDataBR(data)}</span>
               <div className="flex-1 h-px bg-border" />
-              <span className="text-[11px] text-muted-foreground">
+              <span className={cn(
+                'text-[11px]',
+                data < HOJE ? 'text-gray-400' : 'text-muted-foreground'
+              )}>
                 {agendamentos.length} {agendamentos.length !== 1 ? 'sessões' : 'sessão'}
               </span>
             </div>
 
             {/* Agendamentos do dia */}
             <div className="space-y-2">
-              {agendamentos.map(ag => (
-                <div
-                  key={ag.id}
-                  className={cn(
-                    'rounded-xl border bg-card shadow-sm p-3 sm:p-4 flex items-center gap-3 sm:gap-4 hover:bg-muted/20 transition-colors',
-                    ag.source === 'google' && 'border-blue-100 bg-blue-50/30'
-                  )}
-                >
-                  {/* Horário */}
-                  <div className="flex items-center gap-1.5 shrink-0 w-14 sm:w-16">
-                    <Clock className={cn(
-                      'h-3.5 w-3.5 shrink-0',
-                      ag.source === 'google' ? 'text-blue-500' : 'text-[#04c2fb]'
-                    )} />
-                    <span className="text-sm font-semibold text-gray-800">{ag.horario}</span>
-                  </div>
+              {agendamentos.map(ag => {
+                const passado = isPast(ag.data, ag.horario)
+                return (
+                  <div
+                    key={ag.id}
+                    className={cn(
+                      'rounded-xl border p-3 sm:p-4 flex items-center gap-3 sm:gap-4 transition-colors',
+                      passado
+                        ? 'bg-gray-50/70 border-gray-200/80 shadow-none'
+                        : 'bg-card shadow-sm hover:bg-muted/20',
+                      !passado && ag.source === 'google' && 'border-blue-100 bg-blue-50/30',
+                    )}
+                  >
+                    {/* Horário */}
+                    <div className="flex items-center gap-1.5 shrink-0 w-14 sm:w-16">
+                      <Clock className={cn(
+                        'h-3.5 w-3.5 shrink-0',
+                        passado
+                          ? 'text-gray-400'
+                          : ag.source === 'google' ? 'text-blue-500' : 'text-[#04c2fb]'
+                      )} />
+                      <span className={cn(
+                        'text-sm font-semibold',
+                        passado ? 'text-gray-400' : 'text-gray-800'
+                      )}>{ag.horario}</span>
+                    </div>
 
-                  <div className="w-px h-8 bg-border shrink-0" />
+                    <div className={cn('w-px h-8 shrink-0', passado ? 'bg-gray-200' : 'bg-border')} />
 
-                  {/* Paciente + tipo */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {ag.pacientes && ag.pacientes.length > 1 ? (
-                        <>
-                          <Users className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                          <span className="text-sm font-medium text-gray-800">
-                            {ag.pacientes.map(n => nomeAbreviado(n)).join(', ')}
-                          </span>
-                        </>
-                      ) : ag.source === 'google' ? (
-                        <>
-                          <Calendar className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                          <span className="text-sm font-medium text-gray-800 truncate">{ag.paciente}</span>
-                        </>
-                      ) : (
-                        <>
-                          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-sm font-medium text-gray-800 truncate">{ag.paciente}</span>
-                        </>
+                    {/* Paciente + tipo */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {ag.tipo === 'Sessão em grupo' ? (
+                          <>
+                            <Users className={cn('h-3.5 w-3.5 shrink-0', passado ? 'text-gray-400' : 'text-emerald-600')} />
+                            <span className={cn('text-sm font-medium', passado ? 'text-gray-400' : 'text-gray-800')}>
+                              {ag.pacientes && ag.pacientes.length > 0
+                                ? ag.pacientes.map(n => nomeAbreviado(n)).join(', ')
+                                : ag.paciente}
+                            </span>
+                          </>
+                        ) : ag.source === 'google' ? (
+                          <>
+                            <Calendar className={cn('h-3.5 w-3.5 shrink-0', passado ? 'text-gray-400' : 'text-blue-500')} />
+                            <span className={cn('text-sm font-medium truncate', passado ? 'text-gray-400' : 'text-gray-800')}>{ag.paciente}</span>
+                          </>
+                        ) : (
+                          <>
+                            <User className={cn('h-3.5 w-3.5 shrink-0', passado ? 'text-gray-300' : 'text-muted-foreground')} />
+                            <span className={cn('text-sm font-medium truncate', passado ? 'text-gray-400' : 'text-gray-800')}>{ag.paciente}</span>
+                          </>
+                        )}
+                      </div>
+                      <span className={cn(
+                        'mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                        passado
+                          ? 'bg-gray-100 text-gray-400 border-gray-200'
+                          : badgeTipo(ag.tipo, ag.source)
+                      )}>
+                        {ag.tipo}
+                      </span>
+                      {ag.status === 'reagendamento' && !passado && (
+                        <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          Reagendado
+                        </span>
                       )}
                     </div>
-                    <span className={cn(
-                      'mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
-                      badgeTipo(ag.tipo, ag.source)
-                    )}>
-                      {ag.tipo}
-                    </span>
-                  </div>
 
-                  {/* Ações */}
-                  <div className="shrink-0 flex items-center gap-1.5">
-                    {/* Pauta — só para agendamentos Clinitra */}
-                    {ag.source !== 'google' && (
-                      <button
-                        onClick={() => setPautaAberta(ag)}
-                        title={comPauta.has(String(ag.id)) ? 'Ver/editar pauta' : 'Adicionar pauta'}
-                        className={cn(
-                          'relative flex items-center gap-1 rounded-lg border bg-white p-1.5 transition-all duration-200',
-                          comPauta.has(String(ag.id))
-                            ? 'border-[#04c2fb]/30 bg-[#04c2fb]/5 text-[#04c2fb] hover:bg-[#04c2fb]/10'
-                            : 'border-gray-200 text-muted-foreground hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 hover:text-[#04c2fb]',
+                    {/* Ações — apenas para sessões futuras/em andamento */}
+                    {passado ? (
+                      <div className="shrink-0">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100/80 px-2.5 py-1 text-[10px] font-medium text-gray-400">
+                          <Clock className="h-3 w-3" />
+                          Passado
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {/* Pauta — só para agendamentos Clinitra */}
+                        {ag.source !== 'google' && (
+                          <button
+                            onClick={() => setPautaAberta(ag)}
+                            title={comPauta.has(String(ag.id)) ? 'Ver/editar pauta' : 'Adicionar pauta'}
+                            className={cn(
+                              'relative flex items-center gap-1 rounded-lg border bg-white p-1.5 transition-all duration-200',
+                              comPauta.has(String(ag.id))
+                                ? 'border-[#04c2fb]/30 bg-[#04c2fb]/5 text-[#04c2fb] hover:bg-[#04c2fb]/10'
+                                : 'border-gray-200 text-muted-foreground hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 hover:text-[#04c2fb]',
+                            )}
+                          >
+                            <NotebookPen className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline text-[11px] font-medium">Pauta</span>
+                            {comPauta.has(String(ag.id)) && (
+                              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#04c2fb] ring-2 ring-white" />
+                            )}
+                          </button>
                         )}
-                      >
-                        <NotebookPen className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline text-[11px] font-medium">Pauta</span>
-                        {comPauta.has(String(ag.id)) && (
-                          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#04c2fb] ring-2 ring-white" />
+
+                        {/* Editar */}
+                        <button
+                          onClick={() => abrirEdicao(ag)}
+                          title="Editar agendamento"
+                          className="group/edit flex items-center rounded-lg border border-gray-200 bg-white p-1.5 text-muted-foreground hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200"
+                        >
+                          <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" />
+                        </button>
+
+                        {/* Deletar */}
+                        <button
+                          onClick={() => setConfirmarDeletar(ag)}
+                          title="Excluir agendamento"
+                          className="group/del flex items-center rounded-lg border border-gray-200 bg-white p-1.5 text-muted-foreground hover:border-red-300 hover:bg-red-50 hover:text-red-500 transition-all duration-200"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 transition-transform duration-200 group-hover/del:scale-110" />
+                        </button>
+
+                        {/* Badge exportado (verde) — aparece para Clinitra se conectado */}
+                        {ag.source !== 'google' && connected && exportedIds.has(String(ag.id)) && (
+                          <div
+                            title="Exportado para Google Calendar"
+                            className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2 py-1.5 text-green-600"
+                          >
+                            <CalendarCheck className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline text-[11px] font-medium">Exportado</span>
+                          </div>
                         )}
-                      </button>
-                    )}
-
-                    {/* Editar */}
-                    <button
-                      onClick={() => abrirEdicao(ag)}
-                      title="Editar agendamento"
-                      className="group/edit flex items-center rounded-lg border border-gray-200 bg-white p-1.5 text-muted-foreground hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200"
-                    >
-                      <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" />
-                    </button>
-
-                    {/* Deletar */}
-                    <button
-                      onClick={() => setConfirmarDeletar(ag)}
-                      title="Excluir agendamento"
-                      className="group/del flex items-center rounded-lg border border-gray-200 bg-white p-1.5 text-muted-foreground hover:border-red-300 hover:bg-red-50 hover:text-red-500 transition-all duration-200"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 transition-transform duration-200 group-hover/del:scale-110" />
-                    </button>
-
-                    {/* Badge exportado (verde) — aparece para Clinitra se conectado */}
-                    {ag.source !== 'google' && connected && exportedIds.has(String(ag.id)) && (
-                      <div
-                        title="Exportado para Google Calendar"
-                        className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2 py-1.5 text-green-600"
-                      >
-                        <CalendarCheck className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline text-[11px] font-medium">Exportado</span>
                       </div>
                     )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         ))}

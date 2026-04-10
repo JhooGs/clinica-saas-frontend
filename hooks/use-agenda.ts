@@ -19,6 +19,7 @@ export interface GerarRecorrentesInput {
   tipo_sessao?: string
   slots: SlotRecorrenteInput[]
   semana_referencia?: string | null  // YYYY-MM-DD
+  pacientes_ids?: string[]   // UUIDs dos membros do grupo
 }
 
 export interface ConflitoInfo {
@@ -116,6 +117,23 @@ export function useGerarAgendamentosRecorrentes() {
       apiFetch<GerarRecorrentesResult>('/api/v1/agendamentos/recorrentes', {
         method: 'POST',
         body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agenda'] })
+    },
+  })
+}
+
+export interface CancelarAgendaFuturaResult {
+  cancelados: number
+}
+
+export function useCancelarAgendaFuturaPaciente() {
+  const queryClient = useQueryClient()
+  return useMutation<CancelarAgendaFuturaResult, Error, string>({
+    mutationFn: (pacienteId) =>
+      apiFetch<CancelarAgendaFuturaResult>(`/api/v1/agendamentos/paciente/${pacienteId}/futuros`, {
+        method: 'DELETE',
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agenda'] })

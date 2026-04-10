@@ -80,7 +80,7 @@ export interface DashboardResumo {
   }
 }
 
-export type StatusAgendamento = 'agendado' | 'confirmado' | 'realizado' | 'cancelado' | 'falta'
+export type StatusAgendamento = 'agendado' | 'confirmado' | 'realizado' | 'cancelado' | 'falta' | 'reagendamento'
 
 export interface Agendamento {
   id: string
@@ -99,6 +99,7 @@ export interface Agendamento {
   atualizado_em: string
   paciente_nome?: string
   terapeuta_nome?: string
+  pacientes_nomes?: string[]
 }
 
 export interface AgendamentoListResponse {

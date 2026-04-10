@@ -18,6 +18,7 @@ export interface RegistroListResponse {
 
 export interface RegistroCreatePayload {
   paciente_id: string
+  agendamento_id?: string  // UUID do agendamento de origem — garante vínculo 1:1
   titulo?: string
   tipo_sessao?: string
   presenca?: boolean
@@ -79,6 +80,8 @@ export function useCriarRegistro() {
       queryClient.invalidateQueries({ queryKey: ['registros'] })
       // Invalida financeiro pois pode ter gerado transação automática
       queryClient.invalidateQueries({ queryKey: ['financeiro'] })
+      // Invalida agendamentos para remover da seção "Aguardando documentação"
+      queryClient.invalidateQueries({ queryKey: ['agenda'] })
     },
   })
 }

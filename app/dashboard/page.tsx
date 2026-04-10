@@ -70,23 +70,6 @@ function getAtendStatus(horario: string, falta?: boolean, now?: Date): AtendStat
   return 'futuro'
 }
 
-/** Converte atendimentos de hoje cujo horário já chegou em RelatorioPendente */
-function derivePendentesFromHoje(atendimentos: AtendimentoUI[], now: Date): RelatorioPendente[] {
-  const hoje = now.toISOString().slice(0, 10)
-  return atendimentos
-    .filter(at => {
-      const status = getAtendStatus(at.horario, at.falta, now)
-      return status !== 'futuro' && status !== 'falta'
-    })
-    .map(at => ({
-      id: `hoje-${at.id}`,
-      paciente: at.nome,
-      tipo: at.tipo,
-      data: hoje,
-      horario: at.horario,
-    }))
-}
-
 /** Retorna quantos dias se passaram desde a data ISO */
 function diasDesde(dataISO: string): number {
   const hoje = new Date()
@@ -336,7 +319,7 @@ function TarefasPendentes({ pendentes, loading }: { pendentes: RelatorioPendente
 
               {/* Ação */}
               <Link
-                href="/dashboard/registros"
+                href={`/dashboard/registros/${item.id.replace('hoje-', '')}`}
                 className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110 whitespace-nowrap"
                 style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
               >
@@ -396,7 +379,7 @@ export default function DashboardPage() {
     [agendaHoje]
   )
 
-  // Dados reais: agendamentos dos últimos 30 dias sem registro
+  // Dados reais: agendamentos dos últimos 30 dias sem registro (excluindo hoje)
   const { data: agendaPendente, isLoading: loadingPendente } = useAgendamentos({
     data_inicio: data30DiasAtras(),
     data_fim: dataOntem(),
@@ -407,11 +390,18 @@ export default function DashboardPage() {
     [agendaPendente]
   )
 
-  // Pendentes derivados dos atendimentos de hoje (horário já passou)
-  const pendentesHoje = useMemo(
-    () => derivePendentesFromHoje(atendimentosHoje, currentTime),
-    [atendimentosHoje, currentTime],
-  )
+  // Pendentes de hoje: sessões sem registro cujo horário já passou
+  const hoje = new Date().toISOString().slice(0, 10)
+  const { data: agendaPendenteHoje } = useAgendamentos({
+    data_inicio: hoje,
+    data_fim: hoje,
+    sem_registro: true,
+  })
+  const pendentesHoje = useMemo<RelatorioPendente[]>(() => {
+    return (agendaPendenteHoje?.items ?? [])
+      .filter(a => getAtendStatus(a.horario, a.status === 'falta', currentTime) !== 'futuro')
+      .map(toRelatorioPendente)
+  }, [agendaPendenteHoje, currentTime])
 
   const allPendentes = useMemo(
     () => [...pendentesPassado, ...pendentesHoje],

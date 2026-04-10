@@ -144,7 +144,15 @@ export function useSalvarPlanoAtendimento(pacienteId: string | undefined) {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
+    onSuccess: (savedPlan) => {
+      // Atualiza o cache do paciente com o novo plano_atendimento para que, ao
+      // navegar de volta, o useState em PacienteDetalheContent inicialize com o
+      // valor correto em vez de usar o snapshot antigo do cache.
+      queryClient.setQueryData(
+        ['pacientes', pacienteId],
+        (old: Record<string, unknown> | undefined) =>
+          old ? { ...old, plano_atendimento: savedPlan } : old,
+      )
       queryClient.invalidateQueries({ queryKey: ['pacientes', pacienteId, 'plano'] })
       queryClient.invalidateQueries({ queryKey: ['planos', 'vigencias-gratuito'] })
     },

@@ -1,7 +1,6 @@
 'use client'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 // ─── Changelog ────────────────────────────────────────────────────────────────
 // Adicione uma entrada por versão. A primeira da lista é a mais recente.
@@ -22,14 +21,23 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
-    version: 'v0.3',
+    version: 'v0.1.4',
+    date: '9 de abril de 2026',
+    changes: [
+      { category: 'Changed', description: 'A agenda agora mostra as sessões agendadas no passado e não apenas as futuras.' },
+      { category: 'Fixed', description: 'Resolvido bugs gerais na agenda.' },
+      { category: 'Fixed', description: 'Resolvido problemas de registros que não eram exibidos no histórico do paciente.' },
+    ],
+  },
+  {
+    version: 'v0.1.3',
     date: '9 de abril de 2026',
     changes: [
       { category: 'Changed', description: 'Alterado layout da página de importação de dados históricos para deixar mais claro as etapas de atualização.' },
       { category: 'Changed', description: 'Alterado forma como é interpretado o financeiro, agora a base é o mês/ano de referência da transação.' },
       { category: 'Fixed', description: 'Resolvido bug na importação de dados históricos que impedia a atualização dos dados.' },
-      { category: 'Fixed', description: 'Resolvido bug na importação de dados financeiro onde os valores eram interpretados errados.' },
       { category: 'Added', description: 'Adicionado versão badge para mostrar a versão do app.' },
+      { category: 'Added', description: 'Adicionado PWA para melhorar a experiência em celulares.' },
     ],
   },
 ]
@@ -63,7 +71,7 @@ export function VersionBadge() {
               Histórico de versões
             </p>
           </div>
-          <ScrollArea className="max-h-96">
+          <div className="max-h-96 overflow-y-auto">
             <div className="divide-y">
               {CHANGELOG.map((entry) => (
                 <div key={entry.version} className="px-4 py-3">
@@ -99,7 +107,7 @@ export function VersionBadge() {
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

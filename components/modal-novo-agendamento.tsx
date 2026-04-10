@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, startTransition } from 'react'
-import { X, AlertTriangle, Search, Users, Info, User } from 'lucide-react'
+import { X, AlertTriangle, Search, Users, Info, User, ChevronDown, Check, Clock } from 'lucide-react'
 import { cn, proximaHoraCheia } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ModalPortal } from '@/components/modal-portal'
@@ -322,6 +322,241 @@ function PacienteMultiSelect({
   )
 }
 
+// ─── Sub-componente: select de tipo de sessão ─────────────────────────────────
+
+function TipoSessaoSelect({
+  value,
+  onChange,
+  opcoes,
+  hasError,
+}: {
+  value: string
+  onChange: (v: string) => void
+  opcoes: string[]
+  hasError: boolean
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [busca, setBusca] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const filtrados = useMemo(() => {
+    const t = busca.toLowerCase().trim()
+    return t ? opcoes.filter(o => o.toLowerCase().includes(t)) : opcoes
+  }, [busca, opcoes])
+
+  useEffect(() => {
+    function handleClickFora(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false)
+        setBusca('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickFora)
+    return () => document.removeEventListener('mousedown', handleClickFora)
+  }, [])
+
+  function selecionar(opcao: string) {
+    onChange(opcao)
+    setAberto(false)
+    setBusca('')
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => {
+          setAberto(v => !v)
+          if (!aberto) setTimeout(() => inputRef.current?.focus(), 50)
+        }}
+        className={cn(
+          'w-full flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 bg-white/80',
+          hasError
+            ? 'border-red-300 bg-red-50/50 focus:ring-red-400/40'
+            : aberto
+            ? 'border-[#04c2fb]/60 ring-2 ring-[#04c2fb]/40 border-gray-200'
+            : 'border-gray-200 hover:border-gray-300 focus:ring-[#04c2fb]/40'
+        )}
+      >
+        <span className={value ? 'text-gray-900' : 'text-muted-foreground/60'}>
+          {value || 'Selecionar tipo'}
+        </span>
+        <ChevronDown className={cn('h-4 w-4 text-muted-foreground/50 shrink-0 transition-transform duration-150', aberto && 'rotate-180')} />
+      </button>
+
+      {aberto && (
+        <div
+          className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-gray-200 shadow-lg overflow-hidden"
+          style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
+        >
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2">
+            <Search className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Filtrar tipos..."
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filtrados.length > 0 ? filtrados.map(opcao => (
+              <button
+                key={opcao}
+                type="button"
+                onMouseDown={e => { e.preventDefault(); selecionar(opcao) }}
+                className={cn(
+                  'w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between gap-2',
+                  opcao === value
+                    ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
+                    : 'text-gray-700 hover:bg-[#04c2fb]/8 hover:text-[#04c2fb]'
+                )}
+              >
+                <span>{opcao}</span>
+                {opcao === value && <Check className="h-3.5 w-3.5 shrink-0" />}
+              </button>
+            )) : (
+              <div className="px-3 py-3 text-center">
+                <p className="text-xs italic text-muted-foreground">Nenhum tipo encontrado</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Sub-componente: time picker customizado ──────────────────────────────────
+
+function TimePicker({
+  value,
+  onChange,
+  hasError,
+}: {
+  value: string
+  onChange: (v: string) => void
+  hasError: boolean
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [inputManual, setInputManual] = useState(value)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
+
+  // Slots de 30 em 30 minutos, 06:00 a 23:30
+  const slots = useMemo(() => {
+    const result: string[] = []
+    for (let h = 6; h < 24; h++) {
+      result.push(`${String(h).padStart(2, '0')}:00`)
+      result.push(`${String(h).padStart(2, '0')}:30`)
+    }
+    return result
+  }, [])
+
+  useEffect(() => { setInputManual(value) }, [value])
+
+  useEffect(() => {
+    function handleClickFora(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickFora)
+    return () => document.removeEventListener('mousedown', handleClickFora)
+  }, [])
+
+  // Scroll para o horário selecionado ao abrir o dropdown
+  useEffect(() => {
+    if (aberto && listaRef.current && value) {
+      const idx = slots.indexOf(value)
+      if (idx >= 0) {
+        listaRef.current.scrollTop = Math.max(0, idx * 36 - 72)
+      }
+    }
+  }, [aberto, value, slots])
+
+  function selecionar(slot: string) {
+    onChange(slot)
+    setInputManual(slot)
+    setAberto(false)
+  }
+
+  function handleManualChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value
+    setInputManual(v)
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) onChange(v)
+  }
+
+  function handleManualBlur() {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(inputManual)) setInputManual(value)
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setAberto(v => !v)}
+        className={cn(
+          'w-full flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 bg-white/80',
+          hasError
+            ? 'border-red-300 bg-red-50/50 focus:ring-red-400/40'
+            : aberto
+            ? 'border-[#04c2fb]/60 ring-2 ring-[#04c2fb]/40 border-gray-200'
+            : 'border-gray-200 hover:border-gray-300 focus:ring-[#04c2fb]/40'
+        )}
+      >
+        <Clock className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+        <span className={cn('flex-1 text-left font-mono tracking-wide', value ? 'text-gray-900' : 'text-muted-foreground/50')}>
+          {value || '--:--'}
+        </span>
+        <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-150', aberto && 'rotate-180')} />
+      </button>
+
+      {aberto && (
+        <div
+          className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-gray-200 shadow-lg overflow-hidden"
+          style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
+        >
+          {/* Input manual */}
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+            <input
+              type="text"
+              value={inputManual}
+              onChange={handleManualChange}
+              onBlur={handleManualBlur}
+              placeholder="HH:MM"
+              maxLength={5}
+              className="w-full bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground/60"
+            />
+          </div>
+          {/* Slots de horário */}
+          <div ref={listaRef} className="max-h-44 overflow-y-auto py-1">
+            {slots.map(slot => (
+              <button
+                key={slot}
+                type="button"
+                onMouseDown={e => { e.preventDefault(); selecionar(slot) }}
+                className={cn(
+                  'w-full px-3 py-2 text-left text-sm font-mono transition-colors flex items-center justify-between gap-2',
+                  slot === value
+                    ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
+                    : 'text-gray-700 hover:bg-[#04c2fb]/8 hover:text-[#04c2fb]'
+                )}
+              >
+                {slot}
+                {slot === value && <Check className="h-3.5 w-3.5 shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FormAgendamento = {
@@ -358,7 +593,14 @@ function formDe(ag?: AgendamentoComSource): FormAgendamento {
   }
   const { tipo, tipoCustom } = resolverTipoForm(ag.tipo)
   // Em modo edição, reconstruir objetos a partir dos dados disponíveis no AgendamentoComSource
-  const pacientes: PacienteOpcao[] = ag.paciente_id
+  // Sessão em grupo: usar pacientes_ids + pacientes (array); individual: usar paciente_id
+  const pacientes: PacienteOpcao[] = ag.pacientes_ids?.length
+    ? ag.pacientes_ids.map((id, idx) => ({
+        id: String(id),
+        nome: ag.pacientes?.[idx] ?? ag.paciente,
+        ativo: true,
+      }))
+    : ag.paciente_id
     ? [{ id: ag.paciente_id, nome: ag.paciente, ativo: true }]
     : []
   return {
@@ -565,8 +807,6 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
   const inputBase = 'w-full rounded-lg border px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2'
   const inputOk = 'border-gray-200 bg-white/80 focus:ring-[#04c2fb]/40'
   const inputErro = 'border-red-300 bg-red-50/50 focus:ring-red-400/40'
-  const selectBase = cn(inputBase, 'appearance-none cursor-pointer')
-
   return (
     <ModalPortal>
       {confirmarSair && (
@@ -602,8 +842,11 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
           {/* Body */}
           <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
 
-            {/* Aviso alteração pontual (sessão recorrente) */}
-            {agendamento?.source === 'recorrente' && (
+            {/* Aviso alteração pontual — aparece ao mudar data ou horário de qualquer agendamento existente */}
+            {modoEdicao && (
+              form.data !== agendamento?.data ||
+              form.horarioInicio !== agendamento?.horario
+            ) && (
               <div className="relative overflow-hidden rounded-xl border border-[#04c2fb]/30 bg-gradient-to-r from-[#04c2fb]/8 to-[#04c2fb]/4 px-4 py-3">
                 {/* Barra lateral colorida */}
                 <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-[#04c2fb]" />
@@ -681,16 +924,12 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
                 <label className={cn('text-xs font-medium', erroVisivel('tipo') ? 'text-red-500' : 'text-muted-foreground')}>
                   Tipo de sessão <span className="text-red-400">*</span>
                 </label>
-                <select
+                <TipoSessaoSelect
                   value={form.tipo}
-                  onChange={e => f('tipo', e.target.value)}
-                  className={cn(selectBase, erroVisivel('tipo') ? inputErro : inputOk)}
-                >
-                  <option value="">Selecionar tipo</option>
-                  {tiposSessao.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
+                  onChange={v => f('tipo', v)}
+                  opcoes={tiposSessao}
+                  hasError={erroVisivel('tipo')}
+                />
               </div>
 
               {/* Tipo personalizado (apenas quando "Outros") */}
@@ -730,12 +969,10 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
                 <label className={cn('text-xs font-medium', erroVisivel('horarioInicio') ? 'text-red-500' : 'text-muted-foreground')}>
                   Início <span className="text-red-400">*</span>
                 </label>
-                <input
-                  type="time"
-                  step={300}
+                <TimePicker
                   value={form.horarioInicio}
-                  onChange={e => f('horarioInicio', e.target.value)}
-                  className={cn(inputBase, erroVisivel('horarioInicio') ? inputErro : inputOk)}
+                  onChange={v => f('horarioInicio', v)}
+                  hasError={erroVisivel('horarioInicio')}
                 />
               </div>
 
@@ -744,12 +981,10 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
                 <label className={cn('text-xs font-medium', erroVisivel('horarioFim') ? 'text-red-500' : 'text-muted-foreground')}>
                   Fim <span className="text-red-400">*</span>
                 </label>
-                <input
-                  type="time"
-                  step={300}
+                <TimePicker
                   value={form.horarioFim}
-                  onChange={e => f('horarioFim', e.target.value)}
-                  className={cn(inputBase, erroVisivel('horarioFim') ? inputErro : inputOk)}
+                  onChange={v => f('horarioFim', v)}
+                  hasError={erroVisivel('horarioFim')}
                 />
               </div>
 

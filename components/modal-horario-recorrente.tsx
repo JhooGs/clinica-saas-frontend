@@ -86,19 +86,31 @@ function overlapHorario(
 }
 
 // Gera array de 14 dias a partir de hoje
-function gerar14Dias(): { iso: string; dow: number; diaMes: number; label: string }[] {
+function gerar14Dias(): { iso: string; dow: number; diaMes: number; label: string; ehHoje: boolean }[] {
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
+  const hojeISO = toISO(hoje)
   return Array.from({ length: 14 }, (_, i) => {
     const d = new Date(hoje)
     d.setDate(hoje.getDate() + i)
+    const iso = toISO(d)
     return {
-      iso: toISO(d),
+      iso,
       dow: d.getDay(),
       diaMes: d.getDate(),
-      label: `${formatDiaSemana(d.getDay())} ${formatDataCurta(toISO(d))}`,
+      label: `${formatDiaSemana(d.getDay())} ${formatDataCurta(iso)}`,
+      ehHoje: iso === hojeISO,
     }
   })
+}
+
+// Retorna true se o horário de hoje já passou
+function horarioJaPassou(isoData: string, horario: string): boolean {
+  const hojeISO = toISO(new Date())
+  if (isoData !== hojeISO) return false
+  const agora = new Date()
+  const [hh, mm] = horario.split(':').map(Number)
+  return agora.getHours() > hh || (agora.getHours() === hh && agora.getMinutes() >= mm)
 }
 
 // ── StyledSelect local ───────────────────────────────────────────────────────
@@ -200,6 +212,7 @@ interface ModalHorarioRecorrenteProps {
 
 export function ModalHorarioRecorrente({
   open, onClose, onConfirmar,
+  pacienteId,
   pacienteNome,
   planoAtual, agendamentosBase,
 }: ModalHorarioRecorrenteProps) {
@@ -242,6 +255,7 @@ export function ModalHorarioRecorrente({
       horario: string
       horarioFim?: string
       paciente: string
+      paciente_id?: string  // UUID do paciente (para detectar conflito com o próprio paciente)
       pacientes: string[]   // lista de nomes (>1 quando for grupo)
       ehGrupo: boolean
     }[] = []
@@ -254,6 +268,7 @@ export function ModalHorarioRecorrente({
         horario: ag.horario,
         horarioFim: ag.horarioFim,
         paciente: ag.paciente,
+        paciente_id: ag.paciente_id,
         // Copia o array para não mutar dados externos ao adicionar pacientes de grupo
         pacientes: ag.pacientes && ag.pacientes.length > 0
           ? [...ag.pacientes]
@@ -272,6 +287,7 @@ export function ModalHorarioRecorrente({
       horarioFim?: string
       ehGrupo: boolean
       paciente: string
+      paciente_id?: string
       pacientes: string[]
     }[]>()
     for (const ag of agendamentosExistentes) {
@@ -281,6 +297,7 @@ export function ModalHorarioRecorrente({
         horarioFim: ag.horarioFim,
         ehGrupo: ag.ehGrupo,
         paciente: ag.paciente,
+        paciente_id: ag.paciente_id,
         pacientes: ag.pacientes,
       })
     }
@@ -314,7 +331,8 @@ export function ModalHorarioRecorrente({
   // Conflitos detectados: para cada candidata, verificar se há ocupação
   type ConflitoCandidato = {
     data: string; horario: string
-    tipo: 'bloqueante' | 'aviso' // aviso = grupo+grupo
+    tipo: 'bloqueante' | 'aviso' | 'mesmo-paciente'
+    // aviso = grupo+grupo; mesmo-paciente = é o próprio horário antigo do paciente
   }
 
   const conflitos = useMemo((): ConflitoCandidato[] => {
@@ -325,17 +343,29 @@ export function ModalHorarioRecorrente({
         { horario: o.horario, horarioFim: o.horarioFim },
       ))
       if (!colisao) return []
+      // Colisão com o próprio agendamento do paciente que está sendo reconfigurado
+      if (pacienteId && colisao.paciente_id === pacienteId) {
+        return [{ data: cand.data, horario: cand.horario, tipo: 'mesmo-paciente' as const }]
+      }
       const tipo: ConflitoCandidato['tipo'] = sessoEmGrupo && colisao.ehGrupo ? 'aviso' : 'bloqueante'
       return [{ data: cand.data, horario: cand.horario, tipo }]
     })
-  }, [sessoesCandidatas, ocupadosPorData, sessoEmGrupo])
+  }, [sessoesCandidatas, ocupadosPorData, sessoEmGrupo, pacienteId])
 
   const temBloqueante = conflitos.some(c => c.tipo === 'bloqueante')
+  // Desabilita quando toda a agenda configurada já é o horário atual do paciente
+  // E o tipo de sessão (grupo vs individual) também não mudou
+  const semAlteracao = sessoesCandidatas.length > 0
+    && conflitos.length === sessoesCandidatas.length
+    && conflitos.every(c => c.tipo === 'mesmo-paciente')
+    && sessoEmGrupo === planoAtual.sessoEmGrupo
 
   // Mapa de horários bloqueados por dia da semana (para desabilitar no StyledSelect)
+  // Não bloqueia o próprio horário do paciente que está sendo reconfigurado
   const horariosBloqueadosPorDia = useMemo(() => {
     const mapa = new Map<number, Set<string>>()
     for (const ag of agendamentosExistentes) {
+      if (pacienteId && ag.paciente_id === pacienteId) continue
       const [y, m, d] = ag.data.split('-').map(Number)
       const dow = new Date(y, m - 1, d).getDay()
       if (!mapa.has(dow)) mapa.set(dow, new Set())
@@ -345,11 +375,12 @@ export function ModalHorarioRecorrente({
       }
     }
     return mapa
-  }, [agendamentosExistentes, sessoEmGrupo])
+  }, [agendamentosExistentes, sessoEmGrupo, pacienteId])
 
   const horariosBloqueadosPorDiaMes = useMemo(() => {
     const mapa = new Map<number, Set<string>>()
     for (const ag of agendamentosExistentes) {
+      if (pacienteId && ag.paciente_id === pacienteId) continue
       const dm = parseInt(ag.data.split('-')[2])
       if (!mapa.has(dm)) mapa.set(dm, new Set())
       if (!sessoEmGrupo || !ag.ehGrupo) {
@@ -357,7 +388,7 @@ export function ModalHorarioRecorrente({
       }
     }
     return mapa
-  }, [agendamentosExistentes, sessoEmGrupo])
+  }, [agendamentosExistentes, sessoEmGrupo, pacienteId])
 
   function getBloqueados(slot: SlotAgendamento): Set<string> {
     if (recorrencia === 'mensal' && slot.diaMes !== undefined) {
@@ -416,7 +447,7 @@ export function ModalHorarioRecorrente({
             {/* ── Painel esquerdo: mini agenda 14 dias ── */}
             <div className="md:w-64 shrink-0 border-b md:border-b-0 md:border-r bg-gray-50/40 p-4 overflow-y-auto">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                Agenda · próximos 14 dias
+                Agenda · próximas 2 semanas
               </p>
               <div className="space-y-4">
                 {dias14.map(dia => {
@@ -429,29 +460,48 @@ export function ModalHorarioRecorrente({
                   return (
                     <div key={dia.iso}>
                       {/* Cabeçalho do dia */}
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
-                        {dia.label}
-                      </p>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <p className={cn(
+                          'text-[10px] font-bold uppercase tracking-widest',
+                          dia.ehHoje ? 'text-[#04c2fb]' : 'text-muted-foreground',
+                        )}>
+                          {dia.label}
+                        </p>
+                        {dia.ehHoje && (
+                          <span className="text-[9px] font-bold bg-[#04c2fb]/10 text-[#04c2fb] rounded-full px-1.5 py-0.5 leading-none uppercase tracking-wide">
+                            Hoje
+                          </span>
+                        )}
+                      </div>
 
                       <div className="space-y-1">
                         {agendamentos.map((ag, idx) => {
                           const chaveExpand = `${dia.iso}_${ag.horario}_${idx}`
                           const expandido = gruposExpandidos.has(chaveExpand)
                           const LIMITE = 2
+                          const passado = horarioJaPassou(dia.iso, ag.horario)
 
                           if (ag.ehGrupo) {
                             const visiveis = expandido ? ag.pacientes : ag.pacientes.slice(0, LIMITE)
                             const resto = ag.pacientes.length - LIMITE
 
                             return (
-                              <div key={idx} className="rounded-lg border border-emerald-200 bg-emerald-50 overflow-hidden">
+                              <div key={idx} className={cn(
+                                'rounded-lg border overflow-hidden transition-opacity',
+                                passado
+                                  ? 'border-emerald-100 bg-emerald-50/40 opacity-50'
+                                  : 'border-emerald-200 bg-emerald-50',
+                              )}>
                                 {/* Cabeçalho do grupo */}
                                 <div className="flex items-center gap-2 px-2.5 py-1.5">
-                                  <Users className="h-3 w-3 text-emerald-600 shrink-0" />
-                                  <span className="text-[11px] font-bold text-emerald-700 tabular-nums">
+                                  <Users className={cn('h-3 w-3 shrink-0', passado ? 'text-emerald-400' : 'text-emerald-600')} />
+                                  <span className={cn('text-[11px] font-bold tabular-nums', passado ? 'text-emerald-500' : 'text-emerald-700')}>
                                     {ag.horario}
                                   </span>
-                                  <span className="ml-auto text-[10px] font-semibold text-emerald-600 bg-emerald-100 rounded-full px-1.5 py-0.5 leading-none whitespace-nowrap">
+                                  <span className={cn(
+                                    'ml-auto text-[10px] font-semibold rounded-full px-1.5 py-0.5 leading-none whitespace-nowrap',
+                                    passado ? 'text-emerald-500 bg-emerald-100/60' : 'text-emerald-600 bg-emerald-100',
+                                  )}>
                                     {ag.pacientes.length} pac.
                                   </span>
                                 </div>
@@ -460,8 +510,8 @@ export function ModalHorarioRecorrente({
                                 <div className="border-t border-emerald-100 px-2.5 py-1.5 space-y-0.5">
                                   {visiveis.map((nome, ni) => (
                                     <div key={ni} className="flex items-center gap-1.5">
-                                      <span className="h-1 w-1 rounded-full bg-emerald-400 shrink-0" />
-                                      <span className="text-[11px] text-emerald-800 font-medium leading-snug">
+                                      <span className={cn('h-1 w-1 rounded-full shrink-0', passado ? 'bg-emerald-300' : 'bg-emerald-400')} />
+                                      <span className={cn('text-[11px] font-medium leading-snug', passado ? 'text-emerald-600' : 'text-emerald-800')}>
                                         {abreviarNome(nome)}
                                       </span>
                                     </div>
@@ -492,12 +542,17 @@ export function ModalHorarioRecorrente({
 
                           // Sessão individual
                           return (
-                            <div key={idx} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-white border border-gray-100">
-                              <User className="h-3 w-3 text-slate-400 shrink-0" />
-                              <span className="text-[11px] font-bold text-gray-500 tabular-nums shrink-0">
+                            <div key={idx} className={cn(
+                              'flex items-center gap-2 rounded-lg px-2.5 py-1.5 border transition-opacity',
+                              passado
+                                ? 'bg-gray-50 border-gray-100 opacity-50'
+                                : 'bg-white border-gray-100',
+                            )}>
+                              <User className={cn('h-3 w-3 shrink-0', passado ? 'text-gray-300' : 'text-slate-400')} />
+                              <span className={cn('text-[11px] font-bold tabular-nums shrink-0', passado ? 'text-gray-400' : 'text-gray-500')}>
                                 {ag.horario}
                               </span>
-                              <span className="text-[11px] text-gray-700 truncate">
+                              <span className={cn('text-[11px] truncate', passado ? 'text-gray-400' : 'text-gray-700')}>
                                 {abreviarNome(ag.paciente)}
                               </span>
                             </div>
@@ -538,7 +593,17 @@ export function ModalHorarioRecorrente({
                 <div className="space-y-3">
                   {slots.map((slot, i) => {
                     const bloqueados = getBloqueados(slot)
-                    const emOutroSlot = new Set(slots.filter((_, si) => si !== i).map(s => s.horario))
+                    // Só bloqueia horários de outros slots que têm o mesmo dia (semana ou mês).
+                    // Slots em dias diferentes podem reutilizar o mesmo horário sem conflito.
+                    const emOutroSlot = new Set(
+                      slots
+                        .filter((s, si) => {
+                          if (si === i) return false
+                          if (recorrencia === 'mensal') return s.diaMes === slot.diaMes
+                          return s.diaSemana === slot.diaSemana
+                        })
+                        .map(s => s.horario)
+                    )
                     const horarioAtual = slot.horario ?? '08:00'
                     const hora = horarioAtual.split(':')[0] ?? '08'
                     const min = horarioAtual.split(':')[1] ?? '00'
@@ -565,7 +630,9 @@ export function ModalHorarioRecorrente({
                             ? 'border-red-200 bg-red-50/50'
                             : conflitoDeste?.tipo === 'aviso'
                               ? 'border-amber-200 bg-amber-50/50'
-                              : 'border-slate-200 bg-slate-50/50',
+                              : conflitoDeste?.tipo === 'mesmo-paciente'
+                                ? 'border-blue-200 bg-blue-50/50'
+                                : 'border-slate-200 bg-slate-50/50',
                         )}
                       >
                         {slots.length > 1 && (
@@ -707,6 +774,17 @@ export function ModalHorarioRecorrente({
                 {/* Alertas de conflito */}
                 {conflitos.length > 0 && (
                   <div className="space-y-2">
+                    {conflitos.some(c => c.tipo === 'mesmo-paciente') && (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-start gap-3">
+                        <AlertTriangle className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-blue-700">Horário atual do paciente</p>
+                          <p className="text-xs text-blue-600 mt-0.5">
+                            Este já é o horário recorrente configurado para {pacienteNome}.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {conflitos.some(c => c.tipo === 'bloqueante') && (
                       <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
                         <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
@@ -749,11 +827,11 @@ export function ModalHorarioRecorrente({
             </button>
             <button
               type="button"
-              disabled={temBloqueante}
+              disabled={temBloqueante || semAlteracao}
               onClick={() => onConfirmar(slots, sessoEmGrupo)}
               className={cn(
                 'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
-                temBloqueante ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',
+                (temBloqueante || semAlteracao) ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',
               )}
               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >

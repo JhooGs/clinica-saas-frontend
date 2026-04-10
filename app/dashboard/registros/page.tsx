@@ -2,12 +2,37 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
+import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown, Loader2, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn, extractTiptapText } from '@/lib/utils'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { useRegistros } from '@/hooks/use-registros'
+import { useAgendamentos } from '@/hooks/use-agenda'
 import type { Registro } from '@/types'
+
+function dataHoje(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function data90DiasAtras(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 90)
+  return d.toISOString().slice(0, 10)
+}
+
+function diasDesde(dataISO: string): number {
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const [ay, am, ad] = dataISO.split('-').map(Number)
+  const alvo = new Date(ay, am - 1, ad)
+  return Math.floor((hoje.getTime() - alvo.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function formatDataBRSimples(iso: string) {
+  if (!iso) return '-'
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
 
 type SortKey = 'paciente_nome' | 'data_sessao' | 'titulo' | 'presenca'
 type SortDir = 'asc' | 'desc'
@@ -64,6 +89,13 @@ export default function RegistrosPage() {
     data_fim: filtroDataFim,
     page_size: 200,
   })
+
+  const { data: pendentesData } = useAgendamentos({
+    data_inicio: data90DiasAtras(),
+    data_fim: dataHoje(),
+    sem_registro: true,
+  })
+  const agendamentosPendentes = pendentesData?.items ?? []
   const registros: Registro[] = useMemo(() => apiData?.items ?? [], [apiData])
 
   function handleSort(key: SortKey) {
@@ -137,6 +169,71 @@ export default function RegistrosPage() {
           </div>
         </div>
       </div>
+
+      {/* Seção: Aguardando documentação */}
+      {agendamentosPendentes.length > 0 && (
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b">
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-lg p-1.5 bg-amber-50">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold leading-none">Aguardando documentação</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Atendimentos ocorridos sem registro de sessão</p>
+              </div>
+            </div>
+            <span className="flex items-center justify-center h-6 min-w-6 rounded-full bg-amber-500 text-white text-[11px] font-bold px-1.5">
+              {agendamentosPendentes.length}
+            </span>
+          </div>
+          <div className="divide-y">
+            {agendamentosPendentes.map(ag => {
+              const dias = diasDesde(ag.data)
+              const cor = dias === 0
+                ? { dot: 'bg-amber-400', text: 'text-amber-600', pill: 'bg-amber-50 text-amber-700 border-amber-200' }
+                : dias === 1
+                ? { dot: 'bg-orange-400', text: 'text-orange-600', pill: 'bg-orange-50 text-orange-700 border-orange-200' }
+                : { dot: 'bg-red-500', text: 'text-red-600', pill: 'bg-red-50 text-red-700 border-red-200' }
+              const label = dias === 0 ? `hoje às ${ag.horario}` : dias === 1 ? 'ontem' : `há ${dias} dias`
+
+              return (
+                <div
+                  key={ag.id}
+                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors"
+                >
+                  <span className={cn('h-2 w-2 rounded-full shrink-0', cor.dot)} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{ag.paciente_nome ?? '—'}</p>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-medium text-[#04c2fb]">
+                        {ag.tipo_sessao}
+                      </span>
+                      <span className={cn('text-[11px] font-medium', cor.text)}>{label}</span>
+                    </div>
+                  </div>
+                  <span className="hidden sm:block text-[11px] text-muted-foreground shrink-0">
+                    {formatDataBRSimples(ag.data)}
+                  </span>
+                  <span className={cn(
+                    'hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold shrink-0',
+                    cor.pill
+                  )}>
+                    {dias === 0 ? 'Hoje' : dias === 1 ? '1 dia' : `${dias} dias`}
+                  </span>
+                  <button
+                    onClick={() => router.push(`/dashboard/registros/${ag.id}`)}
+                    className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110 whitespace-nowrap"
+                    style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                  >
+                    Registrar
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Pesquisa + Filtros */}
       <div className="flex flex-col sm:flex-row gap-3">

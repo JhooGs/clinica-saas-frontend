@@ -17,7 +17,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   RotateCcw,
-  ArrowRight,
   FileSpreadsheet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -112,48 +111,6 @@ const COLUNAS_INFO: Record<Modulo, ColInfo[]> = {
     { campo: 'valor_sessao', desc: 'Valor cobrado, ex: 200,00 (sem R$)', obrigatorio: false },
     { campo: 'conteudo', desc: 'Anotações ou resumo da sessão', obrigatorio: false },
   ],
-}
-
-// ── Indicador de progresso ────────────────────────────────────────────────────
-
-const PASSOS = ['Baixar modelo', 'Verificar dados', 'Concluir']
-const STEP_INDEX: Record<Step, number> = { upload: 0, preview: 1, result: 2 }
-
-function IndicadorPassos({ step }: { step: Step }) {
-  const atual = STEP_INDEX[step]
-  return (
-    <div className="flex items-center gap-1 sm:gap-2">
-      {PASSOS.map((nome, i) => (
-        <div key={i} className="flex items-center gap-1 sm:gap-2">
-          <div className="flex items-center gap-1.5">
-            <div
-              className={cn(
-                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-colors',
-                i < atual
-                  ? 'bg-emerald-500 text-white'
-                  : i === atual
-                  ? 'bg-[#04c2fb] text-white'
-                  : 'bg-slate-100 text-slate-400',
-              )}
-            >
-              {i < atual ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
-            </div>
-            <span
-              className={cn(
-                'hidden sm:block text-xs font-medium whitespace-nowrap',
-                i === atual ? 'text-slate-800' : 'text-slate-400',
-              )}
-            >
-              {nome}
-            </span>
-          </div>
-          {i < PASSOS.length - 1 && (
-            <ArrowRight className="h-3 w-3 shrink-0 text-slate-300" />
-          )}
-        </div>
-      ))}
-    </div>
-  )
 }
 
 // ── Utilitários ───────────────────────────────────────────────────────────────

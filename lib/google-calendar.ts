@@ -26,6 +26,7 @@ export type AgendamentoComSource = {
   data: string
   horario: string
   horarioFim?: string
+  status?: string              // StatusAgendamento — presente para agendamentos Clinitra
   source?: 'google' | 'clinitra' | 'recorrente'
   googleEventId?: string
 }
