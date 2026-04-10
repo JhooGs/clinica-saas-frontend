@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Montserrat } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { Providers } from './providers'
+import { ServiceWorkerRegister } from '@/components/service-worker-register'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -43,6 +44,7 @@ export default function RootLayout({
           {children}
         </Providers>
         <Toaster />
+        <ServiceWorkerRegister />
       </body>
     </html>
   )
