@@ -22,6 +22,9 @@ export interface PacienteCreatePayload {
   email?: string
   endereco?: Record<string, string>
   dados_extras?: Record<string, unknown>
+  responsavel?: string
+  data_anamnese?: string   // YYYY-MM-DD
+  data_inicio?: string     // YYYY-MM-DD
 }
 
 export interface PacienteUpdatePayload {
@@ -32,6 +35,9 @@ export interface PacienteUpdatePayload {
   email?: string
   endereco?: Record<string, string>
   dados_extras?: Record<string, unknown>
+  responsavel?: string
+  data_anamnese?: string   // YYYY-MM-DD
+  data_inicio?: string     // YYYY-MM-DD
   ativo?: boolean
 }
 

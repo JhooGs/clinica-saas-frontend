@@ -55,7 +55,7 @@ const MODULOS: Record<Modulo, { label: string; icon: React.ElementType; colunas:
   pacientes: {
     label: 'Pacientes',
     icon: Users,
-    colunas: ['nome', 'cpf', 'data_nascimento', 'telefone', 'email', 'status', 'responsavel'],
+    colunas: ['nome', 'cpf', 'data_nascimento', 'telefone', 'email', 'status', 'responsavel', 'data_anamnese', 'data_inicio'],
     descricao: 'Importe o cadastro completo dos seus pacientes com dados de contato e informações pessoais.',
     exemplo: 'Nome, CPF, telefone, e-mail...',
     cor: 'text-[#04c2fb]',
@@ -93,6 +93,8 @@ const COLUNAS_INFO: Record<Modulo, ColInfo[]> = {
     { campo: 'email', desc: 'E-mail válido', obrigatorio: false },
     { campo: 'status', desc: 'Digite "ativo" ou "inativo" (padrão: ativo)', obrigatorio: false },
     { campo: 'responsavel', desc: 'Nome do responsável ou acompanhante', obrigatorio: false },
+    { campo: 'data_anamnese', desc: 'Data da anamnese no formato DD/MM/AAAA', obrigatorio: false },
+    { campo: 'data_inicio', desc: 'Data de início do atendimento no formato DD/MM/AAAA', obrigatorio: false },
   ],
   financeiro: [
     { campo: 'tipo', desc: 'Digite "receita" ou "despesa"', obrigatorio: true },

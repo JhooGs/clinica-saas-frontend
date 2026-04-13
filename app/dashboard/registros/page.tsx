@@ -50,9 +50,11 @@ function formatDataBR(iso: string) {
   return `${d}/${m}/${y}`
 }
 
-function formatBRL(valor: number | null): string {
+function formatBRL(valor: number | string | null): string {
   if (valor === null || valor === undefined) return '—'
-  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const num = typeof valor === 'string' ? parseFloat(valor) : valor
+  if (isNaN(num)) return '—'
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function HighlightMatch({ texto, busca }: { texto: string; busca: string }) {
@@ -333,9 +335,12 @@ export default function RegistrosPage() {
                     <tr className="hover:bg-muted/20 transition-colors">
                       {/* Paciente */}
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-800">
+                        <button
+                          onClick={() => router.push(`/dashboard/pacientes/${r.paciente_id}`)}
+                          className="font-medium text-gray-800 hover:text-[#04c2fb] hover:underline transition-colors text-left"
+                        >
                           <HighlightMatch texto={r.paciente_nome ?? ''} busca={busca} />
-                        </div>
+                        </button>
                         {/* Mobile: info extra */}
                         <div className="flex flex-wrap items-center gap-2 mt-1 md:hidden">
                           <span className="text-[11px] text-muted-foreground">{formatDataBR(r.data_sessao ?? r.criado_em.slice(0, 10))}</span>

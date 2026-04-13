@@ -41,6 +41,7 @@ export interface AgendaFilter {
   paciente_id?: string
   status?: string
   sem_registro?: boolean
+  page_size?: number
 }
 
 export function useAgendamentos(filtros: AgendaFilter) {
@@ -51,6 +52,7 @@ export function useAgendamentos(filtros: AgendaFilter) {
   if (filtros.paciente_id) params.set('paciente_id', filtros.paciente_id)
   if (filtros.status) params.set('status', filtros.status)
   if (filtros.sem_registro) params.set('sem_registro', 'true')
+  if (filtros.page_size) params.set('page_size', String(filtros.page_size))
 
   return useQuery<AgendamentoListResponse>({
     queryKey: ['agenda', filtros],

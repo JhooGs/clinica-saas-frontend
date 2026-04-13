@@ -91,9 +91,9 @@ function dataOntem(): string {
   return d.toISOString().slice(0, 10)
 }
 
-function data30DiasAtras(): string {
+function data90DiasAtras(): string {
   const d = new Date()
-  d.setDate(d.getDate() - 30)
+  d.setDate(d.getDate() - 90)
   return d.toISOString().slice(0, 10)
 }
 
@@ -379,9 +379,9 @@ export default function DashboardPage() {
     [agendaHoje]
   )
 
-  // Dados reais: agendamentos dos últimos 30 dias sem registro (excluindo hoje)
+  // Dados reais: agendamentos dos últimos 90 dias sem registro (excluindo hoje)
   const { data: agendaPendente, isLoading: loadingPendente } = useAgendamentos({
-    data_inicio: data30DiasAtras(),
+    data_inicio: data90DiasAtras(),
     data_fim: dataOntem(),
     sem_registro: true,
   })
@@ -399,7 +399,12 @@ export default function DashboardPage() {
   })
   const pendentesHoje = useMemo<RelatorioPendente[]>(() => {
     return (agendaPendenteHoje?.items ?? [])
-      .filter(a => getAtendStatus(a.horario, a.status === 'falta', currentTime) !== 'futuro')
+      .filter(a => {
+        const [h, m] = a.horario.split(':').map(Number)
+        const horarioAgendamento = new Date(currentTime)
+        horarioAgendamento.setHours(h, m, 0, 0)
+        return currentTime >= horarioAgendamento
+      })
       .map(toRelatorioPendente)
   }, [agendaPendenteHoje, currentTime])
 

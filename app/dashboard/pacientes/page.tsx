@@ -501,9 +501,9 @@ function apiParaLocal(p: ApiPaciente): Paciente {
     ativo: p.ativo,
     nome: p.nome,
     dataNascimento: _fmtIso(p.data_nascimento),
-    responsavel: (extras.responsavel as string) || '-',
-    dataAnamnese: _fmtIso(extras.data_anamnese as string | undefined),
-    dataInicio: _fmtIso(extras.data_inicio as string | undefined),
+    responsavel: p.responsavel || '-',
+    dataAnamnese: _fmtIso(p.data_anamnese),
+    dataInicio: _fmtIso(p.data_inicio),
     pacoteId: (p.plano_atendimento?.pacoteId as string | null) ?? (extras.pacote_id as string | null) ?? null,
     cobranca: (p.plano_atendimento?.cobranca as 'por_atendimento' | 'mensal' | null) ?? (extras.cobranca as 'por_atendimento' | 'mensal' | null) ?? null,
     ...(p.cpf && { cpf: p.cpf }),
@@ -577,11 +577,9 @@ export default function PacientesPage() {
         nome: form.nome,
         ...(form.cpf && { cpf: form.cpf }),
         ...(form.dataNascimento && { data_nascimento: form.dataNascimento }),
-        dados_extras: {
-          ...(form.responsavel && { responsavel: form.responsavel }),
-          ...(form.dataAnamnese && { data_anamnese: form.dataAnamnese }),
-          ...(form.dataInicio && { data_inicio: form.dataInicio }),
-        },
+        ...(form.responsavel && { responsavel: form.responsavel }),
+        ...(form.dataAnamnese && { data_anamnese: form.dataAnamnese }),
+        ...(form.dataInicio && { data_inicio: form.dataInicio }),
         ...(temEndereco && {
           endereco: {
             ...(form.cep && { cep: form.cep }),

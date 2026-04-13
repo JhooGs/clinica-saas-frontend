@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Fragment, useEffect } from 'react'
+import { useState, Fragment, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePaciente, useAtualizarPaciente } from '@/hooks/use-pacientes'
 import {
@@ -23,7 +23,7 @@ import type { TipoAcaoAgenda } from '@/components/modal-confirmar-agenda-futura'
 import { toast } from 'sonner'
 import type { Pacote, TipoSessao } from '@/lib/types/planos'
 import { useRegistros } from '@/hooks/use-registros'
-import type { Registro } from '@/types'
+import type { Registro, Agendamento } from '@/types'
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -216,9 +216,9 @@ function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
     ativo: p.ativo,
     nome: p.nome,
     dataNascimento: _isoToBrFmt(p.data_nascimento),
-    responsavel: (extras.responsavel as string) || '-',
-    dataAnamnese: _isoToBrFmt(extras.data_anamnese as string | undefined),
-    dataInicio: _isoToBrFmt(extras.data_inicio as string | undefined),
+    responsavel: p.responsavel || '-',
+    dataAnamnese: _isoToBrFmt(p.data_anamnese),
+    dataInicio: _isoToBrFmt(p.data_inicio),
     dataFim: null,
     totalSessoes: 0,  // será preenchido via API de registros
     presencas: 0,
@@ -1089,10 +1089,44 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   })
 
   const { data: registrosData } = useRegistros({ paciente_id: paciente.id, page_size: 200 })
-  const registros: Registro[] = registrosData?.items ?? []
+  const registros: Registro[] = useMemo(() => registrosData?.items ?? [], [registrosData])
+
+  // Histórico completo de agendamentos do paciente (passado + futuro)
+  const _hoje = new Date()
+  const _cincoAnosAtras = new Date(_hoje.getFullYear() - 5, 0, 1).toISOString().slice(0, 10)
+  const dataInicioHistorico = (paciente.dataInicio && brToIso(paciente.dataInicio)) || _cincoAnosAtras
+  const dataFimFuturo = new Date(_hoje.getFullYear() + 1, 11, 31).toISOString().slice(0, 10)
+
+  const { data: agendamentosHistData } = useAgendamentos({
+    data_inicio: dataInicioHistorico,
+    data_fim: dataFimFuturo,
+    paciente_id: paciente.id,
+    page_size: 500,
+  })
+  const agendamentosHist: Agendamento[] = useMemo(() => agendamentosHistData?.items ?? [], [agendamentosHistData])
+
+  // Maps para vincular agendamentos ↔ registros
+  const registroByAgendamentoId = useMemo(() => {
+    const map = new Map<string, Registro>()
+    for (const r of registros) {
+      if (r.agendamento_id) map.set(r.agendamento_id, r)
+    }
+    return map
+  }, [registros])
+
+  const registroByData = useMemo(() => {
+    const map = new Map<string, Registro>()
+    for (const r of registros) {
+      if (!r.agendamento_id && r.data_sessao) map.set(r.data_sessao, r)
+    }
+    return map
+  }, [registros])
+
+  // Stats baseadas em registros documentados (presença ou falta registrada)
+  const hojeISO = useMemo(() => todayIso(), [])
   const totalSessoes = registros.length
   const presencas = registros.filter(r => r.presenca).length
-  const faltas = totalSessoes - presencas
+  const faltas = registros.filter(r => !r.presenca).length
 
   const [expandidoSessaoId, setExpandidoSessaoId] = useState<string | null>(null)
 
@@ -1101,8 +1135,8 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   }
 
   const idade = calcularIdade(paciente.dataNascimento)
-  const taxaPresenca = totalSessoes > 0
-    ? Math.round((presencas / totalSessoes) * 100)
+  const taxaPresenca = (presencas + faltas) > 0
+    ? Math.round((presencas / (presencas + faltas)) * 100)
     : 0
 
   // Snapshot do form no momento em que o usuário clicou em "Editar"
@@ -1138,11 +1172,9 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         payload: {
           nome: form.nome,
           ativo: form.ativo,
-          dados_extras: {
-            ...(form.responsavel && { responsavel: form.responsavel }),
-            ...(form.dataAnamnese && { data_anamnese: form.dataAnamnese }),
-            ...(form.dataInicio && { data_inicio: form.dataInicio }),
-          },
+          ...(form.responsavel && { responsavel: form.responsavel }),
+          ...(form.dataAnamnese && { data_anamnese: form.dataAnamnese }),
+          ...(form.dataInicio && { data_inicio: form.dataInicio }),
         },
       },
       {
@@ -1426,169 +1458,194 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         tiposDisponiveis={tiposDisponiveis}
       />
 
-      {/* ── Tabela de sessões ────────────────────── */}
+      {/* ── Histórico de sessões ────────────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="p-5 border-b flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold">Sessões Recentes</p>
+            <p className="text-sm font-semibold">Histórico de Sessões</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {totalSessoes} sessões registradas
+              {totalSessoes} {totalSessoes === 1 ? 'sessão' : 'sessões'} realizadas
             </p>
           </div>
-          <span className="text-xs text-muted-foreground">{totalSessoes} exibida(s)</span>
+          <span className="text-xs text-muted-foreground">{agendamentosHist.length} exibida(s)</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Data</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Presença</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Tipo</th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Material</th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Notas</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground w-20">Ações</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground w-24">Ações</th>
                 <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
             <tbody className="divide-y">
-              {registros.map(r => {
-                const textoPreview = extractTiptapText(r.conteudo_json, 70)
-                const textoCompleto = extractTiptapText(r.conteudo_json, 1000)
-                const aberto = expandidoSessaoId === r.id
-                const temNotas = !!r.conteudo_json && textoCompleto.length > 0
-                const links = r.link_youtube ? [r.link_youtube] : []
-                const dataFormatada = r.data_sessao
-                  ? isoToBr(r.data_sessao)
-                  : isoToBr(r.criado_em.slice(0, 10))
+              {[...agendamentosHist]
+                .sort((a, b) => b.data.localeCompare(a.data) || b.horario.localeCompare(a.horario))
+                .map(ag => {
+                  const reg = registroByAgendamentoId.get(ag.id) ?? registroByData.get(ag.data)
+                  const textoPreview = reg ? extractTiptapText(reg.conteudo_json, 70) : ''
+                  const textoCompleto = reg ? extractTiptapText(reg.conteudo_json, 1000) : ''
+                  const aberto = expandidoSessaoId === ag.id
+                  const temNotas = !!reg?.conteudo_json && textoCompleto.length > 0
+                  const links = reg?.link_youtube ? [reg.link_youtube] : []
+                  const ehPassado = ag.data <= hojeISO
+                  const ehCancelado = ag.status === 'cancelado'
 
-                return (
-                  <Fragment key={r.id}>
-                    <tr className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {dataFormatada}
-                        {/* Mobile: notas preview abaixo da data */}
-                        {temNotas && (
-                          <div className="flex items-start gap-1 mt-1 md:hidden">
-                            <FileText className="h-3 w-3 text-[#04c2fb] shrink-0 mt-0.5" />
-                            <span className="text-[11px] text-muted-foreground line-clamp-1">{textoPreview}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
-                          r.presenca ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600',
-                        )}>
-                          <span className={cn('h-1.5 w-1.5 rounded-full', r.presenca ? 'bg-green-500' : 'bg-red-500')} />
-                          {r.presenca ? 'Presente' : 'Falta'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 max-w-[130px]">
-                        <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb] truncate max-w-full">
-                          {r.tipo_sessao ?? '—'}
-                        </span>
-                      </td>
-                      <td className="hidden md:table-cell px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={r.material ?? undefined}>
-                        {r.material ?? '—'}
-                      </td>
-                      {/* Coluna Notas — desktop */}
-                      <td className="hidden md:table-cell px-4 py-3 max-w-[220px]">
-                        {temNotas ? (
-                          <div className="flex items-start gap-1.5">
-                            <FileText className="h-3.5 w-3.5 text-[#04c2fb] shrink-0 mt-0.5" />
-                            <span className="text-xs text-muted-foreground line-clamp-1">{textoPreview}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </td>
-                      {/* Botão editar */}
-                      <td className="px-3 py-3 text-center">
-                        <button
-                          onClick={() => router.push(`/dashboard/registros/${r.id}?editar=true`)}
-                          title="Editar sessão"
-                          className="group/edit inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200"
-                        >
-                          <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" />
-                        </button>
-                      </td>
-                      {/* Botão expandir */}
-                      <td className="px-3 py-3 text-right">
-                        {temNotas && (
-                          <button
-                            onClick={() => toggleSessao(r.id)}
-                            title={aberto ? 'Fechar notas' : 'Ver notas'}
-                            className={cn(
-                              'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
-                              aberto
-                                ? 'bg-[#04c2fb]/10 text-[#04c2fb]'
-                                : 'text-muted-foreground hover:bg-muted hover:text-gray-700',
-                            )}
-                          >
-                            <span className="hidden sm:inline">{aberto ? 'Fechar' : 'Ver notas'}</span>
-                            {aberto
-                              ? <ChevronUp className="h-3.5 w-3.5" />
-                              : <ChevronDown className="h-3.5 w-3.5" />
-                            }
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+                  const statusInfo = (() => {
+                    if (reg) {
+                      return reg.presenca
+                        ? { cls: 'bg-green-50 text-green-700', dot: 'bg-green-500', label: 'Realizado' }
+                        : { cls: 'bg-red-50 text-red-600', dot: 'bg-red-500', label: 'Falta' }
+                    }
+                    if (ehCancelado) return { cls: 'bg-gray-100 text-gray-400', dot: 'bg-gray-400', label: 'Cancelado' }
+                    if (!ehPassado) {
+                      return ag.status === 'reagendamento'
+                        ? { cls: 'bg-blue-50 text-blue-600', dot: 'bg-blue-500', label: 'Reagendado' }
+                        : { cls: 'bg-green-50 text-green-600', dot: 'bg-green-500', label: 'Agendado' }
+                    }
+                    return { cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', label: 'Pendente' }
+                  })()
 
-                    {/* Painel expandido */}
-                    {temNotas && (
-                      <tr className={aberto ? '' : 'hidden'}>
-                        <td colSpan={7} className="px-0 py-0">
-                          <div
-                            className={cn(
-                              'grid transition-all duration-200',
-                              aberto ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
-                            )}
-                          >
-                            <div className="overflow-hidden">
-                              <div className="mx-4 my-3 rounded-lg border-l-4 border-[#04c2fb] bg-[#04c2fb]/5 px-4 py-3">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <FileText className="h-3.5 w-3.5 text-[#04c2fb]" />
-                                  <span className="text-xs font-semibold text-[#04c2fb]">Notas da Sessão</span>
-                                </div>
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                  {textoCompleto}
-                                </p>
-                                {(r.material && r.material !== '-') || links.length > 0 ? (
-                                  <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
-                                    {r.material && r.material !== '-' && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
-                                        Material: {r.material}
-                                      </span>
-                                    )}
-                                    {links.map((link, i) => (
-                                      <a
-                                        key={i}
-                                        href={link}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 rounded-full border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-2.5 py-0.5 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[180px]"
-                                        title={link}
-                                      >
-                                        <ExternalLink className="h-3 w-3 shrink-0" />
-                                        <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
-                                      </a>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </div>
+                  return (
+                    <Fragment key={ag.id}>
+                      <tr className={cn('hover:bg-muted/20 transition-colors', ehCancelado && 'opacity-50')}>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          <span>{isoToBR(ag.data)}</span>
+                          <span className="ml-1.5 text-[11px] text-muted-foreground/70">{ag.horario}</span>
+                          {temNotas && (
+                            <div className="flex items-start gap-1 mt-1 md:hidden">
+                              <FileText className="h-3 w-3 text-[#04c2fb] shrink-0 mt-0.5" />
+                              <span className="text-[11px] text-muted-foreground line-clamp-1">{textoPreview}</span>
                             </div>
-                          </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
+                            statusInfo.cls,
+                          )}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', statusInfo.dot)} />
+                            {statusInfo.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 max-w-[130px]">
+                          <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb] truncate max-w-full">
+                            {ag.tipo_sessao ?? '—'}
+                          </span>
+                        </td>
+                        <td className="hidden md:table-cell px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={reg?.material ?? undefined}>
+                          {reg?.material ?? '—'}
+                        </td>
+                        <td className="hidden md:table-cell px-4 py-3 max-w-[220px]">
+                          {temNotas ? (
+                            <div className="flex items-start gap-1.5">
+                              <FileText className="h-3.5 w-3.5 text-[#04c2fb] shrink-0 mt-0.5" />
+                              <span className="text-xs text-muted-foreground line-clamp-1">{textoPreview}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {reg ? (
+                            <button
+                              onClick={() => router.push(`/dashboard/registros/${reg.id}?editar=true`)}
+                              title="Editar registro"
+                              className="group/edit inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200"
+                            >
+                              <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" />
+                            </button>
+                          ) : ehPassado && !ehCancelado ? (
+                            <button
+                              onClick={() => router.push(`/dashboard/registros/${ag.id}`)}
+                              title="Registrar sessão"
+                              className="inline-flex items-center justify-center rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors hover:brightness-110 whitespace-nowrap"
+                              style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                            >
+                              Registrar
+                            </button>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {temNotas && (
+                            <button
+                              onClick={() => toggleSessao(ag.id)}
+                              title={aberto ? 'Fechar notas' : 'Ver notas'}
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+                                aberto
+                                  ? 'bg-[#04c2fb]/10 text-[#04c2fb]'
+                                  : 'text-muted-foreground hover:bg-muted hover:text-gray-700',
+                              )}
+                            >
+                              <span className="hidden sm:inline">{aberto ? 'Fechar' : 'Ver notas'}</span>
+                              {aberto
+                                ? <ChevronUp className="h-3.5 w-3.5" />
+                                : <ChevronDown className="h-3.5 w-3.5" />
+                              }
+                            </button>
+                          )}
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-              {registros.length === 0 && (
+
+                      {/* Painel expandido */}
+                      {temNotas && (
+                        <tr className={aberto ? '' : 'hidden'}>
+                          <td colSpan={7} className="px-0 py-0">
+                            <div
+                              className={cn(
+                                'grid transition-all duration-200',
+                                aberto ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+                              )}
+                            >
+                              <div className="overflow-hidden">
+                                <div className="mx-4 my-3 rounded-lg border-l-4 border-[#04c2fb] bg-[#04c2fb]/5 px-4 py-3">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <FileText className="h-3.5 w-3.5 text-[#04c2fb]" />
+                                    <span className="text-xs font-semibold text-[#04c2fb]">Notas da Sessão</span>
+                                  </div>
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                    {textoCompleto}
+                                  </p>
+                                  {(reg?.material && reg.material !== '-') || links.length > 0 ? (
+                                    <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
+                                      {reg?.material && reg.material !== '-' && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
+                                          Material: {reg.material}
+                                        </span>
+                                      )}
+                                      {links.map((link, i) => (
+                                        <a
+                                          key={i}
+                                          href={link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 rounded-full border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-2.5 py-0.5 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[180px]"
+                                          title={link}
+                                        >
+                                          <ExternalLink className="h-3 w-3 shrink-0" />
+                                          <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              {agendamentosHist.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                    Nenhuma sessão registrada.
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    Nenhuma sessão encontrada.
                   </td>
                 </tr>
               )}

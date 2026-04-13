@@ -236,7 +236,7 @@ function ModalDetalheTransacao({
         id: transacao.id,
         payload: { status: 'pago', data_pagamento: dataPagamento, forma_pagamento: formaPagamento },
       })
-      toast.success('Recebimento registrado', { description: `Pago em ${formatData(dataPagamento)}.` })
+      toast.success(eReceita ? 'Recebimento registrado' : 'Pagamento registrado', { description: `Em ${formatData(dataPagamento)}.` })
       onFechar()
     } catch {
       toast.error('Erro ao registrar pagamento', { description: 'Tente novamente.' })
@@ -342,8 +342,8 @@ function ModalDetalheTransacao({
             )}
           </div>
 
-          {/* Seção de pagamento — apenas para receitas não canceladas */}
-          {eReceita && transacao.status !== 'cancelado' && (
+          {/* Seção de pagamento — receitas e despesas não canceladas */}
+          {transacao.status !== 'cancelado' && (
             <div className="px-6 pt-4 pb-5 border-t border-gray-100 mt-1">
               {jaPago ? (
                 /* Já pago */
@@ -352,7 +352,9 @@ function ModalDetalheTransacao({
                     <CheckCircle className="h-4 w-4 text-emerald-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-emerald-700">Recebimento confirmado</p>
+                    <p className="text-sm font-semibold text-emerald-700">
+                      {eReceita ? 'Recebimento confirmado' : 'Pagamento confirmado'}
+                    </p>
                     {transacao.data_pagamento && (
                       <p className="text-xs text-emerald-600 mt-0.5">
                         Em {formatData(transacao.data_pagamento)}
@@ -366,12 +368,16 @@ function ModalDetalheTransacao({
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <div className="h-px flex-1 bg-gray-100" />
-                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Registrar recebimento</span>
+                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                      {eReceita ? 'Registrar recebimento' : 'Registrar pagamento'}
+                    </span>
                     <div className="h-px flex-1 bg-gray-100" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Data do recebimento</label>
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {eReceita ? 'Data do recebimento' : 'Data do pagamento'}
+                      </label>
                       <DatePicker value={dataPagamento} onChange={v => setDataPagamento(v)} placeholder="Selecionar data" />
                     </div>
                     <div className="space-y-1">
@@ -389,7 +395,7 @@ function ModalDetalheTransacao({
                       ? <Loader2 className="h-4 w-4 animate-spin" />
                       : <CheckCircle className="h-4 w-4" />
                     }
-                    Confirmar recebimento
+                    {eReceita ? 'Confirmar recebimento' : 'Confirmar pagamento'}
                   </button>
                 </div>
               )}
@@ -581,13 +587,23 @@ function ModalNovaTransacao({
         />
       )}
       <div
-        className="w-full max-w-md rounded-2xl border border-white/30 shadow-2xl"
-        style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.95)' }}
+        className="w-full max-w-md rounded-2xl border border-white/30 shadow-2xl overflow-hidden transition-all duration-300"
+        style={{
+          backdropFilter: 'blur(20px)',
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          boxShadow: form.tipo === 'receita'
+            ? '0 0 0 2px rgba(52,211,153,0.6), 0 25px 50px -12px rgba(0,0,0,0.25)'
+            : '0 0 0 2px rgba(248,113,113,0.6), 0 25px 50px -12px rgba(0,0,0,0.25)',
+        }}
       >
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5">
           <div className="flex items-center gap-2">
-            <Receipt className="h-4 w-4 text-[#04c2fb]" />
+            <Receipt className={cn(
+              'h-4 w-4 transition-colors duration-300',
+              form.tipo === 'receita' ? 'text-emerald-500' : 'text-red-400'
+            )} />
             <h2 className="text-base font-semibold tracking-tight">Nova Transação</h2>
           </div>
           <button
@@ -609,17 +625,19 @@ function ModalNovaTransacao({
                   type="button"
                   onClick={() => f('tipo', t)}
                   className={cn(
-                    'flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-all duration-150',
+                    'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all duration-200',
                     form.tipo === t
                       ? t === 'receita'
-                        ? 'bg-white text-emerald-700 shadow-sm'
-                        : 'bg-white text-red-600 shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200'
+                        : 'bg-red-500 text-white shadow-md shadow-red-200'
+                      : t === 'receita'
+                        ? 'text-emerald-600/60 hover:text-emerald-700 hover:bg-emerald-50'
+                        : 'text-red-500/60 hover:text-red-600 hover:bg-red-50'
                   )}
                 >
                   {t === 'receita'
-                    ? <TrendingUp className="h-3.5 w-3.5" />
-                    : <TrendingDown className="h-3.5 w-3.5" />
+                    ? <TrendingUp className="h-4 w-4" />
+                    : <TrendingDown className="h-4 w-4" />
                   }
                   {t === 'receita' ? 'Entrada' : 'Saída'}
                 </button>

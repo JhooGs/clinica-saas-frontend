@@ -8,6 +8,9 @@ export interface Paciente {
   email?: string
   endereco?: Record<string, string>
   dados_extras?: Record<string, unknown>
+  responsavel?: string
+  data_anamnese?: string  // ISO YYYY-MM-DD
+  data_inicio?: string    // ISO YYYY-MM-DD
   plano_atendimento?: Record<string, unknown> | null
   ativo: boolean
   criado_em: string
@@ -18,6 +21,7 @@ export interface Registro {
   paciente_id: string
   terapeuta_id: string
   clinica_id: string
+  agendamento_id?: string  // UUID do agendamento de origem (nullable)
   titulo?: string
   tipo_sessao?: string
   conteudo_json: Record<string, unknown> | null  // JSON do Tiptap
