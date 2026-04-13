@@ -495,7 +495,6 @@ function _fmtIso(iso: string | null | undefined): string {
 }
 
 function apiParaLocal(p: ApiPaciente): Paciente {
-  const extras = (p.dados_extras ?? {}) as Record<string, unknown>
   return {
     id: String(p.id),
     ativo: p.ativo,
@@ -504,8 +503,8 @@ function apiParaLocal(p: ApiPaciente): Paciente {
     responsavel: p.responsavel || '-',
     dataAnamnese: _fmtIso(p.data_anamnese),
     dataInicio: _fmtIso(p.data_inicio),
-    pacoteId: (p.plano_atendimento?.pacoteId as string | null) ?? (extras.pacote_id as string | null) ?? null,
-    cobranca: (p.plano_atendimento?.cobranca as 'por_atendimento' | 'mensal' | null) ?? (extras.cobranca as 'por_atendimento' | 'mensal' | null) ?? null,
+    pacoteId: (p.plano_atendimento?.pacoteId as string | null) ?? null,
+    cobranca: (p.plano_atendimento?.cobranca as 'por_atendimento' | 'mensal' | null) ?? null,
     ...(p.cpf && { cpf: p.cpf }),
   }
 }

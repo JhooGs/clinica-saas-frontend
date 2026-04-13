@@ -25,6 +25,12 @@ export interface PacienteCreatePayload {
   responsavel?: string
   data_anamnese?: string   // YYYY-MM-DD
   data_inicio?: string     // YYYY-MM-DD
+  // Campos financeiros próprios
+  gratuito?: boolean
+  valor_sessao?: number | null
+  dia_vencimento?: number
+  gratuito_inicio?: string | null  // YYYY-MM-DD
+  gratuito_fim?: string | null     // YYYY-MM-DD
 }
 
 export interface PacienteUpdatePayload {
@@ -39,6 +45,12 @@ export interface PacienteUpdatePayload {
   data_anamnese?: string   // YYYY-MM-DD
   data_inicio?: string     // YYYY-MM-DD
   ativo?: boolean
+  // Campos financeiros próprios
+  gratuito?: boolean
+  valor_sessao?: number | null
+  dia_vencimento?: number
+  gratuito_inicio?: string | null  // YYYY-MM-DD
+  gratuito_fim?: string | null     // YYYY-MM-DD
 }
 
 export function usePacientes(filtros?: PacientesFilter) {

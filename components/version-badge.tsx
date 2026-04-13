@@ -21,6 +21,14 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.1.6',
+    date: '13 de abril de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Resolvido bug que não atualizava o financeiro com base no valor da sessão.' },
+      
+    ],
+  },
+  {
     version: 'v0.1.5',
     date: '12 de abril de 2026',
     changes: [
@@ -28,7 +36,6 @@ const CHANGELOG: VersionEntry[] = [
       { category: 'Added', description: 'Novas colunas adicionadas ao importar pacientes.' },
       { category: 'Fixed', description: 'Resolvido bugs gerais na no registro de sessões.' },
       { category: 'Fixed', description: 'Agora os cards do paciente mostram os valores corretamente.' },
-      { category: 'Fixed', description: 'Horário do financeiro foi ajustado para UTC -3.' },
       { category: 'Changed', description: 'Agora a barra de rolagem fica sempre onde parou.' },
       
     ],

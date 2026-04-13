@@ -210,7 +210,6 @@ const _PLANO_VAZIO: PlanoAtendimento = {
 }
 
 function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
-  const extras = (p.dados_extras ?? {}) as Record<string, unknown>
   return {
     id: String(p.id),
     ativo: p.ativo,
@@ -223,7 +222,7 @@ function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
     totalSessoes: 0,  // será preenchido via API de registros
     presencas: 0,
     faltas: 0,
-    plano: (p.plano_atendimento as PlanoAtendimento | null) ?? (extras.plano as PlanoAtendimento | null) ?? _PLANO_VAZIO,
+    plano: (p.plano_atendimento as PlanoAtendimento | null) ?? _PLANO_VAZIO,
   }
 }
 

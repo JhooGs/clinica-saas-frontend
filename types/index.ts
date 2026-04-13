@@ -12,6 +12,12 @@ export interface Paciente {
   data_anamnese?: string  // ISO YYYY-MM-DD
   data_inicio?: string    // ISO YYYY-MM-DD
   plano_atendimento?: Record<string, unknown> | null
+  // Campos financeiros próprios
+  gratuito: boolean
+  valor_sessao?: number | null
+  dia_vencimento: number
+  gratuito_inicio?: string | null  // YYYY-MM-DD
+  gratuito_fim?: string | null     // YYYY-MM-DD
   ativo: boolean
   criado_em: string
 }
