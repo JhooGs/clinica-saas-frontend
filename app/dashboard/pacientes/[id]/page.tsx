@@ -19,6 +19,8 @@ import { useAgendamentos, useGerarAgendamentosRecorrentes, useCancelarAgendaFutu
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { DatePicker } from '@/components/ui/date-picker'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { ModalHorarioRecorrente } from '@/components/modal-horario-recorrente'
 import { ModalConfirmarAgendaFutura } from '@/components/modal-confirmar-agenda-futura'
 import type { TipoAcaoAgenda } from '@/components/modal-confirmar-agenda-futura'
@@ -1147,6 +1149,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const faltas = registros.filter(r => !r.presenca).length
 
   const [expandidoSessaoId, setExpandidoSessaoId] = useState<string | null>(null)
+  const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
 
   function toggleSessao(id: string) {
     setExpandidoSessaoId(prev => (prev === id ? null : id))
@@ -1616,7 +1619,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Tipo</th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Material</th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Notas</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground w-24">Ações</th>
+                <th className="px-4 py-3 w-28" />
                 <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
@@ -1650,9 +1653,19 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                     return { cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', label: 'Pendente' }
                   })()
 
+                  const destino = reg
+                    ? `/dashboard/registros/${reg.id}`
+                    : (ehPassado && !ehCancelado ? `/dashboard/registros/${ag.id}` : null)
+
                   return (
                     <Fragment key={ag.id}>
-                      <tr className={cn('hover:bg-muted/20 transition-colors', ehCancelado && 'opacity-50')}>
+                      <tr
+                        className={cn(
+                          'transition-colors',
+                          ehCancelado ? 'opacity-50' : destino ? 'hover:bg-muted/20 cursor-pointer' : 'hover:bg-muted/20',
+                        )}
+                        onClick={destino ? () => router.push(destino) : undefined}
+                      >
                         <td className="px-4 py-3 text-muted-foreground">
                           <span>{isoToBR(ag.data)}</span>
                           <span className="ml-1.5 text-[11px] text-muted-foreground/70">{ag.horario}</span>
@@ -1690,30 +1703,22 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </td>
+                        {/* Botão Registrar — apenas para sessões pendentes */}
                         <td className="px-3 py-3 text-center">
-                          {reg ? (
+                          {!reg && ehPassado && !ehCancelado && (
                             <button
-                              onClick={() => router.push(`/dashboard/registros/${reg.id}?editar=true`)}
-                              title="Editar registro"
-                              className="group/edit inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200"
-                            >
-                              <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" />
-                            </button>
-                          ) : ehPassado && !ehCancelado ? (
-                            <button
-                              onClick={() => router.push(`/dashboard/registros/${ag.id}`)}
-                              title="Registrar sessão"
-                              className="inline-flex items-center justify-center rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors hover:brightness-110 whitespace-nowrap"
+                              onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/registros/${ag.id}`) }}
+                              className="inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:brightness-110 whitespace-nowrap"
                               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
                             >
                               Registrar
                             </button>
-                          ) : null}
+                          )}
                         </td>
                         <td className="px-3 py-3 text-right">
                           {temNotas && (
                             <button
-                              onClick={() => toggleSessao(ag.id)}
+                              onClick={(e) => { e.stopPropagation(); toggleSessao(ag.id) }}
                               title={aberto ? 'Fechar notas' : 'Ver notas'}
                               className={cn(
                                 'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
@@ -1796,17 +1801,16 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                                   {imagens.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
                                       {imagens.map((img, i) => (
-                                        <a
+                                        <button
                                           key={i}
-                                          href={img.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); setImagemLightboxUrl(img.url) }}
                                           title={img.nome}
-                                          className="block h-16 w-16 rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 transition-all shrink-0"
+                                          className="block h-16 w-16 rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 transition-all shrink-0 cursor-zoom-in"
                                         >
                                           {/* eslint-disable-next-line @next/next/no-img-element */}
                                           <img src={img.url} alt={img.nome} className="h-full w-full object-cover" />
-                                        </a>
+                                        </button>
                                       ))}
                                     </div>
                                   )}
@@ -1863,6 +1867,23 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           </table>
         </div>
       </div>
+
+      {/* Lightbox de imagem */}
+      <Dialog open={!!imagemLightboxUrl} onOpenChange={() => setImagemLightboxUrl(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-black/90 border-0">
+          <VisuallyHidden>
+            <DialogTitle>Visualizar imagem</DialogTitle>
+          </VisuallyHidden>
+          {imagemLightboxUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imagemLightboxUrl}
+              alt="Visualizar imagem"
+              className="max-h-[80vh] w-auto mx-auto rounded-lg"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

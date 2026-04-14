@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense, startTransition } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, User, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Loader2 } from 'lucide-react'
-import { cn, hoje, extractTiptapText } from '@/lib/utils'
+import { ArrowLeft, Calendar, Clock, User, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Loader2, Pencil } from 'lucide-react'
+import { cn, hoje, tiptapToHtml } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
 import RichEditor, { type UploadedFile } from '@/components/editor/rich-editor'
@@ -74,7 +74,6 @@ function TipoSessaoSelect({
 
   return (
     <div className="relative" ref={containerRef} onKeyDown={handleKeyDown}>
-      {/* Trigger */}
       <button
         type="button"
         onClick={() => setAberto(prev => !prev)}
@@ -95,7 +94,6 @@ function TipoSessaoSelect({
         )} />
       </button>
 
-      {/* Lista */}
       {aberto && (
         <div
           className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-gray-200 shadow-lg overflow-hidden"
@@ -141,54 +139,94 @@ function formatDataBR(iso: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Estilos do rich-text (reutilizado em view e expandido inline)
+// ---------------------------------------------------------------------------
+
+const richTextClasses = cn(
+  'text-sm text-gray-700 leading-relaxed',
+  '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+  '[&_h1]:text-base [&_h1]:font-bold [&_h1]:my-1.5',
+  '[&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-1.5',
+  '[&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1',
+  '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
+  '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
+  '[&_li]:my-0.5',
+  '[&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through',
+  '[&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded-sm',
+  '[&_a]:text-[#04c2fb] [&_a]:underline [&_a]:break-all',
+  '[&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic [&_blockquote]:my-1',
+  '[&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
+  '[&_pre]:bg-gray-100 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-1.5',
+  '[&_hr]:border-gray-200 [&_hr]:my-2',
+)
+
+// ---------------------------------------------------------------------------
 // Modo visualização — registro já concluído
 // ---------------------------------------------------------------------------
 
 function RegistroViewMode({ registro }: { registro: Registro }) {
   const router = useRouter()
-  const textoNotas = extractTiptapText(registro.conteudo_json, 2000)
+  const notasHtml = tiptapToHtml(registro.conteudo_json)
   const links = registro.link_youtube ? [registro.link_youtube] : []
+  const imagens = (registro.arquivos ?? []).filter(f => f.tipo.startsWith('image/'))
+  const outrosArquivos = (registro.arquivos ?? []).filter(f => !f.tipo.startsWith('image/'))
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 p-4 sm:p-6">
+    <div className="max-w-4xl mx-auto space-y-5 p-4 sm:p-6">
+
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">Registro de Sessão</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Visualização do registro concluído</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight truncate">
+            {registro.paciente_nome ?? 'Registro de Sessão'}
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {formatDataBR(registro.data_sessao ?? registro.criado_em.slice(0, 10))}
+            {registro.tipo_sessao && <> · {registro.tipo_sessao}</>}
+          </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-[11px] text-green-700 font-medium">
-          <CheckCircle2 className="h-3 w-3" />
-          Concluído
+        <span className={cn(
+          'hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium shrink-0',
+          registro.presenca
+            ? 'bg-green-50 border border-green-200 text-green-700'
+            : 'bg-red-50 border border-red-200 text-red-600',
+        )}>
+          {registro.presenca
+            ? <><CheckCircle2 className="h-3 w-3" /> Presente</>
+            : <><XCircle className="h-3 w-3" /> Falta</>
+          }
         </span>
+        <button
+          onClick={() => router.push(`/dashboard/registros/${registro.id}?editar=true`)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white shrink-0 hover:brightness-110 transition-all"
+          style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Editar</span>
+        </button>
       </div>
 
-      {/* Dados do registro */}
-      <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dados da sessão</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* Bloco de informações */}
+      <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4">
           <div className="flex items-start gap-2">
             <User className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Paciente</p>
-              <p className="text-sm font-medium text-gray-800">{registro.paciente_nome ?? '—'}</p>
+              <p className="text-sm font-medium text-gray-800 mt-0.5">{registro.paciente_nome ?? '—'}</p>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Calendar className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Data</p>
-              <p className="text-sm font-medium text-gray-800">{formatDataBR(registro.data_sessao ?? registro.criado_em.slice(0, 10))}</p>
+              <p className="text-sm font-medium text-gray-800 mt-0.5">{formatDataBR(registro.data_sessao ?? registro.criado_em.slice(0, 10))}</p>
             </div>
           </div>
           <div className="flex items-start gap-2">
@@ -203,17 +241,17 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
           <div className="flex items-start gap-2">
             <Clock className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[11px] text-muted-foreground">Nº Sessão</p>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-[11px] text-muted-foreground">Sessão nº</p>
+              <p className="text-sm font-medium text-gray-800 mt-0.5">
                 {registro.numero_sessao ?? <span className="text-muted-foreground">—</span>}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="h-px bg-border" />
+        <div className="h-px bg-border my-4" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
           <div>
             <p className="text-[11px] text-muted-foreground mb-1">Presença</p>
             <span className={cn(
@@ -226,9 +264,8 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
               }
             </span>
           </div>
-
           <div>
-            <p className="text-[11px] text-muted-foreground mb-1">Valor da sessão</p>
+            <p className="text-[11px] text-muted-foreground mb-1">Valor</p>
             {registro.valor_sessao != null ? (
               <p className="text-sm font-semibold text-gray-800">
                 {registro.valor_sessao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -239,7 +276,6 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
               </span>
             )}
           </div>
-
           <div>
             <p className="text-[11px] text-muted-foreground mb-1">Material utilizado</p>
             <p className="text-sm text-gray-700">
@@ -248,12 +284,12 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
           </div>
         </div>
 
-        <div className="h-px bg-border" />
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="sm:col-span-2">
-            <p className="text-[11px] text-muted-foreground mb-1">Links</p>
-            {links.length > 0 ? (
+        {/* Links */}
+        {links.length > 0 && (
+          <>
+            <div className="h-px bg-border my-4" />
+            <div>
+              <p className="text-[11px] text-muted-foreground mb-2">Links</p>
               <div className="flex flex-wrap gap-1.5">
                 {links.map((link, i) => (
                   <a
@@ -261,7 +297,7 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
                     href={link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-2.5 py-0.5 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[200px]"
+                    className="inline-flex items-center gap-1 rounded-full border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-2.5 py-0.5 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[220px]"
                     title={link}
                   >
                     <ExternalLink className="h-3 w-3 shrink-0" />
@@ -269,15 +305,50 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
                   </a>
                 ))}
               </div>
-            ) : (
-              <span className="text-sm text-muted-foreground">—</span>
-            )}
-          </div>
-        </div>
+            </div>
+          </>
+        )}
 
+        {/* Anexos */}
+        {(imagens.length > 0 || outrosArquivos.length > 0) && (
+          <>
+            <div className="h-px bg-border my-4" />
+            <div>
+              <p className="text-[11px] text-muted-foreground mb-2">Anexos</p>
+              <div className="flex flex-wrap gap-2">
+                {imagens.map((f, i) => (
+                  <a
+                    key={i}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative overflow-hidden rounded-lg border border-gray-200 w-16 h-16 hover:border-[#04c2fb]/40 transition-colors"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={f.url} alt={f.nome} className="w-full h-full object-cover group-hover:opacity-80 transition-opacity" />
+                  </a>
+                ))}
+                {outrosArquivos.map((f, i) => (
+                  <a
+                    key={i}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 transition-colors max-w-[180px]"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{f.nome}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Observação */}
         {registro.observacao && (
           <>
-            <div className="h-px bg-border" />
+            <div className="h-px bg-border my-4" />
             <div>
               <p className="text-[11px] text-muted-foreground mb-1">Observação</p>
               <p className="text-sm text-gray-700">{registro.observacao}</p>
@@ -286,18 +357,19 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
         )}
       </div>
 
-      {textoNotas && (
+      {/* Notas da sessão */}
+      {notasHtml && (
         <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 space-y-3">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-[#04c2fb]" />
             <span className="text-xs font-semibold text-[#04c2fb] uppercase tracking-wide">Notas da Sessão</span>
           </div>
-          <div className="rounded-lg border-l-4 border-[#04c2fb] bg-[#04c2fb]/5 px-4 py-3">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{textoNotas}</p>
-          </div>
+          <div
+            className={richTextClasses}
+            dangerouslySetInnerHTML={{ __html: notasHtml }}
+          />
         </div>
       )}
-
     </div>
   )
 }
@@ -394,241 +466,243 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 p-4 sm:p-6">
+    <div className="max-w-4xl mx-auto space-y-5 p-4 sm:p-6">
 
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">
         <button
           onClick={tentarCancelar}
-          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">Editar Registro</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{registro.paciente_nome}</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight">Editar Registro</h1>
+          <p className="text-sm text-muted-foreground mt-0.5 truncate">{registro.paciente_nome}</p>
         </div>
       </div>
 
       {/* Formulário */}
-      <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-6 space-y-5">
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6 space-y-5">
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Data da sessão *</label>
-            <DatePicker
-              value={form.data}
-              onChange={v => f('data', v)}
-              placeholder="Selecionar data"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Tipo de sessão</label>
-            <TipoSessaoSelect
-              value={form.tipoSessao}
-              onChange={v => f('tipoSessao', v)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              Nº Sessão
-              <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>
-            </label>
-            <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm text-muted-foreground select-none">
-              {registro.numero_sessao ?? <span className="text-gray-300 text-xs italic">calculado pelo backend</span>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Data da sessão *</label>
+                <DatePicker
+                  value={form.data}
+                  onChange={v => f('data', v)}
+                  placeholder="Selecionar data"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Tipo de sessão</label>
+                <TipoSessaoSelect
+                  value={form.tipoSessao}
+                  onChange={v => f('tipoSessao', v)}
+                />
+              </div>
             </div>
-          </div>
-        </div>
 
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Presença</label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => f('presenca', true)}
-              className={cn(
-                'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                form.presenca
-                  ? 'border-green-300 bg-green-50 text-green-700'
-                  : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-              )}
-            >
-              <span className={cn('h-2 w-2 rounded-full', form.presenca ? 'bg-green-500' : 'bg-gray-300')} />
-              Presente
-            </button>
-            <button
-              type="button"
-              onClick={() => f('presenca', false)}
-              className={cn(
-                'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                !form.presenca
-                  ? 'border-red-300 bg-red-50 text-red-600'
-                  : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-              )}
-            >
-              <span className={cn('h-2 w-2 rounded-full', !form.presenca ? 'bg-red-500' : 'bg-gray-300')} />
-              Falta
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
-            Valor da sessão
-            {form.presenca && <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>}
-          </label>
-          {form.presenca ? (
-            <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
-              <span className="text-gray-600">
-                {registro.valor_sessao != null
-                  ? registro.valor_sessao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                  : <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
-                }
-              </span>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Nº Sessão
+                <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>
+              </label>
+              <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm text-muted-foreground select-none">
+                {registro.numero_sessao ?? <span className="text-gray-300 text-xs italic">calculado pelo backend</span>}
+              </div>
             </div>
-          ) : (
-            <>
-              <div className="relative max-w-[180px]">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">R$</span>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Presença</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => f('presenca', true)}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                    form.presenca
+                      ? 'border-green-300 bg-green-50 text-green-700'
+                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <span className={cn('h-2 w-2 rounded-full', form.presenca ? 'bg-green-500' : 'bg-gray-300')} />
+                  Presente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => f('presenca', false)}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                    !form.presenca
+                      ? 'border-red-300 bg-red-50 text-red-600'
+                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <span className={cn('h-2 w-2 rounded-full', !form.presenca ? 'bg-red-500' : 'bg-gray-300')} />
+                  Falta
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Valor da sessão
+                {form.presenca && <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>}
+              </label>
+              {form.presenca ? (
+                <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
+                  <span className="text-gray-600">
+                    {registro.valor_sessao != null
+                      ? registro.valor_sessao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                      : <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
+                    }
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div className="relative max-w-[180px]">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">R$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.valorSessao}
+                      onChange={e => f('valorSessao', e.target.value)}
+                      placeholder="0,00"
+                      className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/70">
+                    Deixe em 0 para não gerar cobrança pela falta.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
+                Material utilizado
+              </label>
+              <input
+                value={form.material}
+                onChange={e => f('material', e.target.value)}
+                disabled={!form.presenca}
+                placeholder="Ex: Bolas, cordas e tecidos"
+                className={cn(
+                  'w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
+                  !form.presenca && 'opacity-40 cursor-not-allowed'
+                )}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
+                Links
+              </label>
+              <div
+                className={cn(
+                  'rounded-lg border bg-background transition-all',
+                  !form.presenca && 'opacity-40 cursor-not-allowed',
+                )}
+              >
+                {form.links.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+                    {form.links.map((link, i) => {
+                      let label = link
+                      try { label = new URL(link).hostname.replace('www.', '') } catch { /* mantém texto original */ }
+                      return (
+                        <span
+                          key={i}
+                          className="group inline-flex items-center gap-1 rounded-md border border-[#04c2fb]/25 bg-[#04c2fb]/5 pl-2 pr-1 py-1 text-[12px] text-[#04c2fb] max-w-[260px] animate-in fade-in slide-in-from-left-1 duration-150"
+                          title={link}
+                        >
+                          <Link2 className="h-3 w-3 shrink-0" />
+                          <a
+                            href={link.startsWith('http') ? link : `https://${link}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate hover:underline"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {label}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = form.links.filter((_, idx) => idx !== i)
+                              f('links', updated)
+                            }}
+                            disabled={!form.presenca}
+                            className="ml-0.5 rounded p-0.5 text-[#04c2fb]/60 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Remover link"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.valorSessao}
-                  onChange={e => f('valorSessao', e.target.value)}
-                  placeholder="0,00"
-                  className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                  value={linkInput}
+                  onChange={e => setLinkInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const val = linkInput.trim()
+                      if (!val) return
+                      if (form.links.includes(val)) {
+                        toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
+                        return
+                      }
+                      f('links', [...form.links, val])
+                      setLinkInput('')
+                    }
+                  }}
+                  onPaste={e => {
+                    const text = e.clipboardData.getData('text').trim()
+                    if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+                      e.preventDefault()
+                      if (form.links.includes(text)) {
+                        toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
+                        return
+                      }
+                      f('links', [...form.links, text])
+                      setLinkInput('')
+                    }
+                  }}
+                  disabled={!form.presenca}
+                  placeholder={form.links.length > 0 ? 'Adicionar outro link...' : 'Cole ou digite um link e pressione Enter'}
+                  className={cn(
+                    'w-full bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50',
+                    form.links.length > 0 && 'pt-1.5',
+                  )}
                 />
               </div>
               <p className="text-[11px] text-muted-foreground/70">
-                Deixe em 0 para não gerar cobrança pela falta.
+                Pressione <kbd className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[10px] font-mono">Enter</kbd> para adicionar cada link
               </p>
-            </>
-          )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Notas da sessão</label>
+              <RichEditor
+                key={`edit-${id}`}
+                value={form.notasSessaoJson}
+                onChange={json => f('notasSessaoJson', json)}
+                placeholder="Evolução, objetivos trabalhados, observações clínicas..."
+                onUploadFile={handleUploadArquivo}
+                uploadedFiles={arquivos}
+                onRemoveFile={handleRemoverArquivo}
+              />
+            </div>
+
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
-              Material utilizado
-            </label>
-            <input
-              value={form.material}
-              onChange={e => f('material', e.target.value)}
-              disabled={!form.presenca}
-              placeholder="Ex: Bolas, cordas e tecidos"
-              className={cn(
-                'w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
-                !form.presenca && 'opacity-40 cursor-not-allowed'
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
-            Links
-          </label>
-          <div
-            className={cn(
-              'rounded-lg border bg-background transition-all',
-              !form.presenca && 'opacity-40 cursor-not-allowed',
-            )}
-          >
-            {form.links.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
-                {form.links.map((link, i) => {
-                  let label = link
-                  try { label = new URL(link).hostname.replace('www.', '') } catch { /* mantém texto original */ }
-                  return (
-                    <span
-                      key={i}
-                      className="group inline-flex items-center gap-1 rounded-md border border-[#04c2fb]/25 bg-[#04c2fb]/5 pl-2 pr-1 py-1 text-[12px] text-[#04c2fb] max-w-[260px] animate-in fade-in slide-in-from-left-1 duration-150"
-                      title={link}
-                    >
-                      <Link2 className="h-3 w-3 shrink-0" />
-                      <a
-                        href={link.startsWith('http') ? link : `https://${link}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="truncate hover:underline"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {label}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = form.links.filter((_, idx) => idx !== i)
-                          f('links', updated)
-                        }}
-                        disabled={!form.presenca}
-                        className="ml-0.5 rounded p-0.5 text-[#04c2fb]/60 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        title="Remover link"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-            <input
-              value={linkInput}
-              onChange={e => setLinkInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const val = linkInput.trim()
-                  if (!val) return
-                  if (form.links.includes(val)) {
-                    toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
-                    return
-                  }
-                  f('links', [...form.links, val])
-                  setLinkInput('')
-                }
-              }}
-              onPaste={e => {
-                const text = e.clipboardData.getData('text').trim()
-                if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
-                  e.preventDefault()
-                  if (form.links.includes(text)) {
-                    toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
-                    return
-                  }
-                  f('links', [...form.links, text])
-                  setLinkInput('')
-                }
-              }}
-              disabled={!form.presenca}
-              placeholder={form.links.length > 0 ? 'Adicionar outro link...' : 'Cole ou digite um link e pressione Enter'}
-              className={cn(
-                'w-full bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50',
-                form.links.length > 0 && 'pt-1.5',
-              )}
-            />
-          </div>
-          <p className="text-[11px] text-muted-foreground/70">
-            Pressione <kbd className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[10px] font-mono">Enter</kbd> para adicionar cada link
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Notas da sessão</label>
-          <RichEditor
-            key={`edit-${id}`}
-            value={form.notasSessaoJson}
-            onChange={json => f('notasSessaoJson', json)}
-            placeholder="Evolução, objetivos trabalhados, observações clínicas..."
-            onUploadFile={handleUploadArquivo}
-            uploadedFiles={arquivos}
-            onRemoveFile={handleRemoverArquivo}
-          />
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t">
+        {/* Barra de ações */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t bg-muted/20">
           <button
             onClick={() => setConfirmarDeletar(true)}
             className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 hover:border-red-300"
@@ -709,7 +783,6 @@ function FormularioSessao({ id }: { id: string }) {
 
   const { carregarRascunho, salvarRascunho, descartarRascunho } = useRegistroDraft(id)
 
-  // Quando o agendamento carregar da API, pré-preenche o form e define o paciente
   useEffect(() => {
     if (!agendamento) return
     startTransition(() => {
@@ -737,7 +810,6 @@ function FormularioSessao({ id }: { id: string }) {
     })
   }, [carregarRascunho, agendamento?.tipo_sessao])
 
-  // Carrega pauta pré-sessão do localStorage
   useEffect(() => {
     const texto = localStorage.getItem(chavePauta(id))
     if (texto && texto.trim()) startTransition(() => setPauta(texto))
@@ -798,7 +870,7 @@ function FormularioSessao({ id }: { id: string }) {
     criarRegistro.mutate(
       {
         paciente_id: pacienteId,
-        agendamento_id: id,  // vincula 1:1 com o agendamento de origem
+        agendamento_id: id,
         tipo_sessao: form.tipoSessao || undefined,
         presenca: form.presenca,
         valor_sessao: form.valorSessao ? parseFloat(form.valorSessao) : undefined,
@@ -825,7 +897,7 @@ function FormularioSessao({ id }: { id: string }) {
 
   if (!agendamento) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 p-4 sm:p-6">
+      <div className="max-w-4xl mx-auto space-y-5 p-4 sm:p-6">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -841,37 +913,37 @@ function FormularioSessao({ id }: { id: string }) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 p-4 sm:p-6">
+    <div className="max-w-4xl mx-auto space-y-5 p-4 sm:p-6">
 
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">Registrar Sessão</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Documente a sessão realizada</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight">Registrar Sessão</h1>
+          <p className="text-sm text-muted-foreground mt-0.5 truncate">
+            {agendamento.paciente_nome ?? 'Documente a sessão realizada'}
+          </p>
         </div>
-
-
         {rascunhoRestaurado && (
-          <div className="flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[11px] text-amber-700 font-medium">
+          <div className="flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[11px] text-amber-700 font-medium shrink-0">
             <Save className="h-3 w-3" />
             Rascunho restaurado
           </div>
         )}
       </div>
 
-      {/* Card de contexto */}
-      <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <FileText className="h-4 w-4 text-muted-foreground" />
+      {/* Card de contexto — compacto */}
+      <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Agendamento de origem</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="flex items-start gap-2">
             <User className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
@@ -897,278 +969,238 @@ function FormularioSessao({ id }: { id: string }) {
       </div>
 
       {/* Formulário */}
-      <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-6 space-y-5">
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6 space-y-5">
 
-        {/* Seletor de paciente — necessário quando não há agendamento real vinculado */}
-        {!agendamento && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Paciente *</label>
-            <select
-              value={pacienteId}
-              onChange={e => setPacienteId(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
-            >
-              <option value="">Selecione o paciente</option>
-              {(pacientesData?.items ?? []).map(p => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
-              ))}
-            </select>
-          </div>
-        )}
+            {/* Seletor de paciente — necessário quando não há agendamento real vinculado */}
+            {!agendamento && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Paciente *</label>
+                <select
+                  value={pacienteId}
+                  onChange={e => setPacienteId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                >
+                  <option value="">Selecione o paciente</option>
+                  {(pacientesData?.items ?? []).map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Data da sessão *</label>
-            <DatePicker
-              value={form.data}
-              onChange={v => f('data', v)}
-              placeholder="Selecionar data"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Tipo de sessão</label>
-            <TipoSessaoSelect
-              value={form.tipoSessao}
-              onChange={v => f('tipoSessao', v)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              Nº Sessão
-              <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>
-            </label>
-            <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
-              <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Data da sessão *</label>
+                <DatePicker
+                  value={form.data}
+                  onChange={v => f('data', v)}
+                  placeholder="Selecionar data"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Tipo de sessão</label>
+                <TipoSessaoSelect
+                  value={form.tipoSessao}
+                  onChange={v => f('tipoSessao', v)}
+                />
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Presença</label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => f('presenca', true)}
-              className={cn(
-                'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                form.presenca
-                  ? 'border-green-300 bg-green-50 text-green-700'
-                  : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-              )}
-            >
-              <span className={cn('h-2 w-2 rounded-full', form.presenca ? 'bg-green-500' : 'bg-gray-300')} />
-              Presente
-            </button>
-            <button
-              type="button"
-              onClick={() => f('presenca', false)}
-              className={cn(
-                'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                !form.presenca
-                  ? 'border-red-300 bg-red-50 text-red-600'
-                  : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-              )}
-            >
-              <span className={cn('h-2 w-2 rounded-full', !form.presenca ? 'bg-red-500' : 'bg-gray-300')} />
-              Falta
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
-            Valor da sessão
-            {form.presenca && <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>}
-          </label>
-          {form.presenca ? (
-            <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
-              <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Presença</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => f('presenca', true)}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                    form.presenca
+                      ? 'border-green-300 bg-green-50 text-green-700'
+                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <span className={cn('h-2 w-2 rounded-full', form.presenca ? 'bg-green-500' : 'bg-gray-300')} />
+                  Presente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => f('presenca', false)}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                    !form.presenca
+                      ? 'border-red-300 bg-red-50 text-red-600'
+                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <span className={cn('h-2 w-2 rounded-full', !form.presenca ? 'bg-red-500' : 'bg-gray-300')} />
+                  Falta
+                </button>
+              </div>
             </div>
-          ) : (
-            <>
-              <div className="relative max-w-[180px]">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">R$</span>
+
+            <div className="space-y-1.5">
+              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
+                Material utilizado
+              </label>
+              <input
+                value={form.material}
+                onChange={e => f('material', e.target.value)}
+                disabled={!form.presenca}
+                placeholder="Ex: Bolas, cordas e tecidos"
+                className={cn(
+                  'w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
+                  !form.presenca && 'opacity-40 cursor-not-allowed'
+                )}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
+                Links
+              </label>
+              <div
+                className={cn(
+                  'rounded-lg border bg-background transition-all',
+                  !form.presenca && 'opacity-40 cursor-not-allowed',
+                )}
+              >
+                {form.links.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+                    {form.links.map((link, i) => {
+                      let label = link
+                      try { label = new URL(link).hostname.replace('www.', '') } catch { /* mantém texto original */ }
+                      return (
+                        <span
+                          key={i}
+                          className="group inline-flex items-center gap-1 rounded-md border border-[#04c2fb]/25 bg-[#04c2fb]/5 pl-2 pr-1 py-1 text-[12px] text-[#04c2fb] max-w-[260px] animate-in fade-in slide-in-from-left-1 duration-150"
+                          title={link}
+                        >
+                          <Link2 className="h-3 w-3 shrink-0" />
+                          <a
+                            href={link.startsWith('http') ? link : `https://${link}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate hover:underline"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {label}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = form.links.filter((_, idx) => idx !== i)
+                              f('links', updated)
+                            }}
+                            disabled={!form.presenca}
+                            className="ml-0.5 rounded p-0.5 text-[#04c2fb]/60 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Remover link"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.valorSessao}
-                  onChange={e => f('valorSessao', e.target.value)}
-                  placeholder="0,00"
-                  className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                  value={linkInput}
+                  onChange={e => setLinkInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const val = linkInput.trim()
+                      if (!val) return
+                      if (form.links.includes(val)) {
+                        toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
+                        return
+                      }
+                      f('links', [...form.links, val])
+                      setLinkInput('')
+                    }
+                  }}
+                  onPaste={e => {
+                    const text = e.clipboardData.getData('text').trim()
+                    if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+                      e.preventDefault()
+                      if (form.links.includes(text)) {
+                        toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
+                        return
+                      }
+                      f('links', [...form.links, text])
+                      setLinkInput('')
+                    }
+                  }}
+                  disabled={!form.presenca}
+                  placeholder={form.links.length > 0 ? 'Adicionar outro link...' : 'Cole ou digite um link e pressione Enter'}
+                  className={cn(
+                    'w-full bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50',
+                    form.links.length > 0 && 'pt-1.5',
+                  )}
                 />
               </div>
               <p className="text-[11px] text-muted-foreground/70">
-                Deixe em 0 para não gerar cobrança pela falta.
+                Pressione <kbd className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[10px] font-mono">Enter</kbd> para adicionar cada link
               </p>
-            </>
-          )}
-        </div>
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
-              Material utilizado
-            </label>
-            <input
-              value={form.material}
-              onChange={e => f('material', e.target.value)}
-              disabled={!form.presenca}
-              placeholder="Ex: Bolas, cordas e tecidos"
-              className={cn(
-                'w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
-                !form.presenca && 'opacity-40 cursor-not-allowed'
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
-            Links
-          </label>
-          <div
-            className={cn(
-              'rounded-lg border bg-background transition-all',
-              !form.presenca && 'opacity-40 cursor-not-allowed',
-            )}
-          >
-            {/* Tags dos links já adicionados */}
-            {form.links.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
-                {form.links.map((link, i) => {
-                  let label = link
-                  try { label = new URL(link).hostname.replace('www.', '') } catch { /* mantém texto original */ }
-                  return (
-                    <span
-                      key={i}
-                      className="group inline-flex items-center gap-1 rounded-md border border-[#04c2fb]/25 bg-[#04c2fb]/5 pl-2 pr-1 py-1 text-[12px] text-[#04c2fb] max-w-[260px] animate-in fade-in slide-in-from-left-1 duration-150"
-                      title={link}
-                    >
-                      <Link2 className="h-3 w-3 shrink-0" />
-                      <a
-                        href={link.startsWith('http') ? link : `https://${link}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="truncate hover:underline"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {label}
-                      </a>
+            {/* Pauta pré-sessão */}
+            {pauta && (
+              <div className="rounded-xl border border-[#04c2fb]/25 bg-gradient-to-b from-[#04c2fb]/[0.06] to-[#04c2fb]/[0.02] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setPautaVisivel(v => !v)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#04c2fb]/5 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <NotebookPen className="h-4 w-4 text-[#04c2fb] shrink-0" />
+                    <span className="text-sm font-semibold text-[#0094c8]">Pauta desta sessão</span>
+                    <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-semibold text-[#04c2fb]">
+                      pré-sessão
+                    </span>
+                  </div>
+                  <ChevronDown className={cn('h-4 w-4 text-[#04c2fb] transition-transform shrink-0', pautaVisivel ? 'rotate-180' : '')} />
+                </button>
+                {pautaVisivel && (
+                  <div className="px-4 pb-4">
+                    <div className="rounded-lg bg-white/70 border border-[#04c2fb]/15 px-4 py-3">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{pauta}</p>
+                    </div>
+                    <div className="flex items-center justify-between mt-2.5">
+                      <p className="text-[10px] text-muted-foreground/60 italic">Consulte a pauta enquanto redige suas notas abaixo</p>
                       <button
                         type="button"
                         onClick={() => {
-                          const updated = form.links.filter((_, idx) => idx !== i)
-                          f('links', updated)
+                          localStorage.removeItem(chavePauta(id))
+                          setPauta(null)
                         }}
-                        disabled={!form.presenca}
-                        className="ml-0.5 rounded p-0.5 text-[#04c2fb]/60 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        title="Remover link"
+                        className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
                       >
-                        <X className="h-3 w-3" />
+                        Descartar pauta
                       </button>
-                    </span>
-                  )
-                })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Input para digitar novo link */}
-            <input
-              value={linkInput}
-              onChange={e => setLinkInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const val = linkInput.trim()
-                  if (!val) return
-                  if (form.links.includes(val)) {
-                    toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
-                    return
-                  }
-                  f('links', [...form.links, val])
-                  setLinkInput('')
-                }
-              }}
-              onPaste={e => {
-                const text = e.clipboardData.getData('text').trim()
-                if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
-                  e.preventDefault()
-                  if (form.links.includes(text)) {
-                    toast.error('Link duplicado', { description: 'Esse link já foi adicionado.' })
-                    return
-                  }
-                  f('links', [...form.links, text])
-                  setLinkInput('')
-                }
-              }}
-              disabled={!form.presenca}
-              placeholder={form.links.length > 0 ? 'Adicionar outro link...' : 'Cole ou digite um link e pressione Enter'}
-              className={cn(
-                'w-full bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50',
-                form.links.length > 0 && 'pt-1.5',
-              )}
-            />
-          </div>
-          <p className="text-[11px] text-muted-foreground/70">
-            Pressione <kbd className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[10px] font-mono">Enter</kbd> para adicionar cada link
-          </p>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Notas da sessão</label>
+              <RichEditor
+                key={rascunhoRestaurado ? `draft-${id}` : `new-${id}`}
+                value={form.notasSessaoJson}
+                onChange={json => f('notasSessaoJson', json)}
+                placeholder="Evolução, objetivos trabalhados, observações clínicas..."
+                onUploadFile={handleUploadArquivo}
+                uploadedFiles={arquivos}
+                onRemoveFile={handleRemoverArquivo}
+              />
+            </div>
+
         </div>
 
-        {/* Pauta pré-sessão — visível junto ao editor para consulta rápida */}
-        {pauta && (
-          <div className="rounded-xl border border-[#04c2fb]/25 bg-gradient-to-b from-[#04c2fb]/[0.06] to-[#04c2fb]/[0.02] overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setPautaVisivel(v => !v)}
-              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#04c2fb]/5 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <NotebookPen className="h-4 w-4 text-[#04c2fb] shrink-0" />
-                <span className="text-sm font-semibold text-[#0094c8]">Pauta desta sessão</span>
-                <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-semibold text-[#04c2fb]">
-                  pré-sessão
-                </span>
-              </div>
-              <ChevronDown className={cn('h-4 w-4 text-[#04c2fb] transition-transform shrink-0', pautaVisivel ? 'rotate-180' : '')} />
-            </button>
-            {pautaVisivel && (
-              <div className="px-4 pb-4">
-                <div className="rounded-lg bg-white/70 border border-[#04c2fb]/15 px-4 py-3">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{pauta}</p>
-                </div>
-                <div className="flex items-center justify-between mt-2.5">
-                  <p className="text-[10px] text-muted-foreground/60 italic">Consulte a pauta enquanto redige suas notas abaixo</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      localStorage.removeItem(chavePauta(id))
-                      setPauta(null)
-                    }}
-                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
-                  >
-                    Descartar pauta
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Notas da sessão</label>
-          <RichEditor
-            key={rascunhoRestaurado ? `draft-${id}` : `new-${id}`}
-            value={form.notasSessaoJson}
-            onChange={json => f('notasSessaoJson', json)}
-            placeholder="Evolução, objetivos trabalhados, observações clínicas..."
-            onUploadFile={handleUploadArquivo}
-            uploadedFiles={arquivos}
-            onRemoveFile={handleRemoverArquivo}
-          />
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t">
+        {/* Barra de ações */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t bg-muted/20">
           <button
             onClick={() => setConfirmarDeletar(true)}
             className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 hover:border-red-300"

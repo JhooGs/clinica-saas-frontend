@@ -80,7 +80,7 @@ export function useCriarRegistro() {
       queryClient.invalidateQueries({ queryKey: ['registros'] })
       // Invalida financeiro pois pode ter gerado transação automática
       queryClient.invalidateQueries({ queryKey: ['financeiro'] })
-      // Invalida agendamentos para remover da seção "Aguardando documentação"
+      // Invalida agendamentos para remover da seção "Aguardando registro"
       queryClient.invalidateQueries({ queryKey: ['agenda'] })
     },
   })

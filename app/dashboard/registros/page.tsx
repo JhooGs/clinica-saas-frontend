@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown, Loader2, AlertTriangle, Paperclip, Image as ImageIcon } from 'lucide-react'
+import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2, AlertTriangle, Paperclip } from 'lucide-react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useRouter } from 'next/navigation'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
@@ -82,6 +84,7 @@ export default function RegistrosPage() {
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('data_sessao')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
 
   const filtroDataInicio = filtroPeriodo?.from?.toISOString().slice(0, 10)
   const filtroDataFim = filtroPeriodo?.to?.toISOString().slice(0, 10)
@@ -172,7 +175,7 @@ export default function RegistrosPage() {
         </div>
       </div>
 
-      {/* Seção: Aguardando documentação */}
+      {/* Seção: Aguardando registro */}
       {agendamentosPendentes.length > 0 && (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -181,7 +184,7 @@ export default function RegistrosPage() {
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
               </div>
               <div>
-                <p className="text-sm font-semibold leading-none">Aguardando documentação</p>
+                <p className="text-sm font-semibold leading-none">Aguardando registro</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Atendimentos ocorridos sem registro de sessão</p>
               </div>
             </div>
@@ -301,14 +304,13 @@ export default function RegistrosPage() {
                 </th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Material</th>
                 <th className="hidden md:table-cell px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Valor</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground w-20">Ações</th>
                 <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center">
+                  <td colSpan={7} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="h-6 w-6 animate-spin text-[#04c2fb]" />
                       <p className="text-sm text-muted-foreground">Carregando registros...</p>
@@ -318,7 +320,7 @@ export default function RegistrosPage() {
               )}
               {isError && !isLoading && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center">
+                  <td colSpan={7} className="px-4 py-12 text-center">
                     <p className="text-sm text-red-500">Erro ao carregar registros. Tente novamente.</p>
                   </td>
                 </tr>
@@ -327,18 +329,21 @@ export default function RegistrosPage() {
                 const textoNotas = extractTiptapText(r.conteudo_json, 80)
                 const tiptapHtml = tiptapToHtml(r.conteudo_json)
                 const aberto = expandidoId === r.id
-                const temNotas = !!r.conteudo_json && tiptapHtml.length > 0
                 const links = r.link_youtube ? [r.link_youtube] : []
                 const imagens = (r.arquivos ?? []).filter(f => f.tipo.startsWith('image/'))
                 const outrosArquivos = (r.arquivos ?? []).filter(f => !f.tipo.startsWith('image/'))
+                const temNotas = (!!r.conteudo_json && tiptapHtml.length > 0) || imagens.length > 0 || outrosArquivos.length > 0 || links.length > 0
 
                 return (
                   <Fragment key={r.id}>
-                    <tr className="hover:bg-muted/20 transition-colors">
+                    <tr
+                      className="hover:bg-muted/20 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/dashboard/registros/${r.id}`)}
+                    >
                       {/* Paciente */}
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => router.push(`/dashboard/pacientes/${r.paciente_id}`)}
+                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pacientes/${r.paciente_id}`) }}
                           className="font-medium text-gray-800 hover:text-[#04c2fb] hover:underline transition-colors text-left"
                         >
                           <HighlightMatch texto={r.paciente_nome ?? ''} busca={busca} />
@@ -401,21 +406,11 @@ export default function RegistrosPage() {
                           <span className="text-xs text-muted-foreground">sem cobrança</span>
                         )}
                       </td>
-                      {/* Botão editar */}
-                      <td className="px-3 py-3 text-center">
-                        <button
-                          onClick={() => router.push(`/dashboard/registros/${r.id}?editar=true`)}
-                          title="Editar registro"
-                          className="group/edit inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200"
-                        >
-                          <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" />
-                        </button>
-                      </td>
                       {/* Botão expandir */}
                       <td className="px-3 py-3 text-right">
                         {temNotas && (
                           <button
-                            onClick={() => toggleExpansao(r.id)}
+                            onClick={(e) => { e.stopPropagation(); toggleExpansao(r.id) }}
                             title={aberto ? 'Fechar notas' : 'Ver notas'}
                             className={cn(
                               'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
@@ -437,7 +432,7 @@ export default function RegistrosPage() {
                     {/* Linha expandida */}
                     {temNotas && (
                       <tr className={aberto ? '' : 'hidden'}>
-                        <td colSpan={8} className="px-0 py-0">
+                        <td colSpan={7} className="px-0 py-0">
                           <div
                             className={cn(
                               'grid transition-all duration-200',
@@ -493,16 +488,37 @@ export default function RegistrosPage() {
                                       </a>
                                     ))}
                                     {imagens.length > 0 && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
-                                        <ImageIcon className="h-3 w-3 shrink-0" />
-                                        {imagens.length} {imagens.length === 1 ? 'foto' : 'fotos'}
-                                      </span>
+                                      <div className="flex flex-wrap gap-2 w-full mt-1">
+                                        {imagens.map((img, i) => (
+                                          <button
+                                            key={i}
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setImagemLightboxUrl(img.url) }}
+                                            title={img.nome}
+                                            className="block h-14 w-14 rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 transition-all shrink-0 cursor-zoom-in"
+                                          >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={img.url} alt={img.nome} className="h-full w-full object-cover" />
+                                          </button>
+                                        ))}
+                                      </div>
                                     )}
                                     {outrosArquivos.length > 0 && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
-                                        <Paperclip className="h-3 w-3 shrink-0" />
-                                        {outrosArquivos.length} {outrosArquivos.length === 1 ? 'arquivo' : 'arquivos'}
-                                      </span>
+                                      <div className="flex flex-wrap gap-2 w-full mt-1">
+                                        {outrosArquivos.map((arq, i) => (
+                                          <a
+                                            key={i}
+                                            href={arq.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-[#04c2fb]/40 transition-colors"
+                                          >
+                                            <Paperclip className="h-3 w-3 shrink-0" />
+                                            <span className="max-w-[160px] truncate">{arq.nome}</span>
+                                          </a>
+                                        ))}
+                                      </div>
                                     )}
                                   </div>
                                 ) : null}
@@ -517,7 +533,7 @@ export default function RegistrosPage() {
               })}
               {!isLoading && !isError && lista.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center">
+                  <td colSpan={7} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Search className="h-8 w-8 text-muted-foreground/30" />
                       <p className="text-sm font-medium text-muted-foreground">
@@ -541,6 +557,23 @@ export default function RegistrosPage() {
           </table>
         </div>
       </div>
+
+      {/* Lightbox de imagem */}
+      <Dialog open={!!imagemLightboxUrl} onOpenChange={() => setImagemLightboxUrl(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-black/90 border-0">
+          <VisuallyHidden>
+            <DialogTitle>Visualizar imagem</DialogTitle>
+          </VisuallyHidden>
+          {imagemLightboxUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imagemLightboxUrl}
+              alt="Visualizar imagem"
+              className="max-h-[80vh] w-auto mx-auto rounded-lg"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

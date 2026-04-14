@@ -25,11 +25,14 @@ const CHANGELOG: VersionEntry[] = [
     date: '14 de abril de 2026',
     changes: [
       { category: 'Added', description: 'Agora é possível filtrar histórico do paciente por status.'},
-      { category: 'Changed', description: 'Atualizado badge de versionamento, agora tudo fica agrupado por tipo de alteração.'},
-      { category: 'Changed', description: 'Atualizado forma de anexar imagens no registro, agora elas ficam em miniatura e não no meio do texto.'},
-      { category: 'Changed', description: 'A opção ver notas agora exibe o registro por completo e formatado.'},
       { category: 'Fixed', description: 'Corrigido um bug que não deixava usar tópicos nos registros do paciente.'},
       { category: 'Fixed', description: 'Corrigido um bug em registros onde as imagens se perdiam depois que eram salvas.'},
+      { category: 'Changed', description: 'Atualizado badge de versionamento, agora tudo fica agrupado por categoria.'},
+      { category: 'Changed', description: 'Campos "Valor da sessão" e "N da sessão" foram retirados da etapa de registro.'},
+      { category: 'Changed', description: 'Refatorado área de edição de registro, agora tem maior aproveitamento do espaço.'},
+      { category: 'Changed', description: 'Atualizado a forma de anexar imagens no registro de sessão, agora elas ficam em miniatura e não no meio do texto.'},
+      { category: 'Changed', description: 'A opção ver notas agora exibe o registro por completo com barra de rolagem, imagem em minuatura e arquivos anexados.'},
+
       
     ],
   },
