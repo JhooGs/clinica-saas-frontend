@@ -4,13 +4,13 @@ import type { UploadedFile } from '@/components/editor/rich-editor'
 const BUCKET = 'registros'
 
 // ---------------------------------------------------------------------------
-// Upload de imagem — retorna URL pública para inserção no editor
+// Upload de imagem — retorna metadados para a lista de anexos (igual a arquivo)
 // ---------------------------------------------------------------------------
 
 export async function uploadImagem(
   file: File,
   agendamentoId: string,
-): Promise<string> {
+): Promise<UploadedFile> {
   const supabase = createClient()
 
   const ext  = file.name.split('.').pop()
@@ -24,7 +24,13 @@ export async function uploadImagem(
   if (error) throw new Error(`Erro ao enviar imagem: ${error.message}`)
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
-  return data.publicUrl
+
+  return {
+    nome: file.name,
+    url: data.publicUrl,
+    tipo: file.type,
+    tamanho: file.size,
+  }
 }
 
 // ---------------------------------------------------------------------------

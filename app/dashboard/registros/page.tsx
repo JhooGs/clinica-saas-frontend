@@ -2,9 +2,9 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown, Loader2, AlertTriangle } from 'lucide-react'
+import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, Pencil, ArrowUpDown, ArrowUp, ArrowDown, Loader2, AlertTriangle, Paperclip, Image as ImageIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { cn, extractTiptapText } from '@/lib/utils'
+import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { useRegistros } from '@/hooks/use-registros'
 import { useAgendamentos } from '@/hooks/use-agenda'
@@ -325,10 +325,12 @@ export default function RegistrosPage() {
               )}
               {!isLoading && !isError && lista.map(r => {
                 const textoNotas = extractTiptapText(r.conteudo_json, 80)
-                const textoCompleto = extractTiptapText(r.conteudo_json, 1000)
+                const tiptapHtml = tiptapToHtml(r.conteudo_json)
                 const aberto = expandidoId === r.id
-                const temNotas = !!r.conteudo_json && textoCompleto.length > 0
+                const temNotas = !!r.conteudo_json && tiptapHtml.length > 0
                 const links = r.link_youtube ? [r.link_youtube] : []
+                const imagens = (r.arquivos ?? []).filter(f => f.tipo.startsWith('image/'))
+                const outrosArquivos = (r.arquivos ?? []).filter(f => !f.tipo.startsWith('image/'))
 
                 return (
                   <Fragment key={r.id}>
@@ -448,11 +450,29 @@ export default function RegistrosPage() {
                                   <FileText className="h-3.5 w-3.5 text-[#04c2fb]" />
                                   <span className="text-xs font-semibold text-[#04c2fb]">Notas da Sessão</span>
                                 </div>
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                  {textoCompleto}
-                                </p>
-                                {/* Rodapé: material + links */}
-                                {(r.material && r.material !== '-') || links.length > 0 ? (
+                                <div
+                                  className={cn(
+                                    'text-sm text-gray-700 leading-relaxed',
+                                    'max-h-[240px] overflow-y-auto pr-1',
+                                    '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+                                    '[&_h1]:text-base [&_h1]:font-bold [&_h1]:my-1.5',
+                                    '[&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-1.5',
+                                    '[&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1',
+                                    '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
+                                    '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
+                                    '[&_li]:my-0.5',
+                                    '[&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through',
+                                    '[&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded-sm',
+                                    '[&_a]:text-[#04c2fb] [&_a]:underline [&_a]:break-all',
+                                    '[&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic [&_blockquote]:my-1',
+                                    '[&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
+                                    '[&_pre]:bg-gray-100 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-1.5',
+                                    '[&_hr]:border-gray-200 [&_hr]:my-2',
+                                  )}
+                                  dangerouslySetInnerHTML={{ __html: tiptapHtml }}
+                                />
+                                {/* Rodapé: material + links + anexos */}
+                                {(r.material && r.material !== '-') || links.length > 0 || imagens.length > 0 || outrosArquivos.length > 0 ? (
                                   <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
                                     {r.material && r.material !== '-' && (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
@@ -472,6 +492,18 @@ export default function RegistrosPage() {
                                         <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
                                       </a>
                                     ))}
+                                    {imagens.length > 0 && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
+                                        <ImageIcon className="h-3 w-3 shrink-0" />
+                                        {imagens.length} {imagens.length === 1 ? 'foto' : 'fotos'}
+                                      </span>
+                                    )}
+                                    {outrosArquivos.length > 0 && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
+                                        <Paperclip className="h-3 w-3 shrink-0" />
+                                        {outrosArquivos.length} {outrosArquivos.length === 1 ? 'arquivo' : 'arquivos'}
+                                      </span>
+                                    )}
                                   </div>
                                 ) : null}
                               </div>

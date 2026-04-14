@@ -21,6 +21,19 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.1.7',
+    date: '14 de abril de 2026',
+    changes: [
+      { category: 'Added', description: 'Agora é possível filtrar histórico do paciente por status.'},
+      { category: 'Changed', description: 'Atualizado badge de versionamento, agora tudo fica agrupado por tipo de alteração.'},
+      { category: 'Changed', description: 'Atualizado forma de anexar imagens no registro, agora elas ficam em miniatura e não no meio do texto.'},
+      { category: 'Changed', description: 'A opção ver notas agora exibe o registro por completo e formatado.'},
+      { category: 'Fixed', description: 'Corrigido um bug que não deixava usar tópicos nos registros do paciente.'},
+      { category: 'Fixed', description: 'Corrigido um bug em registros onde as imagens se perdiam depois que eram salvas.'},
+      
+    ],
+  },
+  {
     version: 'v0.1.6',
     date: '13 de abril de 2026',
     changes: [
@@ -87,7 +100,7 @@ export function VersionBadge() {
             {latest.version}
           </button>
         </PopoverTrigger>
-        <PopoverContent side="top" align="end" className="w-80 p-0 overflow-hidden">
+        <PopoverContent side="top" align="end" className="w-160 p-0 overflow-hidden">
           <div className="px-4 py-3 border-b">
             <p className="text-sm font-semibold text-foreground">
               Histórico de versões
@@ -109,23 +122,40 @@ export function VersionBadge() {
                     <p className="text-xs text-muted-foreground/50 italic">
                       Sem entradas ainda.
                     </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {entry.changes.map((change, i) => {
-                        const style = CATEGORY_STYLE[change.category]
-                        return (
-                          <li key={i} className="text-xs">
-                            <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none mb-0.5 ${style.className}`}>
-                              {style.label}
-                            </span>
-                            <p className="text-muted-foreground leading-snug">
-                              {change.description}
-                            </p>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
+                  ) : (() => {
+                    const grouped = entry.changes.reduce<Record<Category, string[]>>(
+                      (acc, change) => {
+                        if (!acc[change.category]) acc[change.category] = []
+                        acc[change.category].push(change.description)
+                        return acc
+                      },
+                      {} as Record<Category, string[]>
+                    )
+                    const categoryOrder: Category[] = ['Added', 'Changed', 'Fixed', 'Removed', 'Security']
+                    const presentCategories = categoryOrder.filter((c) => grouped[c])
+                    return (
+                      <div className="space-y-2">
+                        {presentCategories.map((cat) => {
+                          const style = CATEGORY_STYLE[cat]
+                          return (
+                            <div key={cat}>
+                              <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none mb-1 ${style.className}`}>
+                                {style.label}
+                              </span>
+                              <ul className="space-y-0.5 pl-1">
+                                {grouped[cat].map((desc, i) => (
+                                  <li key={i} className="flex gap-1.5 text-xs text-muted-foreground leading-snug">
+                                    <span className="mt-[3px] shrink-0 text-[8px] text-muted-foreground/50">●</span>
+                                    <span>{desc}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>

@@ -2,20 +2,25 @@
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Highlight from '@tiptap/extension-highlight'
-import { useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import {
   Bold, Italic, UnderlineIcon, Strikethrough,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight,
   Link2, Image as ImageIcon, Highlighter, Undo, Redo,
-  Paperclip,
+  Paperclip, X,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -31,8 +36,7 @@ export type UploadedFile = {
 type RichEditorProps = {
   value?: Record<string, unknown> | null
   onChange?: (json: Record<string, unknown>) => void
-  onUploadImage?: (file: File) => Promise<string>      // retorna URL pública
-  onUploadFile?: (file: File) => Promise<UploadedFile> // retorna metadados
+  onUploadFile?: (file: File) => Promise<UploadedFile>
   uploadedFiles?: UploadedFile[]
   onRemoveFile?: (url: string) => void
   placeholder?: string
@@ -87,7 +91,6 @@ function Divider() {
 export default function RichEditor({
   value,
   onChange,
-  onUploadImage,
   onUploadFile,
   uploadedFiles = [],
   onRemoveFile,
@@ -97,6 +100,7 @@ export default function RichEditor({
 }: RichEditorProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef  = useRef<HTMLInputElement>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -106,7 +110,6 @@ export default function RichEditor({
       Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-[#04c2fb] underline' } }),
-      Image.configure({ HTMLAttributes: { class: 'max-w-full rounded-lg my-2' } }),
       Placeholder.configure({ placeholder }),
     ],
     content: value ?? undefined,
@@ -115,13 +118,6 @@ export default function RichEditor({
       onChange?.(editor.getJSON() as Record<string, unknown>)
     },
   })
-
-  // --- Upload de imagem ---
-  const handleImageFile = useCallback(async (file: File) => {
-    if (!editor || !onUploadImage) return
-    const url = await onUploadImage(file)
-    editor.chain().focus().setImage({ src: url }).run()
-  }, [editor, onUploadImage])
 
   // --- Inserir link ---
   const handleLink = useCallback(() => {
@@ -137,6 +133,9 @@ export default function RichEditor({
   }, [editor])
 
   if (!editor) return null
+
+  const imagens  = uploadedFiles.filter(f => f.tipo.startsWith('image/'))
+  const arquivos = uploadedFiles.filter(f => !f.tipo.startsWith('image/'))
 
   return (
     <div className={cn('flex flex-col rounded-xl border bg-background overflow-hidden', className)}>
@@ -205,7 +204,7 @@ export default function RichEditor({
         </ToolbarBtn>
 
         {/* Imagem — só aparece se handler fornecido */}
-        {onUploadImage && (
+        {onUploadFile && (
           <ToolbarBtn title="Inserir imagem" onClick={() => imageInputRef.current?.click()}>
             <ImageIcon className="h-4 w-4" />
           </ToolbarBtn>
@@ -225,6 +224,9 @@ export default function RichEditor({
         className={cn(
           'prose prose-sm max-w-none px-4 py-3 min-h-[200px] focus-within:outline-none',
           '[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[180px]',
+          '[&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ul]:my-2',
+          '[&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_ol]:my-2',
+          '[&_.ProseMirror_li]:my-0.5',
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]',
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground',
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left',
@@ -234,10 +236,43 @@ export default function RichEditor({
         )}
       />
 
-      {/* Lista de arquivos anexados */}
-      {uploadedFiles.length > 0 && (
+      {/* Miniaturas de imagens */}
+      {imagens.length > 0 && (
         <div className="border-t px-4 py-2 flex flex-wrap gap-2 bg-muted/20">
-          {uploadedFiles.map(f => (
+          {imagens.map(img => (
+            <div key={img.url} className="relative group">
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(img.url)}
+                title={img.nome}
+                className="block h-16 w-16 rounded-lg overflow-hidden border border-border hover:ring-2 hover:ring-[#04c2fb]/50 transition-all"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.url}
+                  alt={img.nome}
+                  className="h-full w-full object-cover"
+                />
+              </button>
+              {onRemoveFile && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveFile(img.url)}
+                  title="Remover imagem"
+                  className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Lista de arquivos anexados */}
+      {arquivos.length > 0 && (
+        <div className="border-t px-4 py-2 flex flex-wrap gap-2 bg-muted/20">
+          {arquivos.map(f => (
             <div
               key={f.url}
               className="flex items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1 text-xs text-muted-foreground"
@@ -270,9 +305,9 @@ export default function RichEditor({
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={e => {
+        onChange={async e => {
           const file = e.target.files?.[0]
-          if (file) handleImageFile(file)
+          if (file && onUploadFile) await onUploadFile(file)
           e.target.value = ''
         }}
       />
@@ -287,6 +322,23 @@ export default function RichEditor({
           e.target.value = ''
         }}
       />
+
+      {/* Lightbox */}
+      <Dialog open={!!lightboxUrl} onOpenChange={() => setLightboxUrl(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-black/90 border-0">
+          <VisuallyHidden>
+            <DialogTitle>Visualizar imagem</DialogTitle>
+          </VisuallyHidden>
+          {lightboxUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lightboxUrl}
+              alt="Visualizar imagem"
+              className="max-h-[80vh] w-auto mx-auto rounded-lg"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -8,9 +8,11 @@ import {
   Pencil, Save, Hash, Activity,
   ChevronDown, ChevronUp, FileText, ExternalLink, CreditCard,
   Package, CalendarDays, Check, Ban, Receipt, Repeat2,
-  Clock, X, Sparkles, PowerOff, CalendarRange, Loader2,
+  Clock, X, Sparkles, PowerOff, CalendarRange, Loader2, Filter,
+  Paperclip,
 } from 'lucide-react'
-import { cn, extractTiptapText } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
 import { createClient } from '@/lib/supabase'
 import { usePacotes, useTiposSessao, useSalvarPlanoAtendimento } from '@/hooks/use-planos'
 import { useAgendamentos, useGerarAgendamentosRecorrentes, useCancelarAgendaFuturaPaciente } from '@/hooks/use-agenda'
@@ -1150,6 +1152,52 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     setExpandidoSessaoId(prev => (prev === id ? null : id))
   }
 
+  // Filtro multi-select do histórico
+  const TODOS_STATUS_HIST = ['Agendado', 'Confirmado', 'Reagendado', 'Realizado', 'Falta', 'Pendente'] as const
+  type StatusHist = typeof TODOS_STATUS_HIST[number]
+  const FILTRO_PADRAO: StatusHist[] = ['Realizado', 'Falta', 'Pendente']
+  const FILTRO_LS_KEY = `clinitra_hist_filtros_${pacienteInicial.id}`
+
+  const [filtrosStatus, setFiltrosStatus] = useState<StatusHist[]>(() => {
+    try {
+      const salvo = localStorage.getItem(FILTRO_LS_KEY)
+      if (salvo) {
+        const parsed = JSON.parse(salvo) as string[]
+        const validos = parsed.filter((s): s is StatusHist => (TODOS_STATUS_HIST as readonly string[]).includes(s))
+        if (validos.length > 0) return validos
+      }
+    } catch { /* ignore */ }
+    return FILTRO_PADRAO
+  })
+  const [filtroAberto, setFiltroAberto] = useState(false)
+
+  function toggleFiltroStatus(s: StatusHist) {
+    setFiltrosStatus(prev => {
+      const proximo = prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
+      try { localStorage.setItem(FILTRO_LS_KEY, JSON.stringify(proximo)) } catch { /* ignore */ }
+      return proximo
+    })
+  }
+
+  function resolverStatusHist(ag: Agendamento): StatusHist {
+    const reg = registroByAgendamentoId.get(ag.id) ?? registroByData.get(ag.data)
+    const ehPassado = ag.data <= hojeISO
+    if (reg) return reg.presenca ? 'Realizado' : 'Falta'
+    if (ag.status === 'cancelado') return 'Cancelado'
+    if (!ehPassado) {
+      if (ag.status === 'reagendamento') return 'Reagendado'
+      if (ag.status === 'confirmado') return 'Confirmado'
+      return 'Agendado'
+    }
+    return 'Pendente'
+  }
+
+  const agendamentosFiltrados = useMemo(() => {
+    if (filtrosStatus.length === TODOS_STATUS_HIST.length) return agendamentosHist
+    return agendamentosHist.filter(ag => filtrosStatus.includes(resolverStatusHist(ag)))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendamentosHist, filtrosStatus, registroByAgendamentoId, registroByData, hojeISO])
+
   const idade = calcularIdade(paciente.dataNascimento)
   const taxaPresenca = (presencas + faltas) > 0
     ? Math.round((presencas / (presencas + faltas)) * 100)
@@ -1476,14 +1524,88 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
 
       {/* ── Histórico de sessões ────────────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="p-5 border-b flex items-center justify-between">
-          <div>
+        <div className="p-4 sm:p-5 border-b flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">Histórico de Sessões</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {totalSessoes} {totalSessoes === 1 ? 'sessão' : 'sessões'} realizadas
             </p>
           </div>
-          <span className="text-xs text-muted-foreground">{agendamentosHist.length} exibida(s)</span>
+          <div className="flex items-center gap-2">
+            {filtrosStatus.length < TODOS_STATUS_HIST.length && (
+              <span className="text-xs text-muted-foreground">
+                {agendamentosFiltrados.length} de {agendamentosHist.length} exibida(s)
+              </span>
+            )}
+            <Popover open={filtroAberto} onOpenChange={setFiltroAberto}>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                    filtrosStatus.length < TODOS_STATUS_HIST.length
+                      ? 'border-[#04c2fb]/40 bg-[#04c2fb]/8 text-[#04c2fb]'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                  <span>Filtrar Status</span>
+                  {filtrosStatus.length < TODOS_STATUS_HIST.length && (
+                    <span className="ml-0.5 rounded-full bg-[#04c2fb] text-white px-1.5 py-px text-[10px] font-semibold leading-none">
+                      {filtrosStatus.length}
+                    </span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-52 p-2">
+                <p className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Exibir status
+                </p>
+                <div className="space-y-0.5">
+                  {TODOS_STATUS_HIST.map(s => {
+                    const ativo = filtrosStatus.includes(s)
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => toggleFiltroStatus(s)}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-xs transition-colors text-left',
+                          ativo ? 'bg-[#04c2fb]/8 text-[#04c2fb]' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        )}
+                      >
+                        <span className={cn(
+                          'h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                          ativo ? 'bg-[#04c2fb] border-[#04c2fb]' : 'border-border bg-background',
+                        )}>
+                          {ativo && <Check className="h-2.5 w-2.5 text-white" />}
+                        </span>
+                        {s}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="mt-2 border-t pt-2 px-2 flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      setFiltrosStatus([...TODOS_STATUS_HIST])
+                      try { localStorage.setItem(FILTRO_LS_KEY, JSON.stringify([...TODOS_STATUS_HIST])) } catch { /* ignore */ }
+                    }}
+                    className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFiltrosStatus(FILTRO_PADRAO)
+                      try { localStorage.setItem(FILTRO_LS_KEY, JSON.stringify(FILTRO_PADRAO)) } catch { /* ignore */ }
+                    }}
+                    className="text-[11px] text-[#04c2fb] hover:underline"
+                  >
+                    Redefinir
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1499,15 +1621,17 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
               </tr>
             </thead>
             <tbody className="divide-y">
-              {[...agendamentosHist]
+              {[...agendamentosFiltrados]
                 .sort((a, b) => b.data.localeCompare(a.data) || b.horario.localeCompare(a.horario))
                 .map(ag => {
                   const reg = registroByAgendamentoId.get(ag.id) ?? registroByData.get(ag.data)
                   const textoPreview = reg ? extractTiptapText(reg.conteudo_json, 70) : ''
-                  const textoCompleto = reg ? extractTiptapText(reg.conteudo_json, 1000) : ''
+                  const tiptapHtml = reg ? tiptapToHtml(reg.conteudo_json) : ''
                   const aberto = expandidoSessaoId === ag.id
-                  const temNotas = !!reg?.conteudo_json && textoCompleto.length > 0
                   const links = reg?.link_youtube ? [reg.link_youtube] : []
+                  const imagens = (reg?.arquivos ?? []).filter(f => f.tipo.startsWith('image/'))
+                  const outrosArquivos = (reg?.arquivos ?? []).filter(f => !f.tipo.startsWith('image/'))
+                  const temNotas = (!!reg?.conteudo_json && tiptapHtml.length > 0) || imagens.length > 0 || outrosArquivos.length > 0 || links.length > 0
                   const ehPassado = ag.data <= hojeISO
                   const ehCancelado = ag.status === 'cancelado'
 
@@ -1519,9 +1643,9 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                     }
                     if (ehCancelado) return { cls: 'bg-gray-100 text-gray-400', dot: 'bg-gray-400', label: 'Cancelado' }
                     if (!ehPassado) {
-                      return ag.status === 'reagendamento'
-                        ? { cls: 'bg-blue-50 text-blue-600', dot: 'bg-blue-500', label: 'Reagendado' }
-                        : { cls: 'bg-green-50 text-green-600', dot: 'bg-green-500', label: 'Agendado' }
+                      if (ag.status === 'reagendamento') return { cls: 'bg-blue-50 text-blue-600', dot: 'bg-blue-500', label: 'Reagendado' }
+                      if (ag.status === 'confirmado') return { cls: 'bg-[#04c2fb]/10 text-[#04c2fb]', dot: 'bg-[#04c2fb]', label: 'Confirmado' }
+                      return { cls: 'bg-green-50 text-green-600', dot: 'bg-green-500', label: 'Agendado' }
                     }
                     return { cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', label: 'Pendente' }
                   })()
@@ -1624,10 +1748,29 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                                     <FileText className="h-3.5 w-3.5 text-[#04c2fb]" />
                                     <span className="text-xs font-semibold text-[#04c2fb]">Notas da Sessão</span>
                                   </div>
-                                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                    {textoCompleto}
-                                  </p>
-                                  {(reg?.material && reg.material !== '-') || links.length > 0 ? (
+                                  <div
+                                    className={cn(
+                                      'text-sm text-gray-700 leading-relaxed',
+                                      'max-h-[240px] overflow-y-auto pr-1',
+                                      '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+                                      '[&_h1]:text-base [&_h1]:font-bold [&_h1]:my-1.5',
+                                      '[&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-1.5',
+                                      '[&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1',
+                                      '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
+                                      '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
+                                      '[&_li]:my-0.5',
+                                      '[&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through',
+                                      '[&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded-sm',
+                                      '[&_a]:text-[#04c2fb] [&_a]:underline [&_a]:break-all',
+                                      '[&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic [&_blockquote]:my-1',
+                                      '[&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
+                                      '[&_pre]:bg-gray-100 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-1.5',
+                                      '[&_hr]:border-gray-200 [&_hr]:my-2',
+                                    )}
+                                    dangerouslySetInnerHTML={{ __html: tiptapHtml }}
+                                  />
+                                  {/* Rodapé: material + links */}
+                                  {((reg?.material && reg.material !== '-') || links.length > 0) && (
                                     <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
                                       {reg?.material && reg.material !== '-' && (
                                         <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
@@ -1648,7 +1791,42 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                                         </a>
                                       ))}
                                     </div>
-                                  ) : null}
+                                  )}
+                                  {/* Fotos — thumbnails clicáveis */}
+                                  {imagens.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
+                                      {imagens.map((img, i) => (
+                                        <a
+                                          key={i}
+                                          href={img.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          title={img.nome}
+                                          className="block h-16 w-16 rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 transition-all shrink-0"
+                                        >
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img src={img.url} alt={img.nome} className="h-full w-full object-cover" />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {/* Arquivos — links clicáveis */}
+                                  {outrosArquivos.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
+                                      {outrosArquivos.map((arq, i) => (
+                                        <a
+                                          key={i}
+                                          href={arq.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-[#04c2fb]/40 transition-colors"
+                                        >
+                                          <Paperclip className="h-3 w-3 shrink-0" />
+                                          <span className="max-w-[160px] truncate">{arq.nome}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1662,6 +1840,22 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     Nenhuma sessão encontrada.
+                  </td>
+                </tr>
+              )}
+              {agendamentosHist.length > 0 && agendamentosFiltrados.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center">
+                    <p className="text-sm text-muted-foreground">Nenhuma sessão com os filtros selecionados.</p>
+                    <button
+                      onClick={() => {
+                        setFiltrosStatus(FILTRO_PADRAO)
+                        try { localStorage.setItem(FILTRO_LS_KEY, JSON.stringify(FILTRO_PADRAO)) } catch { /* ignore */ }
+                      }}
+                      className="mt-2 text-xs text-[#04c2fb] hover:underline"
+                    >
+                      Redefinir filtro
+                    </button>
                   </td>
                 </tr>
               )}

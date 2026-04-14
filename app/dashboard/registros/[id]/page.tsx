@@ -321,7 +321,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
     notasSessaoJson: registro.conteudo_json,
   })
   const [linkInput, setLinkInput] = useState('')
-  const [arquivos, setArquivos] = useState<UploadedFile[]>([])
+  const [arquivos, setArquivos] = useState<UploadedFile[]>((registro.arquivos ?? []) as UploadedFile[])
   const [salvando, setSalvando] = useState(false)
   const [temAlteracoes, setTemAlteracoes] = useState(false)
   const [confirmarDescartar, setConfirmarDescartar] = useState(false)
@@ -346,19 +346,18 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
     router.push('/dashboard/registros')
   }
 
-  const handleUploadImagem = useCallback(async (file: File): Promise<string> => {
-    return uploadImagem(file, id)
-  }, [id])
-
   const handleUploadArquivo = useCallback(async (file: File): Promise<UploadedFile> => {
-    const uploaded = await uploadArquivo(file, id)
+    const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
+    const uploaded = await fn(file, id)
     setArquivos(prev => [...prev, uploaded])
+    setTemAlteracoes(true)
     return uploaded
   }, [id])
 
   const handleRemoverArquivo = useCallback(async (url: string) => {
     await removerArquivo(url)
     setArquivos(prev => prev.filter(a => a.url !== url))
+    setTemAlteracoes(true)
   }, [])
 
   async function salvar() {
@@ -378,6 +377,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
           link_youtube: form.links[0] || undefined,
           observacao: undefined,
           data_sessao: form.data,
+          arquivos: arquivos,
         },
       },
       {
@@ -622,7 +622,6 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
             value={form.notasSessaoJson}
             onChange={json => f('notasSessaoJson', json)}
             placeholder="Evolução, objetivos trabalhados, observações clínicas..."
-            onUploadImage={handleUploadImagem}
             onUploadFile={handleUploadArquivo}
             uploadedFiles={arquivos}
             onRemoveFile={handleRemoverArquivo}
@@ -774,12 +773,9 @@ function FormularioSessao({ id }: { id: string }) {
     router.push('/dashboard/registros')
   }
 
-  const handleUploadImagem = useCallback(async (file: File): Promise<string> => {
-    return uploadImagem(file, id)
-  }, [id])
-
   const handleUploadArquivo = useCallback(async (file: File): Promise<UploadedFile> => {
-    const uploaded = await uploadArquivo(file, id)
+    const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
+    const uploaded = await fn(file, id)
     setArquivos(prev => [...prev, uploaded])
     return uploaded
   }, [id])
@@ -810,6 +806,7 @@ function FormularioSessao({ id }: { id: string }) {
         conteudo_json: form.notasSessaoJson,
         material: form.material || undefined,
         link_youtube: form.links[0] || undefined,
+        arquivos: arquivos.length > 0 ? arquivos : undefined,
       },
       {
         onSuccess: () => {
@@ -1165,7 +1162,6 @@ function FormularioSessao({ id }: { id: string }) {
             value={form.notasSessaoJson}
             onChange={json => f('notasSessaoJson', json)}
             placeholder="Evolução, objetivos trabalhados, observações clínicas..."
-            onUploadImage={handleUploadImagem}
             onUploadFile={handleUploadArquivo}
             uploadedFiles={arquivos}
             onRemoveFile={handleRemoverArquivo}
