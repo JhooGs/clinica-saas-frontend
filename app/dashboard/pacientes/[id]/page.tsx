@@ -1153,7 +1153,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   }
 
   // Filtro multi-select do histórico
-  const TODOS_STATUS_HIST = ['Agendado', 'Confirmado', 'Reagendado', 'Realizado', 'Falta', 'Pendente'] as const
+  const TODOS_STATUS_HIST = ['Agendado', 'Confirmado', 'Reagendado', 'Realizado', 'Falta', 'Pendente', 'Cancelado'] as const
   type StatusHist = typeof TODOS_STATUS_HIST[number]
   const FILTRO_PADRAO: StatusHist[] = ['Realizado', 'Falta', 'Pendente']
   const FILTRO_LS_KEY = `clinitra_hist_filtros_${pacienteInicial.id}`
