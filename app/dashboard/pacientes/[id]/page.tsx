@@ -332,9 +332,20 @@ function CardPlano({
     return new Set(chaves).size < chaves.length
   })()
 
+  const camposObrigatoriosFaltando = form.pacoteId !== null && (form.recorrencia === null || form.cobranca === null)
+
   function salvar() {
     if (temConflitoHorario) {
       toast.error('Conflito de horário', { description: 'Dois slots não podem ter o mesmo horário. Ajuste antes de salvar.' })
+      return
+    }
+
+    if (camposObrigatoriosFaltando) {
+      const faltam = [
+        form.recorrencia === null && 'Recorrência',
+        form.cobranca === null && 'Cobrança',
+      ].filter(Boolean).join(' e ')
+      toast.error('Campos obrigatórios', { description: `Preencha ${faltam} antes de salvar.` })
       return
     }
 
@@ -504,10 +515,10 @@ function CardPlano({
             </button>
             <button
               onClick={salvar}
-              disabled={temConflitoHorario}
+              disabled={temConflitoHorario || camposObrigatoriosFaltando}
               className={cn(
                 'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors',
-                temConflitoHorario ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',
+                (temConflitoHorario || camposObrigatoriosFaltando) ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',
               )}
               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >
@@ -602,10 +613,10 @@ function CardPlano({
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {pacote.sessoes.map(s => (
-                          <span key={s.tipoSessaoId} className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                        {pacote.tipos.filter(t => t.incluido).map(t => (
+                          <span key={t.tipo_sessao_id} className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
                             <span className="h-1 w-1 rounded-full bg-[#04c2fb] shrink-0" />
-                            {nomeTipo(s.tipoSessaoId)}
+                            {nomeTipo(t.tipo_sessao_id)}
                           </span>
                         ))}
                       </div>
@@ -664,8 +675,11 @@ function CardPlano({
             {/* Seleção de recorrência (só quando há pacote) */}
             {form.pacoteId !== null && (
               <div className="space-y-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Recorrência
+                <p className={cn(
+                  'text-[11px] font-semibold uppercase tracking-wide',
+                  form.recorrencia === null ? 'text-red-500' : 'text-muted-foreground',
+                )}>
+                  Recorrência <span className="text-red-400">*</span>
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {RECORRENCIAS.map(rec => {
@@ -791,8 +805,11 @@ function CardPlano({
               const pacoteForm = pacotesDisponiveis.find(p => p.id === form.pacoteId) ?? null
               return (
                 <div className="space-y-2.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cobrança
+                  <p className={cn(
+                    'text-[11px] font-semibold uppercase tracking-wide',
+                    form.cobranca === null ? 'text-red-500' : 'text-muted-foreground',
+                  )}>
+                    Cobrança <span className="text-red-400">*</span>
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {MODOS_COBRANCA.map(modo => {
@@ -904,10 +921,10 @@ function CardPlano({
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {pacoteSelecionado.sessoes.map(s => (
-                      <span key={s.tipoSessaoId} className="inline-flex items-center gap-1 rounded-md bg-white border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                    {pacoteSelecionado.tipos.filter(t => t.incluido).map(t => (
+                      <span key={t.tipo_sessao_id} className="inline-flex items-center gap-1 rounded-md bg-white border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-slate-600">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
-                        {nomeTipo(s.tipoSessaoId)}
+                        {nomeTipo(t.tipo_sessao_id)}
                       </span>
                     ))}
                   </div>

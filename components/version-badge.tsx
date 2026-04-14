@@ -24,7 +24,9 @@ const CHANGELOG: VersionEntry[] = [
     version: 'v0.1.6',
     date: '13 de abril de 2026',
     changes: [
-      { category: 'Fixed', description: 'Resolvido bug que não atualizava o financeiro com base no valor da sessão.' },
+      { category: 'Added', description: 'Novo sistema de plano criado para melhorar a gestão de pacotes e valores.'},
+      { category: 'Changed', description: 'Agora a escolha dos campos dentro do plano de atendimento são obrigatórios.'},
+      { category: 'Fixed', description: 'Ajustado bug que não atualizava o financeiro com o valor das sessões.'},
       
     ],
   },

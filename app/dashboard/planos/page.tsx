@@ -4,11 +4,11 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, Save, X, Tag, Info,
   AlertTriangle, ArrowUp, ArrowDown, Package,
-  Zap, ZapOff, Check, Lock, Loader2,
+  Zap, ZapOff, Lock, Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { TipoSessao, Pacote, SessaoPacote } from '@/lib/types/planos'
+import type { TipoSessao, Pacote, PacoteTipo, PacoteTipoInput } from '@/lib/types/planos'
 import {
   useTiposSessao, useCriarTipoSessao, useAtualizarTipoSessao, useExcluirTipoSessao,
   usePacotes, useCriarPacote, useAtualizarPacote, useExcluirPacote,
@@ -186,6 +186,17 @@ function ModalTipo({
    Modal glassmorphism — Pacote (criar/editar)
    ══════════════════════════════════════════════════════ */
 
+type TipoConfig = { incluido: boolean; valor: string }
+
+type PacoteFormData = {
+  nome: string
+  descricao: string
+  valor: string
+  tipos: PacoteTipoInput[]
+  ativo: boolean
+  sistema?: boolean
+}
+
 function ModalPacote({
   modo,
   inicial,
@@ -198,7 +209,7 @@ function ModalPacote({
   inicial?: Pacote
   tiposSessao: TipoSessao[]
   nomesExistentes: string[]
-  onSalvar: (dados: Omit<Pacote, 'id'>) => void
+  onSalvar: (dados: PacoteFormData) => void
   onFechar: () => void
 }) {
   const isSystem = inicial?.sistema === true
@@ -206,24 +217,27 @@ function ModalPacote({
   const [descricao, setDescricao] = useState(inicial?.descricao ?? '')
   const [valor, setValor] = useState(inicial?.valor ?? '')
   const [ativo, setAtivo] = useState(inicial?.ativo ?? true)
-  const [sessoes, setSessoes] = useState<SessaoPacote[]>(inicial?.sessoes ?? [])
   const [erroNome, setErroNome] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Estado por tipo: incluido + valor avulso do pacote
+  const [tiposConfig, setTiposConfig] = useState<Record<string, TipoConfig>>(() => {
+    const cfg: Record<string, TipoConfig> = {}
+    // Inicializa todos como não incluídos
+    tiposSessao.forEach(t => { cfg[t.id] = { incluido: false, valor: '' } })
+    // Sobrescreve com dados existentes
+    if (inicial?.tipos) {
+      inicial.tipos.forEach((pt: PacoteTipo) => {
+        cfg[pt.tipo_sessao_id] = { incluido: pt.incluido, valor: pt.valor ?? '' }
+      })
+    }
+    return cfg
+  })
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 60)
     return () => clearTimeout(t)
   }, [])
-
-  const tiposIncluidos = new Set(sessoes.map(s => s.tipoSessaoId))
-
-  function toggleTipo(tipoId: string) {
-    if (tiposIncluidos.has(tipoId)) {
-      setSessoes(prev => prev.filter(s => s.tipoSessaoId !== tipoId))
-    } else {
-      setSessoes(prev => [...prev, { tipoSessaoId: tipoId }])
-    }
-  }
 
   function formatarValor(raw: string) {
     const digits = raw.replace(/\D/g, '')
@@ -231,6 +245,26 @@ function ModalPacote({
     const cents = parseInt(digits, 10)
     return (cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
+
+  function toggleTipo(tipoId: string) {
+    setTiposConfig(prev => ({
+      ...prev,
+      [tipoId]: {
+        incluido: !prev[tipoId]?.incluido,
+        // Ao desligar, limpa o valor para o terapeuta preencher
+        valor: prev[tipoId]?.incluido ? '' : (prev[tipoId]?.valor ?? ''),
+      },
+    }))
+  }
+
+  function setValorTipo(tipoId: string, raw: string) {
+    setTiposConfig(prev => ({
+      ...prev,
+      [tipoId]: { ...prev[tipoId], valor: formatarValor(raw) },
+    }))
+  }
+
+  const qtdIncluidos = Object.values(tiposConfig).filter(c => c.incluido).length
 
   function salvar() {
     const nomeTrim = isSystem ? (inicial?.nome ?? '') : nome.trim()
@@ -241,13 +275,28 @@ function ModalPacote({
         setErroNome('Já existe um pacote com esse nome.'); return
       }
     }
-    if (sessoes.length === 0) {
-      toast.error('Pacote vazio', { description: 'Inclua pelo menos um atendimento no pacote.' })
+    if (qtdIncluidos === 0) {
+      toast.error('Nenhum atendimento incluído', { description: 'Ative pelo menos um tipo de atendimento no pacote.' })
       return
     }
+    const tiposFinal: PacoteTipoInput[] = tiposSessao.map(t => {
+      const cfg = tiposConfig[t.id] ?? { incluido: false, valor: '' }
+      return {
+        tipo_sessao_id: t.id,
+        incluido: cfg.incluido,
+        valor: cfg.incluido ? null : (cfg.valor || null),
+      }
+    })
     const descricaoFinal = isSystem ? (inicial?.descricao ?? '') : descricao.trim()
     const valorFinal = isSystem ? '' : valor
-    onSalvar({ nome: nomeTrim, descricao: descricaoFinal, valor: valorFinal, ativo, sessoes, ...(isSystem ? { sistema: true } : {}) })
+    onSalvar({
+      nome: nomeTrim,
+      descricao: descricaoFinal,
+      valor: valorFinal,
+      tipos: tiposFinal,
+      ativo,
+      ...(isSystem ? { sistema: true } : {}),
+    })
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -287,8 +336,8 @@ function ModalPacote({
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isSystem
-                  ? 'Ative/desative e escolha quais atendimentos entram neste pacote'
-                  : modo === 'criar' ? 'Defina o valor e os atendimentos inclusos' : 'Altere as configurações do pacote'}
+                  ? 'Ative/desative e configure os valores dos atendimentos'
+                  : modo === 'criar' ? 'Defina o valor de referência e os atendimentos' : 'Altere as configurações do pacote'}
               </p>
             </div>
           </div>
@@ -305,7 +354,7 @@ function ModalPacote({
             <div className="flex items-start gap-2.5 rounded-xl bg-violet-50 border border-violet-200 px-4 py-3">
               <Lock className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
               <p className="text-xs text-violet-700 leading-relaxed">
-                Nome e valor deste pacote são fixos do sistema. Você pode ativar ou desativar o pacote e escolher quais tipos de atendimento ele inclui.
+                Nome e valor deste pacote são fixos do sistema. Você pode ativar ou desativar e configurar quais atendimentos estão incluídos.
               </p>
             </div>
           )}
@@ -340,7 +389,7 @@ function ModalPacote({
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Valor <span className="text-gray-400 font-normal normal-case">(opcional)</span>
+                Valor de referência
               </label>
               {isSystem ? (
                 <p className="text-sm text-muted-foreground px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50/80">
@@ -361,6 +410,9 @@ function ModalPacote({
                   />
                 </div>
               )}
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Aplicado a todos os atendimentos incluídos no pacote.
+              </p>
             </div>
           </div>
 
@@ -394,7 +446,6 @@ function ModalPacote({
             <div className="flex items-center gap-3">
               <div className={cn(
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200',
-                ativo ? 'text-[#04c2fb]' : 'text-gray-300',
               )}
                 style={ativo ? { background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' } : { background: '#f1f5f9' }}
               >
@@ -426,49 +477,87 @@ function ModalPacote({
             </div>
           </button>
 
-          {/* Atendimentos inclusos */}
-          <div className="space-y-3">
+          {/* Atendimentos — toggle + valor por linha */}
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Atendimentos inclusos
+                Atendimentos
               </label>
               <span className="text-xs text-muted-foreground">
-                {sessoes.length} selecionado{sessoes.length !== 1 ? 's' : ''}
+                {qtdIncluidos} incluído{qtdIncluidos !== 1 ? 's' : ''}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Legenda */}
+            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-1">
+              <span>Tipo</span>
+              <span>Valor no pacote</span>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
               {tiposSessao.map(tipo => {
-                const incluido = tiposIncluidos.has(tipo.id)
+                const cfg = tiposConfig[tipo.id] ?? { incluido: false, valor: '' }
+                const valorExibido = cfg.incluido ? (valor || '0,00') : cfg.valor
                 return (
-                  <button
+                  <div
                     key={tipo.id}
-                    onClick={() => toggleTipo(tipo.id)}
                     className={cn(
-                      'flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition-all',
-                      incluido
-                        ? 'border-[#04c2fb]/30 bg-[#04c2fb]/5'
-                        : 'border-gray-200 bg-white/50 hover:border-gray-300',
+                      'flex items-center gap-3 px-3.5 py-2.5 transition-colors',
+                      cfg.incluido ? 'bg-[#04c2fb]/4' : 'bg-white',
                     )}
                   >
-                    <div className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all',
-                      incluido
-                        ? 'bg-[#04c2fb] border-[#04c2fb] text-white'
-                        : 'border-gray-300 bg-white',
-                    )}>
-                      {incluido && <Check className="h-2.5 w-2.5" />}
-                    </div>
+                    {/* Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => toggleTipo(tipo.id)}
+                      className={cn(
+                        'relative shrink-0 h-5 w-9 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
+                        cfg.incluido ? 'bg-[#04c2fb]' : 'bg-gray-200',
+                      )}
+                      aria-label={cfg.incluido ? 'Remover do pacote' : 'Incluir no pacote'}
+                    >
+                      <span className={cn(
+                        'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-200',
+                        cfg.incluido ? 'left-[calc(100%-1.125rem)]' : 'left-0.5',
+                      )} />
+                    </button>
+
+                    {/* Nome */}
                     <span className={cn(
-                      'text-sm font-medium leading-tight',
-                      incluido ? 'text-gray-800' : 'text-gray-500',
+                      'flex-1 text-sm leading-tight truncate',
+                      cfg.incluido ? 'font-medium text-gray-800' : 'text-gray-500',
                     )}>
                       {tipo.nome}
                     </span>
-                  </button>
+
+                    {/* Campo valor */}
+                    <div className="relative shrink-0 w-28">
+                      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-gray-400 select-none">
+                        R$
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        disabled={cfg.incluido}
+                        value={valorExibido}
+                        onChange={e => setValorTipo(tipo.id, e.target.value)}
+                        placeholder="0,00"
+                        className={cn(
+                          'w-full rounded-lg border pl-8 pr-2 py-1.5 text-xs text-right transition-all',
+                          cfg.incluido
+                            ? 'bg-slate-50 text-muted-foreground border-gray-200 cursor-default select-none'
+                            : 'bg-white border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#04c2fb]/40 focus:border-[#04c2fb]/50',
+                        )}
+                      />
+                    </div>
+                  </div>
                 )
               })}
             </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed px-0.5">
+              Atendimentos incluídos usam o valor de referência do pacote. Os demais exigem informar o valor avulso.
+            </p>
           </div>
         </div>
 
@@ -649,9 +738,9 @@ export default function PlanosPage() {
   }
 
   /* ── Handlers: Pacotes ── */
-  function criarPacote(dados: Omit<Pacote, 'id'>) {
+  function criarPacote(dados: PacoteFormData) {
     criarPacoteMutation.mutate(
-      { nome: dados.nome, descricao: dados.descricao, valor: dados.valor, sessoes: dados.sessoes, ativo: dados.ativo },
+      { nome: dados.nome, descricao: dados.descricao, valor: dados.valor, tipos: dados.tipos, ativo: dados.ativo },
       {
         onSuccess: () => {
           setModalPacote(null)
@@ -662,7 +751,7 @@ export default function PlanosPage() {
     )
   }
 
-  function salvarEdicaoPacote(dados: Omit<Pacote, 'id'>) {
+  function salvarEdicaoPacote(dados: PacoteFormData) {
     const id = modalPacote?.pacote?.id
     if (!id) return
     const isPacoteSystem = modalPacote?.pacote?.sistema
@@ -673,7 +762,7 @@ export default function PlanosPage() {
           ...(isPacoteSystem ? {} : { nome: dados.nome, valor: dados.valor }),
           descricao: dados.descricao,
           ativo: dados.ativo,
-          sessoes: dados.sessoes,
+          tipos: dados.tipos,
         },
       },
       {
@@ -741,7 +830,9 @@ export default function PlanosPage() {
           inicial={modalPacote.pacote}
           tiposSessao={tipos}
           nomesExistentes={nomesExistentesPacotes}
-          onSalvar={modalPacote.modo === 'criar' ? criarPacote : salvarEdicaoPacote}
+          onSalvar={(dados: PacoteFormData) =>
+            modalPacote.modo === 'criar' ? criarPacote(dados) : salvarEdicaoPacote(dados)
+          }
           onFechar={() => setModalPacote(null)}
         />
       )}
@@ -999,26 +1090,31 @@ export default function PlanosPage() {
                       <p className="text-xs text-muted-foreground italic">Valor não definido</p>
                     )}
 
-                    {/* Atendimentos inclusos */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {pacote.sessoes.slice(0, 4).map(s => (
-                        <span
-                          key={s.tipoSessaoId}
-                          className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-2 py-0.5 text-[11px] font-medium text-slate-600"
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
-                          {getNomeTipo(s.tipoSessaoId)}
-                        </span>
-                      ))}
-                      {pacote.sessoes.length > 4 && (
-                        <span className="inline-flex items-center rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                          +{pacote.sessoes.length - 4}
-                        </span>
-                      )}
-                      {pacote.sessoes.length === 0 && (
-                        <span className="text-[11px] text-muted-foreground italic">Nenhum atendimento</span>
-                      )}
-                    </div>
+                    {/* Atendimentos incluídos */}
+                    {(() => {
+                      const incluidos = pacote.tipos.filter(t => t.incluido)
+                      return (
+                        <div className="flex flex-wrap gap-1.5">
+                          {incluidos.slice(0, 4).map(t => (
+                            <span
+                              key={t.tipo_sessao_id}
+                              className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                            >
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
+                              {getNomeTipo(t.tipo_sessao_id)}
+                            </span>
+                          ))}
+                          {incluidos.length > 4 && (
+                            <span className="inline-flex items-center rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              +{incluidos.length - 4}
+                            </span>
+                          )}
+                          {incluidos.length === 0 && (
+                            <span className="text-[11px] text-muted-foreground italic">Nenhum atendimento</span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               ))}

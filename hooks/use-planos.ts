@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api'
 import type {
   Pacote,
   PacoteListResponse,
+  PacoteTipoInput,
   PlanoAtendimentoPayload,
   TipoSessao,
   TipoSessaoListResponse,
@@ -24,10 +25,10 @@ export function useTiposSessao() {
 export function useCriarTipoSessao() {
   const queryClient = useQueryClient()
   return useMutation<TipoSessao, Error, { nome: string; valor_padrao?: string | null }>({
-    mutationFn: (payload) =>
+    mutationFn: ({ nome, valor_padrao }) =>
       apiFetch<TipoSessao>('/api/v1/planos/tipos-sessao', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ nome, valor_padrao }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-sessao'] })
@@ -74,7 +75,7 @@ export interface PacoteCreatePayload {
   nome: string
   descricao?: string | null
   valor?: string | null
-  sessoes?: { tipoSessaoId: string }[]
+  tipos?: PacoteTipoInput[]
   ativo?: boolean
 }
 
@@ -82,7 +83,7 @@ export interface PacoteUpdatePayload {
   nome?: string | null
   descricao?: string | null
   valor?: string | null
-  sessoes?: { tipoSessaoId: string }[] | null
+  tipos?: PacoteTipoInput[] | null
   ativo?: boolean | null
 }
 

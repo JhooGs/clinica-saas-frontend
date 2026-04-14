@@ -968,7 +968,7 @@ export default function FinanceiroPage() {
         <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Receita do Mês</p>
+              <p className="text-xs font-medium text-muted-foreground">Faturamento do Mês</p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-600">{formatBRL(resumo?.receita_mes ?? 0)}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">total de entradas</p>
             </div>

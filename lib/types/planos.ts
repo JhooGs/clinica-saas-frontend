@@ -11,8 +11,11 @@ export type TipoSessao = {
   criado_em?: string
 }
 
-export type SessaoPacote = {
-  tipoSessaoId: string
+export type PacoteTipo = {
+  id: string
+  tipo_sessao_id: string
+  incluido: boolean
+  valor?: string | null
 }
 
 export type Pacote = {
@@ -21,7 +24,7 @@ export type Pacote = {
   nome: string
   descricao?: string | null
   valor?: string | null
-  sessoes: SessaoPacote[]
+  tipos: PacoteTipo[]
   ativo: boolean
   sistema?: boolean
   criado_em?: string
@@ -83,4 +86,11 @@ export type VigenciasListResponse = {
 /** Retorna o Pacote Gratuito (sistema=true) da listagem, ou undefined */
 export function getPacoteGratuito(data: PacoteListResponse | undefined): Pacote | undefined {
   return data?.items.find(p => p.sistema)
+}
+
+/** Tipo de input para criar/atualizar PacoteTipo */
+export type PacoteTipoInput = {
+  tipo_sessao_id: string
+  incluido: boolean
+  valor?: string | null
 }
