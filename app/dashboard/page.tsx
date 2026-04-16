@@ -35,10 +35,15 @@ type RelatorioPendente = {
 // Adapters API → tipos locais
 // ---------------------------------------------------------------------------
 
+function nomeAgendamento(a: Agendamento): string {
+  if (a.pacientes_nomes?.length) return a.pacientes_nomes.join(', ')
+  return a.paciente_nome ?? 'Paciente'
+}
+
 function toAtendimentoUI(a: Agendamento): AtendimentoUI {
   return {
     id: a.id,
-    nome: a.paciente_nome ?? 'Paciente',
+    nome: nomeAgendamento(a),
     horario: a.horario,
     tipo: a.tipo_sessao,
     falta: a.status === 'falta',
@@ -48,7 +53,7 @@ function toAtendimentoUI(a: Agendamento): AtendimentoUI {
 function toRelatorioPendente(a: Agendamento): RelatorioPendente {
   return {
     id: a.id,
-    paciente: a.paciente_nome ?? 'Paciente',
+    paciente: nomeAgendamento(a),
     tipo: a.tipo_sessao,
     data: typeof a.data === 'string' ? a.data : String(a.data),
     horario: a.horario,
@@ -273,7 +278,7 @@ function TarefasPendentes({ pendentes, loading }: { pendentes: RelatorioPendente
           </div>
           <div>
             <p className="text-sm font-semibold leading-none">Tarefas pendentes</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Registros de sessão ainda não documentados</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Registros de sessão ainda não foram descritos</p>
           </div>
         </div>
         <span className="flex items-center justify-center h-6 min-w-6 rounded-full bg-red-500 text-white text-[11px] font-bold px-1.5">
@@ -340,7 +345,7 @@ function TarefasPendentes({ pendentes, loading }: { pendentes: RelatorioPendente
       {/* Footer */}
       <div className="flex items-center justify-between px-5 py-3 border-t bg-muted/20">
         <p className="text-[11px] text-muted-foreground">
-          Clique em <strong>Registrar</strong> para documentar a sessão.
+          Clique em <strong>Registrar</strong> para escrever sobre a sessão.
         </p>
         {dispensados.size > 0 && (
           <button

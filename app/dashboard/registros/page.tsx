@@ -212,7 +212,9 @@ export default function RegistrosPage() {
                 >
                   <span className={cn('h-2 w-2 rounded-full shrink-0', cor.dot)} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{ag.paciente_nome ?? '—'}</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {ag.pacientes_nomes?.length ? ag.pacientes_nomes.join(', ') : (ag.paciente_nome ?? '—')}
+                    </p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-medium text-[#04c2fb]">
                         {ag.tipo_sessao}

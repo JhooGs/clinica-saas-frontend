@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
-import type { Registro } from '@/types'
+import type { Registro, RegistroGrupoCreatePayload } from '@/types'
 
 export interface RegistrosFilter {
   paciente_id?: string
@@ -41,6 +41,7 @@ export interface RegistroUpdatePayload {
   observacao?: string
   arquivos?: { nome: string; url: string; tipo: string; tamanho: number }[]
   data_sessao?: string
+  numero_sessao?: number  // quando presente, ancora o recálculo no backend
 }
 
 export function useRegistros(filtros?: RegistrosFilter) {
@@ -81,6 +82,22 @@ export function useCriarRegistro() {
       // Invalida financeiro pois pode ter gerado transação automática
       queryClient.invalidateQueries({ queryKey: ['financeiro'] })
       // Invalida agendamentos para remover da seção "Aguardando registro"
+      queryClient.invalidateQueries({ queryKey: ['agenda'] })
+    },
+  })
+}
+
+export function useCriarRegistroGrupo() {
+  const queryClient = useQueryClient()
+  return useMutation<Registro[], Error, RegistroGrupoCreatePayload>({
+    mutationFn: (payload) =>
+      apiFetch<Registro[]>('/api/v1/registros/grupo', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['registros'] })
+      queryClient.invalidateQueries({ queryKey: ['financeiro'] })
       queryClient.invalidateQueries({ queryKey: ['agenda'] })
     },
   })

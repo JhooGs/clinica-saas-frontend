@@ -32,6 +32,7 @@ export interface Registro {
   tipo_sessao?: string
   conteudo_json: Record<string, unknown> | null  // JSON do Tiptap
   numero_sessao?: number
+  numero_sessao_manual?: boolean
   presenca: boolean
   valor_sessao?: number
   data_sessao?: string  // YYYY-MM-DD
@@ -134,6 +135,23 @@ export interface AgendamentoUpdatePayload {
   horario_fim?: string
   status?: StatusAgendamento
   observacao?: string
+}
+
+export interface RegistroGrupoParticipante {
+  paciente_id: string
+  presenca: boolean
+  valor_sessao?: number
+}
+
+export interface RegistroGrupoCreatePayload {
+  agendamento_id: string
+  participantes: RegistroGrupoParticipante[]
+  tipo_sessao?: string
+  data_sessao?: string
+  conteudo_json?: Record<string, unknown> | null
+  material?: string
+  link_youtube?: string
+  arquivos?: { nome: string; url: string; tipo: string; tamanho: number }[]
 }
 
 export type Role = 'super_admin' | 'admin' | 'usuario'

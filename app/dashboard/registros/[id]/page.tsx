@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, startTransition } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, User, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Pencil } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, User, Users, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Pencil } from 'lucide-react'
 import { cn, hoje, tiptapToHtml } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
@@ -13,7 +13,7 @@ import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ConfirmDelete } from '@/components/confirm-delete'
 import { chavePauta } from '@/components/modal-pauta'
 import { TIPOS_SESSAO } from '@/lib/tipos-sessao'
-import { useRegistro, useAtualizarRegistro, useCriarRegistro } from '@/hooks/use-registros'
+import { useRegistro, useAtualizarRegistro, useCriarRegistro, useCriarRegistroGrupo } from '@/hooks/use-registros'
 import { useAgendamento } from '@/hooks/use-agenda'
 import type { Registro } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
@@ -420,12 +420,19 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
     }
   }
 
+  function handleNumeroSessaoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value.replace(/[^\d]/g, '')
+    f('numeroSessao', raw)
+    setNumeroSessaoAlterado(raw !== (registro.numero_sessao?.toString() ?? ''))
+  }
+
   const [linkInput, setLinkInput] = useState('')
   const [arquivos, setArquivos] = useState<UploadedFile[]>((registro.arquivos ?? []) as UploadedFile[])
   const [salvando, setSalvando] = useState(false)
   const [temAlteracoes, setTemAlteracoes] = useState(false)
   const [confirmarDescartar, setConfirmarDescartar] = useState(false)
   const [confirmarDeletar, setConfirmarDeletar] = useState(false)
+  const [numeroSessaoAlterado, setNumeroSessaoAlterado] = useState(false)
 
   function f(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -466,6 +473,11 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
       return
     }
     setSalvando(true)
+    const numeroSessaoParsed = parseInt(form.numeroSessao, 10)
+    const numeroSessaoPayload =
+      numeroSessaoAlterado && !isNaN(numeroSessaoParsed) && form.presenca
+        ? { numero_sessao: numeroSessaoParsed }
+        : {}
     atualizarRegistro.mutate(
       {
         id,
@@ -478,6 +490,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
           observacao: undefined,
           data_sessao: form.data,
           arquivos: arquivos,
+          ...numeroSessaoPayload,
         },
       },
       {
@@ -535,11 +548,37 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
                 Nº Sessão
-                <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>
+                {form.presenca && (
+                  <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-normal">
+                    {numeroSessaoAlterado ? '(âncora manual)' : '(automático)'}
+                  </span>
+                )}
               </label>
-              <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm text-muted-foreground select-none">
-                {registro.numero_sessao ?? <span className="text-gray-300 text-xs italic">calculado pelo backend</span>}
-              </div>
+              {form.presenca ? (
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.numeroSessao}
+                    onChange={handleNumeroSessaoChange}
+                    placeholder={registro.numero_sessao?.toString() ?? '—'}
+                    className={cn(
+                      'w-28 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
+                      numeroSessaoAlterado && 'border-amber-400 ring-1 ring-amber-400/30'
+                    )}
+                  />
+                  {numeroSessaoAlterado && (
+                    <p className="text-[11px] text-amber-600 leading-snug max-w-xs">
+                      Ao salvar, os números de todas as sessões deste paciente serão
+                      recalculados com este valor como referência.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm text-muted-foreground select-none">
+                  <span className="text-gray-300 text-xs italic">faltas não têm número</span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -774,7 +813,9 @@ function FormularioSessao({ id }: { id: string }) {
   const router = useRouter()
   const { data: agendamento } = useAgendamento(id)
   const criarRegistro = useCriarRegistro()
+  const criarRegistroGrupo = useCriarRegistroGrupo()
   const [pacienteId, setPacienteId] = useState<string>('')
+  const [presencaMap, setPresencaMap] = useState<Record<string, boolean>>({})
   const [form, setForm] = useState({
     data: hoje(),
     tipoSessao: 'Sessão',
@@ -806,6 +847,11 @@ function FormularioSessao({ id }: { id: string }) {
         data: agendamento.data ?? prev.data,
         tipoSessao: agendamento.tipo_sessao ?? prev.tipoSessao,
       }))
+      // Inicializa presença como "presente" para todos os participantes do grupo
+      // pacientes_ids já inclui o paciente principal — não duplicar
+      if (agendamento.pacientes_ids && agendamento.pacientes_ids.length > 0) {
+        setPresencaMap(Object.fromEntries(agendamento.pacientes_ids.map(pid => [pid, true])))
+      }
     })
   }, [agendamento?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -871,16 +917,53 @@ function FormularioSessao({ id }: { id: string }) {
     setArquivos(prev => prev.filter(a => a.url !== url))
   }
 
+  const isGrupo = (agendamento?.pacientes_ids?.length ?? 0) > 0
+
   function salvar() {
     if (!form.data) {
       toast.error('Data obrigatória', { description: 'Informe a data da sessão antes de salvar.' })
       return
     }
-    if (!pacienteId) {
-      toast.error('Paciente obrigatório', { description: 'Selecione o paciente antes de salvar.' })
+    setSalvando(true)
+
+    if (isGrupo && agendamento) {
+      // pacientes_ids já inclui o paciente principal — não duplicar
+      const participantesIds = agendamento.pacientes_ids ?? []
+      criarRegistroGrupo.mutate(
+        {
+          agendamento_id: id,
+          participantes: participantesIds.map(pid => ({
+            paciente_id: pid,
+            presenca: presencaMap[pid] ?? true,
+          })),
+          tipo_sessao: form.tipoSessao || undefined,
+          data_sessao: form.data,
+          conteudo_json: form.notasSessaoJson,
+          material: form.material || undefined,
+          link_youtube: form.links[0] || undefined,
+          arquivos: arquivos.length > 0 ? arquivos : undefined,
+        },
+        {
+          onSuccess: () => {
+            descartarRascunho()
+            localStorage.removeItem(chavePauta(id))
+            toast.success('Registros salvos', { description: `${participantesIds.length} registros criados com sucesso.` })
+            router.push('/dashboard/registros')
+          },
+          onError: () => {
+            toast.error('Erro ao salvar', { description: 'Não foi possível salvar os registros. Tente novamente.' })
+          },
+          onSettled: () => setSalvando(false),
+        }
+      )
       return
     }
-    setSalvando(true)
+
+    if (!pacienteId) {
+      toast.error('Paciente obrigatório', { description: 'Selecione o paciente antes de salvar.' })
+      setSalvando(false)
+      return
+    }
     criarRegistro.mutate(
       {
         paciente_id: pacienteId,
@@ -938,9 +1021,19 @@ function FormularioSessao({ id }: { id: string }) {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight">Registrar Sessão</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold tracking-tight">Registrar Sessão</h1>
+            {isGrupo && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                <Users className="h-3 w-3" />
+                Grupo
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-0.5 truncate">
-            {agendamento.paciente_nome ?? 'Documente a sessão realizada'}
+            {isGrupo && agendamento.pacientes_nomes?.length
+              ? agendamento.pacientes_nomes.join(', ')
+              : (agendamento.paciente_nome ?? 'Documente a sessão realizada')}
           </p>
         </div>
         {rascunhoRestaurado && (
@@ -959,10 +1052,14 @@ function FormularioSessao({ id }: { id: string }) {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="flex items-start gap-2">
-            <User className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
+            {isGrupo ? <Users className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" /> : <User className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />}
             <div>
-              <p className="text-[11px] text-muted-foreground">Paciente</p>
-              <p className="text-sm font-medium text-gray-800">{agendamento.paciente_nome ?? '-'}</p>
+              <p className="text-[11px] text-muted-foreground">{isGrupo ? 'Participantes' : 'Paciente'}</p>
+              <p className="text-sm font-medium text-gray-800">
+                {isGrupo && agendamento.pacientes_nomes?.length
+                  ? agendamento.pacientes_nomes.join(', ')
+                  : (agendamento.paciente_nome ?? '-')}
+              </p>
             </div>
           </div>
           <div className="flex items-start gap-2">
@@ -1004,62 +1101,111 @@ function FormularioSessao({ id }: { id: string }) {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Presença</label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => f('presenca', true)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                    form.presenca
-                      ? 'border-green-300 bg-green-50 text-green-700'
-                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-                  )}
-                >
-                  <span className={cn('h-2 w-2 rounded-full', form.presenca ? 'bg-green-500' : 'bg-gray-300')} />
-                  Presente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => f('presenca', false)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                    !form.presenca
-                      ? 'border-red-300 bg-red-50 text-red-600'
-                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-                  )}
-                >
-                  <span className={cn('h-2 w-2 rounded-full', !form.presenca ? 'bg-red-500' : 'bg-gray-300')} />
-                  Falta
-                </button>
+            {isGrupo ? (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Presença por participante</label>
+                <div className="rounded-lg border bg-muted/20 divide-y">
+                  {(agendamento.pacientes_ids ?? []).map((pid, idx) => {
+                    // pacientes_ids já inclui o paciente principal — nomes mapeados 1:1
+                    const nome = agendamento.pacientes_nomes?.[idx] ?? pid
+                    const presente = presencaMap[pid] ?? true
+                    return (
+                      <div key={pid} className="flex items-center justify-between px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium text-gray-800">{nome}</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPresencaMap(prev => ({ ...prev, [pid]: true }))}
+                            className={cn(
+                              'flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors',
+                              presente
+                                ? 'border-green-300 bg-green-50 text-green-700'
+                                : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                            )}
+                          >
+                            <span className={cn('h-1.5 w-1.5 rounded-full', presente ? 'bg-green-500' : 'bg-gray-300')} />
+                            Presente
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPresencaMap(prev => ({ ...prev, [pid]: false }))}
+                            className={cn(
+                              'flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors',
+                              !presente
+                                ? 'border-red-300 bg-red-50 text-red-600'
+                                : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                            )}
+                          >
+                            <span className={cn('h-1.5 w-1.5 rounded-full', !presente ? 'bg-red-500' : 'bg-gray-300')} />
+                            Falta
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Presença</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => f('presenca', true)}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                      form.presenca
+                        ? 'border-green-300 bg-green-50 text-green-700'
+                        : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                    )}
+                  >
+                    <span className={cn('h-2 w-2 rounded-full', form.presenca ? 'bg-green-500' : 'bg-gray-300')} />
+                    Presente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => f('presenca', false)}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                      !form.presenca
+                        ? 'border-red-300 bg-red-50 text-red-600'
+                        : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                    )}
+                  >
+                    <span className={cn('h-2 w-2 rounded-full', !form.presenca ? 'bg-red-500' : 'bg-gray-300')} />
+                    Falta
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
-              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
+              <label className={cn('text-xs font-medium', (!isGrupo && !form.presenca) ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
                 Material utilizado
               </label>
               <input
                 value={form.material}
                 onChange={e => f('material', e.target.value)}
-                disabled={!form.presenca}
+                disabled={!isGrupo && !form.presenca}
                 placeholder="Ex: Bolas, cordas e tecidos"
                 className={cn(
                   'w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
-                  !form.presenca && 'opacity-40 cursor-not-allowed'
+                  (!isGrupo && !form.presenca) && 'opacity-40 cursor-not-allowed'
                 )}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
+              <label className={cn('text-xs font-medium', (!isGrupo && !form.presenca) ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
                 Links
               </label>
               <div
                 className={cn(
                   'rounded-lg border bg-background transition-all',
-                  !form.presenca && 'opacity-40 cursor-not-allowed',
+                  (!isGrupo && !form.presenca) && 'opacity-40 cursor-not-allowed',
                 )}
               >
                 {form.links.length > 0 && (
@@ -1089,7 +1235,7 @@ function FormularioSessao({ id }: { id: string }) {
                               const updated = form.links.filter((_, idx) => idx !== i)
                               f('links', updated)
                             }}
-                            disabled={!form.presenca}
+                            disabled={!isGrupo && !form.presenca}
                             className="ml-0.5 rounded p-0.5 text-[#04c2fb]/60 hover:text-red-500 hover:bg-red-50 transition-colors"
                             title="Remover link"
                           >
@@ -1128,7 +1274,7 @@ function FormularioSessao({ id }: { id: string }) {
                       setLinkInput('')
                     }
                   }}
-                  disabled={!form.presenca}
+                  disabled={!isGrupo && !form.presenca}
                   placeholder={form.links.length > 0 ? 'Adicionar outro link...' : 'Cole ou digite um link e pressione Enter'}
                   className={cn(
                     'w-full bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50',
