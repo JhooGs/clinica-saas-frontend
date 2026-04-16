@@ -25,8 +25,8 @@ const CHANGELOG: VersionEntry[] = [
     date: '16 de abril de 2026',
     changes: [
       { category: 'Fixed', description: 'Ajustado bug que não gerava registros para pacientes que faziam parte de um grupo.'},
+      { category: 'Added', description: 'Agora é possível criar registros em grupo e ficam no histórico de cada um isoladamente.'},
       { category: 'Changed', description: 'Número da sessão agora é editável, os outros seguem a lógica a partir do número informado.'},
-
       
     ],
   },
