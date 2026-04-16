@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { useTransacoes, useCriarTransacao, useAtualizarTransacao, useExcluirTransacao } from '@/hooks/use-financeiro'
 import { usePacientes } from '@/hooks/use-pacientes'
 import type { Financeiro, FormaPagamento } from '@/types'
+import { PageLoader } from '@/components/ui/page-loader'
 
 import type { LucideIcon } from 'lucide-react'
 
@@ -1079,8 +1080,8 @@ export default function FinanceiroPage() {
             <tbody className="divide-y">
               {isLoading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-[#04c2fb]" />
+                  <td colSpan={6} className="px-4">
+                    <PageLoader compact />
                   </td>
                 </tr>
               )}

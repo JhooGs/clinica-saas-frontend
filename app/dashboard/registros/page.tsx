@@ -2,15 +2,17 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2, AlertTriangle, Paperclip } from 'lucide-react'
+import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Paperclip } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useRouter } from 'next/navigation'
+import { ModalVerRegistro } from '@/components/modal-ver-registro'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { useRegistros } from '@/hooks/use-registros'
 import { useAgendamentos } from '@/hooks/use-agenda'
 import type { Registro } from '@/types'
+import { PageLoader } from '@/components/ui/page-loader'
 
 function dataHoje(): string {
   return new Date().toISOString().slice(0, 10)
@@ -85,6 +87,7 @@ export default function RegistrosPage() {
   const [sortKey, setSortKey] = useState<SortKey>('data_sessao')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
+  const [registroModal, setRegistroModal] = useState<import('@/types').Registro | null>(null)
 
   const filtroDataInicio = filtroPeriodo?.from?.toISOString().slice(0, 10)
   const filtroDataFim = filtroPeriodo?.to?.toISOString().slice(0, 10)
@@ -310,11 +313,8 @@ export default function RegistrosPage() {
             <tbody className="divide-y">
               {isLoading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-6 w-6 animate-spin text-[#04c2fb]" />
-                      <p className="text-sm text-muted-foreground">Carregando registros...</p>
-                    </div>
+                  <td colSpan={7} className="px-4">
+                    <PageLoader compact />
                   </td>
                 </tr>
               )}
@@ -338,7 +338,7 @@ export default function RegistrosPage() {
                   <Fragment key={r.id}>
                     <tr
                       className="hover:bg-muted/20 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/dashboard/registros/${r.id}`)}
+                      onClick={() => setRegistroModal(r)}
                     >
                       {/* Paciente */}
                       <td className="px-4 py-3">
@@ -558,7 +558,7 @@ export default function RegistrosPage() {
         </div>
       </div>
 
-      {/* Lightbox de imagem */}
+      {/* Lightbox de imagem (linhas expandidas inline) */}
       <Dialog open={!!imagemLightboxUrl} onOpenChange={() => setImagemLightboxUrl(null)}>
         <DialogContent className="max-w-3xl p-2 bg-black/90 border-0">
           <VisuallyHidden>
@@ -574,6 +574,12 @@ export default function RegistrosPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de visualização de registro */}
+      <ModalVerRegistro
+        registro={registroModal}
+        onClose={() => setRegistroModal(null)}
+      />
     </div>
   )
 }

@@ -8,7 +8,7 @@ import {
   Pencil, Save, Hash, Activity,
   ChevronDown, ChevronUp, FileText, ExternalLink, CreditCard,
   Package, CalendarDays, Check, Ban, Receipt, Repeat2,
-  Clock, X, Sparkles, PowerOff, CalendarRange, Loader2, Filter,
+  Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
   Paperclip,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -28,6 +28,8 @@ import { toast } from 'sonner'
 import type { Pacote, TipoSessao } from '@/lib/types/planos'
 import { useRegistros } from '@/hooks/use-registros'
 import type { Registro, Agendamento } from '@/types'
+import { PageLoader } from '@/components/ui/page-loader'
+import { ModalVerRegistro } from '@/components/modal-ver-registro'
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -1150,6 +1152,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
 
   const [expandidoSessaoId, setExpandidoSessaoId] = useState<string | null>(null)
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
+  const [registroModal, setRegistroModal] = useState<Registro | null>(null)
 
   function toggleSessao(id: string) {
     setExpandidoSessaoId(prev => (prev === id ? null : id))
@@ -1614,6 +1617,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground w-10">Nº</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Data</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Tipo</th>
@@ -1653,21 +1657,28 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                     return { cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', label: 'Pendente' }
                   })()
 
-                  const destino = reg
-                    ? `/dashboard/registros/${reg.id}`
-                    : (ehPassado && !ehCancelado ? `/dashboard/registros/${ag.id}` : null)
+                  const destinoNovo = !reg && ehPassado && !ehCancelado
+                    ? `/dashboard/registros/${ag.id}`
+                    : null
+                  const clicavel = !!reg || !!destinoNovo
 
                   return (
                     <Fragment key={ag.id}>
                       <tr
                         className={cn(
                           'transition-colors',
-                          ehCancelado ? 'opacity-50' : destino ? 'hover:bg-muted/20 cursor-pointer' : 'hover:bg-muted/20',
+                          ehCancelado ? 'opacity-50' : clicavel ? 'hover:bg-muted/20 cursor-pointer' : 'hover:bg-muted/20',
                         )}
-                        onClick={destino ? () => router.push(destino) : undefined}
+                        onClick={reg ? () => setRegistroModal(reg) : (destinoNovo ? () => router.push(destinoNovo) : undefined)}
                       >
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                          {reg?.numero_sessao != null
+                            ? <span className="font-semibold text-foreground">#{reg.numero_sessao}</span>
+                            : <span className="text-muted-foreground/40">—</span>
+                          }
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          <span>{isoToBR(ag.data)}</span>
+                          <span>{isoToBR(reg?.data_sessao ?? ag.data)}</span>
                           <span className="ml-1.5 text-[11px] text-muted-foreground/70">{ag.horario}</span>
                           {temNotas && (
                             <div className="flex items-start gap-1 mt-1 md:hidden">
@@ -1740,7 +1751,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                       {/* Painel expandido */}
                       {temNotas && (
                         <tr className={aberto ? '' : 'hidden'}>
-                          <td colSpan={7} className="px-0 py-0">
+                          <td colSpan={8} className="px-0 py-0">
                             <div
                               className={cn(
                                 'grid transition-all duration-200',
@@ -1868,7 +1879,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         </div>
       </div>
 
-      {/* Lightbox de imagem */}
+      {/* Lightbox de imagem (painéis expandidos inline) */}
       <Dialog open={!!imagemLightboxUrl} onOpenChange={() => setImagemLightboxUrl(null)}>
         <DialogContent className="max-w-3xl p-2 bg-black/90 border-0">
           <VisuallyHidden>
@@ -1884,6 +1895,12 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de visualização de registro */}
+      <ModalVerRegistro
+        registro={registroModal}
+        onClose={() => setRegistroModal(null)}
+      />
     </div>
   )
 }
@@ -1898,12 +1915,7 @@ export default function PacienteDetalhePage() {
   const { data: apiPaciente, isLoading, isError } = usePaciente(id)
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground max-w-7xl mx-auto">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        <span className="text-sm">Carregando paciente...</span>
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (isError || !apiPaciente) {

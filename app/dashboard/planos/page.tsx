@@ -13,6 +13,7 @@ import {
   useTiposSessao, useCriarTipoSessao, useAtualizarTipoSessao, useExcluirTipoSessao,
   usePacotes, useCriarPacote, useAtualizarPacote, useExcluirPacote,
 } from '@/hooks/use-planos'
+import { PageLoader } from '@/components/ui/page-loader'
 
 type TabId = 'tipos' | 'pacotes'
 
@@ -800,6 +801,8 @@ export default function PlanosPage() {
     { id: 'tipos', label: 'Tipos de Atendimento', icon: Tag },
     { id: 'pacotes', label: 'Pacotes', icon: Package },
   ]
+
+  if (loadingTipos || loadingPacotes) return <PageLoader />
 
   return (
     <div className="space-y-6 sm:space-y-7">

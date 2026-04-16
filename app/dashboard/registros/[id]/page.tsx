@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, Suspense, startTransition } from 'react'
+import { useState, useEffect, useRef, Suspense, startTransition } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, User, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Loader2, Pencil } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, User, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Pencil } from 'lucide-react'
 import { cn, hoje, tiptapToHtml } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
@@ -15,8 +15,8 @@ import { chavePauta } from '@/components/modal-pauta'
 import { TIPOS_SESSAO } from '@/lib/tipos-sessao'
 import { useRegistro, useAtualizarRegistro, useCriarRegistro } from '@/hooks/use-registros'
 import { useAgendamento } from '@/hooks/use-agenda'
-import { usePacientes } from '@/hooks/use-pacientes'
 import type { Registro } from '@/types'
+import { PageLoader } from '@/components/ui/page-loader'
 
 // ---------------------------------------------------------------------------
 // Dropdown elegante de tipo de sessão
@@ -268,7 +268,7 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
             <p className="text-[11px] text-muted-foreground mb-1">Valor</p>
             {registro.valor_sessao != null ? (
               <p className="text-sm font-semibold text-gray-800">
-                {registro.valor_sessao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {Number(registro.valor_sessao).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
             ) : (
               <span className="inline-flex items-center rounded-full bg-gray-50 border border-gray-200 px-2 py-0.5 text-[11px] text-muted-foreground">
@@ -392,6 +392,34 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
     links: registro.link_youtube ? [registro.link_youtube] : [],
     notasSessaoJson: registro.conteudo_json,
   })
+  // Exibe o valor formatado em BRL (ex: "120,00") mas mantém form.valorSessao como string
+  // numérica com ponto decimal para parseFloat no submit (ex: "120.00")
+  const [valorDisplay, setValorDisplay] = useState<string>(() => {
+    const n = parseFloat(registro.valor_sessao?.toString() ?? '')
+    return isNaN(n) ? '' : n.toFixed(2).replace('.', ',')
+  })
+
+  function handleValorChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value
+    // Permite dígitos, vírgula e ponto; descarta todo o resto
+    const limpo = raw.replace(/[^\d,.]/g, '')
+    setValorDisplay(limpo)
+    // Converte para ponto decimal para que parseFloat no submit funcione
+    const numerico = limpo.replace(',', '.')
+    f('valorSessao', numerico)
+  }
+
+  function handleValorBlur() {
+    const n = parseFloat(form.valorSessao.replace(',', '.'))
+    if (!isNaN(n)) {
+      const formatado = n.toFixed(2).replace('.', ',')
+      setValorDisplay(formatado)
+      f('valorSessao', n.toFixed(2))
+    } else {
+      setValorDisplay('')
+    }
+  }
+
   const [linkInput, setLinkInput] = useState('')
   const [arquivos, setArquivos] = useState<UploadedFile[]>((registro.arquivos ?? []) as UploadedFile[])
   const [salvando, setSalvando] = useState(false)
@@ -418,19 +446,19 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
     router.push('/dashboard/registros')
   }
 
-  const handleUploadArquivo = useCallback(async (file: File): Promise<UploadedFile> => {
+  async function handleUploadArquivo(file: File): Promise<UploadedFile> {
     const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
     const uploaded = await fn(file, id)
     setArquivos(prev => [...prev, uploaded])
     setTemAlteracoes(true)
     return uploaded
-  }, [id])
+  }
 
-  const handleRemoverArquivo = useCallback(async (url: string) => {
+  async function handleRemoverArquivo(url: string) {
     await removerArquivo(url)
     setArquivos(prev => prev.filter(a => a.url !== url))
     setTemAlteracoes(true)
-  }, [])
+  }
 
   async function salvar() {
     if (!form.data) {
@@ -516,33 +544,21 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Presença</label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => f('presenca', true)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                    form.presenca
-                      ? 'border-green-300 bg-green-50 text-green-700'
-                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-                  )}
-                >
-                  <span className={cn('h-2 w-2 rounded-full', form.presenca ? 'bg-green-500' : 'bg-gray-300')} />
-                  Presente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => f('presenca', false)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                    !form.presenca
-                      ? 'border-red-300 bg-red-50 text-red-600'
-                      : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-                  )}
-                >
-                  <span className={cn('h-2 w-2 rounded-full', !form.presenca ? 'bg-red-500' : 'bg-gray-300')} />
-                  Falta
-                </button>
+              <div className="flex items-center gap-3">
+                <span className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium border',
+                  form.presenca
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-600',
+                )}>
+                  {form.presenca
+                    ? <><CheckCircle2 className="h-3.5 w-3.5" /> Presente</>
+                    : <><XCircle className="h-3.5 w-3.5" /> Falta</>
+                  }
+                </span>
+                <span className="text-[11px] text-muted-foreground/60 italic">
+                  Definido no registro original e não pode ser alterado.
+                </span>
               </div>
             </div>
 
@@ -555,7 +571,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
                 <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
                   <span className="text-gray-600">
                     {registro.valor_sessao != null
-                      ? registro.valor_sessao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                      ? Number(registro.valor_sessao).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                       : <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
                     }
                   </span>
@@ -565,11 +581,11 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
                   <div className="relative max-w-[180px]">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">R$</span>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.valorSessao}
-                      onChange={e => f('valorSessao', e.target.value)}
+                      type="text"
+                      inputMode="decimal"
+                      value={valorDisplay}
+                      onChange={handleValorChange}
+                      onBlur={handleValorBlur}
                       placeholder="0,00"
                       className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
                     />
@@ -758,8 +774,6 @@ function FormularioSessao({ id }: { id: string }) {
   const router = useRouter()
   const { data: agendamento } = useAgendamento(id)
   const criarRegistro = useCriarRegistro()
-  const { data: pacientesData } = usePacientes({ page_size: 200 })
-
   const [pacienteId, setPacienteId] = useState<string>('')
   const [form, setForm] = useState({
     data: hoje(),
@@ -845,17 +859,17 @@ function FormularioSessao({ id }: { id: string }) {
     router.push('/dashboard/registros')
   }
 
-  const handleUploadArquivo = useCallback(async (file: File): Promise<UploadedFile> => {
+  async function handleUploadArquivo(file: File): Promise<UploadedFile> {
     const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
     const uploaded = await fn(file, id)
     setArquivos(prev => [...prev, uploaded])
     return uploaded
-  }, [id])
+  }
 
-  const handleRemoverArquivo = useCallback(async (url: string) => {
+  async function handleRemoverArquivo(url: string) {
     await removerArquivo(url)
     setArquivos(prev => prev.filter(a => a.url !== url))
-  }, [])
+  }
 
   function salvar() {
     if (!form.data) {
@@ -971,23 +985,6 @@ function FormularioSessao({ id }: { id: string }) {
       {/* Formulário */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="p-4 sm:p-6 space-y-5">
-
-            {/* Seletor de paciente — necessário quando não há agendamento real vinculado */}
-            {!agendamento && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Paciente *</label>
-                <select
-                  value={pacienteId}
-                  onChange={e => setPacienteId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
-                >
-                  <option value="">Selecione o paciente</option>
-                  {(pacientesData?.items ?? []).map(p => (
-                    <option key={p.id} value={p.id}>{p.nome}</option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -1260,13 +1257,7 @@ function RegistrarSessaoContent() {
 
   const { data: registro, isLoading, isError } = useRegistro(id)
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-[#04c2fb]" />
-      </div>
-    )
-  }
+  if (isLoading) return <PageLoader />
 
   if (registro && editar) {
     return <RegistroEditMode id={id} registro={registro} />

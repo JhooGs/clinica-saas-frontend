@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import type { Usuario, Role, Permissoes } from '@/types'
+import { PageLoader } from '@/components/ui/page-loader'
 
 const MODULOS: { key: keyof Permissoes; label: string }[] = [
   { key: 'pacientes', label: 'Pacientes' },
@@ -297,11 +298,7 @@ export default function UsuariosPage() {
   })
 
   if (permLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[#04c2fb]" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   if (!isSuperAdmin && !isAdmin) {
@@ -350,8 +347,8 @@ export default function UsuariosPage() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="px-4 py-12 text-center">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-[#04c2fb]" />
+                  <TableCell colSpan={5} className="px-4">
+                    <PageLoader compact />
                   </TableCell>
                 </TableRow>
               )}

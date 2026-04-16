@@ -21,6 +21,19 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.1.8',
+    date: '15 de abril de 2026',
+    changes: [
+      { category: 'Added', description: 'Agora páginas que ficam carregando mostra a logo da Clinitra'},
+      { category: 'Changed', description: 'Agora não é possível alterar presença na edição de um registro.'},
+      { category: 'Changed', description: 'Agora os registros abrem em modo janela oa invés de uma nova página.'},
+      { category: 'Changed', description: 'Agora o número da sessão do paciente é feita por ordem cronológica da sessão, antes era por ordem de entrada na plataforma.'},
+      
+
+      
+    ],
+  },
+  {
     version: 'v0.1.7',
     date: '14 de abril de 2026',
     changes: [

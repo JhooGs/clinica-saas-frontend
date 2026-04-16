@@ -12,6 +12,7 @@ import { ModalPortal } from '@/components/modal-portal'
 import { DatePicker } from '@/components/ui/date-picker'
 import { BirthdatePicker } from '@/components/ui/birthdate-picker'
 import { toast } from 'sonner'
+import { PageLoader } from '@/components/ui/page-loader'
 
 type Paciente = {
   id: string  // UUID
@@ -730,11 +731,8 @@ export default function PacientesPage() {
             <tbody className="divide-y">
               {isLoading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center">
-                    <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Carregando pacientes...</span>
-                    </div>
+                  <td colSpan={6} className="px-4">
+                    <PageLoader compact />
                   </td>
                 </tr>
               )}

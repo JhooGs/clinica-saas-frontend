@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useMemo, useEffect, startTransition } from 'react'
-import { Clock, User, AlertTriangle, FileText, X, CheckCircle2, NotebookPen, Loader2 } from 'lucide-react'
+import { Clock, User, AlertTriangle, FileText, X, CheckCircle2, NotebookPen } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
 import { useAgendamentosHoje, useAgendamentos } from '@/hooks/use-agenda'
 import type { Agendamento } from '@/types'
+import { PageLoader } from '@/components/ui/page-loader'
 
 // ---------------------------------------------------------------------------
 // Tipos locais
@@ -233,10 +234,7 @@ function TarefasPendentes({ pendentes, loading }: { pendentes: RelatorioPendente
           <FileText className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-semibold">Tarefas pendentes</span>
         </div>
-        <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm">Carregando...</span>
-        </div>
+        <PageLoader compact />
       </div>
     )
   }
