@@ -117,3 +117,15 @@ export function useAtualizarRegistro() {
     },
   })
 }
+
+export function useExcluirRegistro() {
+  const queryClient = useQueryClient()
+  return useMutation<void, Error, string>({
+    mutationFn: (id) =>
+      apiFetch<void>(`/api/v1/registros/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['registros'] })
+      queryClient.invalidateQueries({ queryKey: ['agenda'] })
+    },
+  })
+}

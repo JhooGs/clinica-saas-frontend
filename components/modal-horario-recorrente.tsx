@@ -333,6 +333,7 @@ export function ModalHorarioRecorrente({
     data: string; horario: string
     tipo: 'bloqueante' | 'aviso' | 'mesmo-paciente'
     // aviso = grupo+grupo; mesmo-paciente = é o próprio horário antigo do paciente
+    pacienteConflito: string  // nome(s) do paciente que já ocupa o horário
   }
 
   const conflitos = useMemo((): ConflitoCandidato[] => {
@@ -343,12 +344,15 @@ export function ModalHorarioRecorrente({
         { horario: o.horario, horarioFim: o.horarioFim },
       ))
       if (!colisao) return []
+      const nomesColisao = colisao.pacientes && colisao.pacientes.length > 1
+        ? colisao.pacientes.join(', ')
+        : colisao.paciente
       // Colisão com o próprio agendamento do paciente que está sendo reconfigurado
       if (pacienteId && colisao.paciente_id === pacienteId) {
-        return [{ data: cand.data, horario: cand.horario, tipo: 'mesmo-paciente' as const }]
+        return [{ data: cand.data, horario: cand.horario, tipo: 'mesmo-paciente' as const, pacienteConflito: nomesColisao }]
       }
       const tipo: ConflitoCandidato['tipo'] = sessoEmGrupo && colisao.ehGrupo ? 'aviso' : 'bloqueante'
-      return [{ data: cand.data, horario: cand.horario, tipo }]
+      return [{ data: cand.data, horario: cand.horario, tipo, pacienteConflito: nomesColisao }]
     })
   }, [sessoesCandidatas, ocupadosPorData, sessoEmGrupo, pacienteId])
 
@@ -788,24 +792,36 @@ export function ModalHorarioRecorrente({
                     {conflitos.some(c => c.tipo === 'bloqueante') && (
                       <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
                         <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <div>
+                        <div className="space-y-1">
                           <p className="text-sm font-semibold text-red-700">Conflito de horário</p>
-                          <p className="text-xs text-red-600 mt-0.5">
-                            {conflitos.filter(c => c.tipo === 'bloqueante').length} horário(s) já ocupado(s)
-                            por sessões individuais. Ajuste o dia ou hora antes de confirmar.
-                          </p>
+                          {conflitos.filter(c => c.tipo === 'bloqueante').map((c, idx) => (
+                            <p key={idx} className="text-xs text-red-600">
+                              <span className="font-medium">{c.data.split('-').reverse().join('/')}</span>
+                              {' às '}
+                              <span className="font-medium">{c.horario}</span>
+                              {' — '}
+                              <span>{c.pacienteConflito}</span>
+                            </p>
+                          ))}
+                          <p className="text-xs text-red-500 mt-1">Ajuste o dia ou hora antes de confirmar.</p>
                         </div>
                       </div>
                     )}
                     {conflitos.some(c => c.tipo === 'aviso') && (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
                         <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-semibold text-amber-700">Aviso de sobreposição com grupo</p>
-                          <p className="text-xs text-amber-600 mt-0.5">
-                            {conflitos.filter(c => c.tipo === 'aviso').length} horário(s) coincidem com outro
-                            grupo existente. O agendamento será salvo. Verifique a composição do grupo.
-                          </p>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-amber-700">Sobreposição com grupo</p>
+                          {conflitos.filter(c => c.tipo === 'aviso').map((c, idx) => (
+                            <p key={idx} className="text-xs text-amber-600">
+                              <span className="font-medium">{c.data.split('-').reverse().join('/')}</span>
+                              {' às '}
+                              <span className="font-medium">{c.horario}</span>
+                              {' — '}
+                              <span>{c.pacienteConflito}</span>
+                            </p>
+                          ))}
+                          <p className="text-xs text-amber-500 mt-1">O agendamento será salvo. Verifique a composição do grupo.</p>
                         </div>
                       </div>
                     )}

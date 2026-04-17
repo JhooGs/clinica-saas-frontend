@@ -65,6 +65,7 @@ export interface Financeiro {
   forma_pagamento?: FormaPagamento
   criado_em: string
   paciente_nome?: string
+  origem_cobranca?: 'pacote' | 'avulso' | 'mensalidade' | 'falta' | 'gratuito'
 }
 
 export interface FinanceiroResumo {

@@ -26,8 +26,12 @@ const CHANGELOG: VersionEntry[] = [
     changes: [
       { category: 'Fixed', description: 'Ajustado fuso horário, algumas funções exibiam horários incorretos.'},
       { category: 'Fixed', description: 'Ajustado bug que não editava participantes depois de um agendamento feito.'},
-      { category: 'Changed', description: 'Agenda foi alterada para mostrar o dia atual antes, retrair dias passados e visual da semana melhorado.'},
+      { category: 'Changed', description: 'Refatorado tabela de histórico do paciente.'},
       { category: 'Changed', description: 'Agora editar um registro não permite editar a Data da sessão e nem seu tipo.'},
+      { category: 'Changed', description: 'Refeito lógica de descições do financeiro.'},
+      { category: 'Changed', description: 'Sessões em grupo agora são registradas juntas, mas as faltas não recebem registro.'},
+      { category: 'Changed', description: 'Agenda foi alterada para mostrar o dia atual antes, retrair dias passados e visual da semana melhorado.'},
+      
       
     ],
   },
@@ -145,7 +149,7 @@ export function VersionBadge() {
             {latest.version}
           </button>
         </PopoverTrigger>
-        <PopoverContent side="top" align="end" className="w-160 p-0 overflow-hidden">
+        <PopoverContent side="top" align="end" className="w-[calc(100vw-2rem)] sm:w-160 p-0 overflow-hidden">
           <div className="px-4 py-3 border-b">
             <p className="text-sm font-semibold text-foreground">
               Histórico de versões

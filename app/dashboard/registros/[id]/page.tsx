@@ -13,7 +13,7 @@ import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ConfirmDelete } from '@/components/confirm-delete'
 import { chavePauta } from '@/components/modal-pauta'
 import { TIPOS_SESSAO } from '@/lib/tipos-sessao'
-import { useRegistro, useAtualizarRegistro, useCriarRegistro, useCriarRegistroGrupo } from '@/hooks/use-registros'
+import { useRegistro, useAtualizarRegistro, useCriarRegistro, useCriarRegistroGrupo, useExcluirRegistro } from '@/hooks/use-registros'
 import { useAgendamento } from '@/hooks/use-agenda'
 import type { Registro } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
@@ -381,6 +381,7 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
 function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) {
   const router = useRouter()
   const atualizarRegistro = useAtualizarRegistro()
+  const excluirRegistro = useExcluirRegistro()
 
   const [form, setForm] = useState({
     data: registro.data_sessao ?? hoje(),
@@ -419,10 +420,14 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
     }
   }
 
-  function executarDelete() {
-    // TODO: chamada real à API para deletar
-    toast.success('Registro deletado', { description: 'O registro foi removido permanentemente.' })
-    router.push('/dashboard/registros')
+  async function executarDelete() {
+    try {
+      await excluirRegistro.mutateAsync(id)
+      toast.success('Registro excluído', { description: 'O registro foi removido permanentemente.' })
+      router.push('/dashboard/registros')
+    } catch {
+      toast.error('Erro ao excluir', { description: 'Tente novamente.' })
+    }
   }
 
   async function handleUploadArquivo(file: File): Promise<UploadedFile> {
@@ -468,7 +473,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
       {
         onSuccess: () => {
           toast.success('Registro atualizado', { description: 'As alterações foram salvas com sucesso.' })
-          router.push('/dashboard/registros')
+          router.back()
         },
         onError: () => {
           toast.error('Erro ao salvar', { description: 'Não foi possível salvar as alterações. Tente novamente.' })
@@ -730,6 +735,9 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
         <ConfirmDelete
           onConfirmar={executarDelete}
           onCancelar={() => setConfirmarDeletar(false)}
+          titulo="Excluir este registro?"
+          descricao="Esta ação é permanente e causa dois efeitos: (1) a transação financeira vinculada será excluída; (2) os números de sessão dos registros seguintes serão recalculados."
+          textoBotaoConfirmar="Excluir registro"
         />
       )}
 
@@ -748,6 +756,7 @@ function FormularioSessao({ id }: { id: string }) {
   const criarRegistroGrupo = useCriarRegistroGrupo()
   const [pacienteId, setPacienteId] = useState<string>('')
   const [presencaMap, setPresencaMap] = useState<Record<string, boolean>>({})
+  const [valorFaltaGrupoMap, setValorFaltaGrupoMap] = useState<Record<string, string>>({})
   const [form, setForm] = useState({
     data: hoje(),
     tipoSessao: 'Sessão',
@@ -864,10 +873,17 @@ function FormularioSessao({ id }: { id: string }) {
       criarRegistroGrupo.mutate(
         {
           agendamento_id: id,
-          participantes: participantesIds.map(pid => ({
-            paciente_id: pid,
-            presenca: presencaMap[pid] ?? true,
-          })),
+          participantes: participantesIds.map(pid => {
+            const presente = presencaMap[pid] ?? true
+            const valorFalta = valorFaltaGrupoMap[pid]
+            return {
+              paciente_id: pid,
+              presenca: presente,
+              ...((!presente && valorFalta !== undefined)
+                ? { valor_sessao: parseFloat(valorFalta) || 0 }
+                : {}),
+            }
+          }),
           tipo_sessao: form.tipoSessao || undefined,
           data_sessao: form.data,
           conteudo_json: form.notasSessaoJson,
@@ -1042,39 +1058,63 @@ function FormularioSessao({ id }: { id: string }) {
                     const nome = agendamento.pacientes_nomes?.[idx] ?? pid
                     const presente = presencaMap[pid] ?? true
                     return (
-                      <div key={pid} className="flex items-center justify-between px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-sm font-medium text-gray-800">{nome}</span>
+                      <div key={pid} className="px-4 py-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium text-gray-800">{nome}</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPresencaMap(prev => ({ ...prev, [pid]: true }))
+                                setValorFaltaGrupoMap(prev => { const n = { ...prev }; delete n[pid]; return n })
+                              }}
+                              className={cn(
+                                'flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors',
+                                presente
+                                  ? 'border-green-300 bg-green-50 text-green-700'
+                                  : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                              )}
+                            >
+                              <span className={cn('h-1.5 w-1.5 rounded-full', presente ? 'bg-green-500' : 'bg-gray-300')} />
+                              Presente
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPresencaMap(prev => ({ ...prev, [pid]: false }))
+                                if (presente) setValorFaltaGrupoMap(prev => ({ ...prev, [pid]: '0' }))
+                              }}
+                              className={cn(
+                                'flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors',
+                                !presente
+                                  ? 'border-red-300 bg-red-50 text-red-600'
+                                  : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
+                              )}
+                            >
+                              <span className={cn('h-1.5 w-1.5 rounded-full', !presente ? 'bg-red-500' : 'bg-gray-300')} />
+                              Falta
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setPresencaMap(prev => ({ ...prev, [pid]: true }))}
-                            className={cn(
-                              'flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors',
-                              presente
-                                ? 'border-green-300 bg-green-50 text-green-700'
-                                : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-                            )}
-                          >
-                            <span className={cn('h-1.5 w-1.5 rounded-full', presente ? 'bg-green-500' : 'bg-gray-300')} />
-                            Presente
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPresencaMap(prev => ({ ...prev, [pid]: false }))}
-                            className={cn(
-                              'flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors',
-                              !presente
-                                ? 'border-red-300 bg-red-50 text-red-600'
-                                : 'border-gray-200 bg-background text-muted-foreground hover:bg-muted/50'
-                            )}
-                          >
-                            <span className={cn('h-1.5 w-1.5 rounded-full', !presente ? 'bg-red-500' : 'bg-gray-300')} />
-                            Falta
-                          </button>
-                        </div>
+                        {!presente && (
+                          <div className="flex items-center gap-2 pl-5">
+                            <label className="text-xs text-muted-foreground shrink-0">Cobrar falta</label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={valorFaltaGrupoMap[pid] ?? '0'}
+                                onChange={e => setValorFaltaGrupoMap(prev => ({ ...prev, [pid]: e.target.value }))}
+                                className="w-28 rounded-md border bg-background pl-8 pr-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -1086,7 +1126,7 @@ function FormularioSessao({ id }: { id: string }) {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => f('presenca', true)}
+                    onClick={() => { f('presenca', true); f('valorSessao', '') }}
                     className={cn(
                       'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
                       form.presenca
@@ -1099,7 +1139,7 @@ function FormularioSessao({ id }: { id: string }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => f('presenca', false)}
+                    onClick={() => { f('presenca', false); if (form.presenca) f('valorSessao', '0') }}
                     className={cn(
                       'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
                       !form.presenca
@@ -1111,6 +1151,25 @@ function FormularioSessao({ id }: { id: string }) {
                     Falta
                   </button>
                 </div>
+
+                {!form.presenca && (
+                  <div className="mt-3 flex items-end gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Cobrar</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={form.valorSessao}
+                          onChange={e => f('valorSessao', e.target.value)}
+                          className="w-36 rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1221,7 +1280,10 @@ function FormularioSessao({ id }: { id: string }) {
 
             {/* Pauta pré-sessão */}
             {pauta && (
-              <div className="rounded-xl border border-[#04c2fb]/25 bg-gradient-to-b from-[#04c2fb]/[0.06] to-[#04c2fb]/[0.02] overflow-hidden">
+              <div className={cn(
+                'rounded-xl border border-[#04c2fb]/25 bg-gradient-to-b from-[#04c2fb]/[0.06] to-[#04c2fb]/[0.02] overflow-hidden',
+                (!isGrupo && !form.presenca) && 'opacity-40 pointer-events-none',
+              )}>
                 <button
                   type="button"
                   onClick={() => setPautaVisivel(v => !v)}
@@ -1260,7 +1322,9 @@ function FormularioSessao({ id }: { id: string }) {
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Notas da sessão</label>
+              <label className={cn('text-xs font-medium', (!isGrupo && !form.presenca) ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
+                Notas da sessão
+              </label>
               <RichEditor
                 key={rascunhoRestaurado ? `draft-${id}` : `new-${id}`}
                 value={form.notasSessaoJson}
@@ -1269,6 +1333,7 @@ function FormularioSessao({ id }: { id: string }) {
                 onUploadFile={handleUploadArquivo}
                 uploadedFiles={arquivos}
                 onRemoveFile={handleRemoverArquivo}
+                disabled={!isGrupo && !form.presenca}
               />
             </div>
 
@@ -1316,6 +1381,9 @@ function FormularioSessao({ id }: { id: string }) {
         <ConfirmDelete
           onConfirmar={executarDelete}
           onCancelar={() => setConfirmarDeletar(false)}
+          titulo="Excluir este registro?"
+          descricao="Esta ação é permanente e causa dois efeitos: (1) a transação financeira vinculada será excluída; (2) os números de sessão dos registros seguintes serão recalculados."
+          textoBotaoConfirmar="Excluir registro"
         />
       )}
 

@@ -10,6 +10,7 @@ import type { Registro } from '@/types'
 
 interface ModalVerRegistroProps {
   registro: Registro | null
+  horario?: string | null
   onClose: () => void
 }
 
@@ -26,7 +27,7 @@ function formatBRL(valor: number | string | null | undefined): string {
   return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export function ModalVerRegistro({ registro, onClose }: ModalVerRegistroProps) {
+export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistroProps) {
   const router = useRouter()
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
 
@@ -59,6 +60,9 @@ export function ModalVerRegistro({ registro, onClose }: ModalVerRegistroProps) {
                   )}
                   <h2 className="text-base font-semibold text-gray-900 leading-tight">
                     Sessão de {formatDataBR(registro.data_sessao)}
+                    {horario && (
+                      <span className="ml-1.5 text-sm font-normal text-muted-foreground">às {horario}</span>
+                    )}
                   </h2>
                 </div>
 
@@ -200,7 +204,7 @@ export function ModalVerRegistro({ registro, onClose }: ModalVerRegistroProps) {
               )}
 
               {/* Rodapé com botão Editar */}
-              <div className="flex items-center justify-end px-6 py-4 border-t border-gray-100">
+              <div className={cn("flex items-center justify-end px-6 py-4", registro.presenca && "border-t border-gray-100")}>
                 <button
                   onClick={abrirEditor}
                   title="Abrir editor completo"

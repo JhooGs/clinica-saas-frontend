@@ -6,10 +6,11 @@ import { usePaciente, useAtualizarPaciente } from '@/hooks/use-pacientes'
 import {
   ArrowLeft, User, CheckCircle2, XCircle,
   Pencil, Save, Hash, Activity,
-  ChevronDown, ChevronUp, FileText, ExternalLink, CreditCard,
+  FileText, ExternalLink, CreditCard,
   Package, CalendarDays, Check, Ban, Receipt, Repeat2,
   Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
-  Paperclip,
+  Paperclip, BookOpen, Image as ImageIcon,
+  ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
@@ -238,6 +239,16 @@ function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
 
 
 /* ── Info Item (view mode) ────────────────────────── */
+
+type SortKeyHist = 'data' | 'tipo_sessao' | 'status' | 'numero_sessao' | 'valor'
+type SortDirHist = 'asc' | 'desc'
+
+function SortIconHist({ col, sk, sd }: { col: SortKeyHist; sk: SortKeyHist; sd: SortDirHist }) {
+  if (sk !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
+  return sd === 'asc'
+    ? <ArrowUp className="h-3 w-3 text-[#04c2fb]" />
+    : <ArrowDown className="h-3 w-3 text-[#04c2fb]" />
+}
 
 function InfoItem({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
@@ -1153,6 +1164,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const [expandidoSessaoId, setExpandidoSessaoId] = useState<string | null>(null)
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
   const [registroModal, setRegistroModal] = useState<Registro | null>(null)
+  const [horarioModal, setHorarioModal] = useState<string | null>(null)
 
   function toggleSessao(id: string) {
     setExpandidoSessaoId(prev => (prev === id ? null : id))
@@ -1176,6 +1188,17 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     return FILTRO_PADRAO
   })
   const [filtroAberto, setFiltroAberto] = useState(false)
+  const [sortKeyHist, setSortKeyHist] = useState<SortKeyHist>('data')
+  const [sortDirHist, setSortDirHist] = useState<SortDirHist>('desc')
+
+  function handleSortHist(key: SortKeyHist) {
+    if (sortKeyHist === key) {
+      setSortDirHist(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKeyHist(key)
+      setSortDirHist('desc')
+    }
+  }
 
   function toggleFiltroStatus(s: StatusHist) {
     setFiltrosStatus(prev => {
@@ -1617,19 +1640,49 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground w-10">Nº</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Data</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Tipo</th>
-                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Material</th>
-                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Notas</th>
-                <th className="px-4 py-3 w-28" />
+                <th onClick={() => handleSortHist('numero_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-10">
+                  <span className="inline-flex items-center gap-1.5">Nº <SortIconHist col="numero_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
+                </th>
+                <th onClick={() => handleSortHist('data')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Data <SortIconHist col="data" sk={sortKeyHist} sd={sortDirHist} /></span>
+                </th>
+                <th onClick={() => handleSortHist('status')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Status <SortIconHist col="status" sk={sortKeyHist} sd={sortDirHist} /></span>
+                </th>
+                <th onClick={() => handleSortHist('tipo_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5">Tipo <SortIconHist col="tipo_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
+                </th>
+                <th onClick={() => handleSortHist('valor')} className="hidden md:table-cell px-4 py-3 text-right text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                  <span className="inline-flex items-center gap-1.5 justify-end">Valor <SortIconHist col="valor" sk={sortKeyHist} sd={sortDirHist} /></span>
+                </th>
                 <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
             <tbody className="divide-y">
               {[...agendamentosFiltrados]
-                .sort((a, b) => b.data.localeCompare(a.data) || b.horario.localeCompare(a.horario))
+                .sort((a, b) => {
+                  const regA = registroByAgendamentoId.get(a.id) ?? registroByData.get(a.data)
+                  const regB = registroByAgendamentoId.get(b.id) ?? registroByData.get(b.data)
+                  let cmp = 0
+                  switch (sortKeyHist) {
+                    case 'data':
+                      cmp = a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario)
+                      break
+                    case 'tipo_sessao':
+                      cmp = (a.tipo_sessao ?? '').localeCompare(b.tipo_sessao ?? '', 'pt-BR')
+                      break
+                    case 'status':
+                      cmp = resolverStatusHist(a).localeCompare(resolverStatusHist(b), 'pt-BR')
+                      break
+                    case 'numero_sessao':
+                      cmp = (regA?.numero_sessao ?? -1) - (regB?.numero_sessao ?? -1)
+                      break
+                    case 'valor':
+                      cmp = (Number(regA?.valor_sessao) || -1) - (Number(regB?.valor_sessao) || -1)
+                      break
+                  }
+                  return sortDirHist === 'asc' ? cmp : -cmp
+                })
                 .map(ag => {
                   const reg = registroByAgendamentoId.get(ag.id) ?? registroByData.get(ag.data)
                   const textoPreview = reg ? extractTiptapText(reg.conteudo_json, 70) : ''
@@ -1638,7 +1691,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   const links = reg?.link_youtube ? [reg.link_youtube] : []
                   const imagens = (reg?.arquivos ?? []).filter(f => f.tipo.startsWith('image/'))
                   const outrosArquivos = (reg?.arquivos ?? []).filter(f => !f.tipo.startsWith('image/'))
-                  const temNotas = (!!reg?.conteudo_json && tiptapHtml.length > 0) || imagens.length > 0 || outrosArquivos.length > 0 || links.length > 0
+                  const temNotas = (reg?.presenca ?? false) && ((!!reg?.conteudo_json && tiptapHtml.length > 0) || imagens.length > 0 || outrosArquivos.length > 0 || links.length > 0)
                   const ehPassado = ag.data <= hojeISO
                   const ehCancelado = ag.status === 'cancelado'
 
@@ -1669,7 +1722,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                           'transition-colors',
                           ehCancelado ? 'opacity-50' : clicavel ? 'hover:bg-muted/20 cursor-pointer' : 'hover:bg-muted/20',
                         )}
-                        onClick={reg ? () => setRegistroModal(reg) : (destinoNovo ? () => router.push(destinoNovo) : undefined)}
+                        onClick={reg ? () => { setRegistroModal(reg); setHorarioModal(ag.horario ?? null) } : (destinoNovo ? () => router.push(destinoNovo) : undefined)}
                       >
                         <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
                           {reg?.numero_sessao != null
@@ -1679,7 +1732,6 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           <span>{isoToBR(reg?.data_sessao ?? ag.data)}</span>
-                          <span className="ml-1.5 text-[11px] text-muted-foreground/70">{ag.horario}</span>
                           {temNotas && (
                             <div className="flex items-start gap-1 mt-1 md:hidden">
                               <FileText className="h-3 w-3 text-[#04c2fb] shrink-0 mt-0.5" />
@@ -1701,48 +1753,33 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                             {ag.tipo_sessao ?? '—'}
                           </span>
                         </td>
-                        <td className="hidden md:table-cell px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={reg?.material ?? undefined}>
-                          {reg?.material ?? '—'}
-                        </td>
-                        <td className="hidden md:table-cell px-4 py-3 max-w-[220px]">
-                          {temNotas ? (
-                            <div className="flex items-start gap-1.5">
-                              <FileText className="h-3.5 w-3.5 text-[#04c2fb] shrink-0 mt-0.5" />
-                              <span className="text-xs text-muted-foreground line-clamp-1">{textoPreview}</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </td>
-                        {/* Botão Registrar — apenas para sessões pendentes */}
-                        <td className="px-3 py-3 text-center">
-                          {!reg && ehPassado && !ehCancelado && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/registros/${ag.id}`) }}
-                              className="inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:brightness-110 whitespace-nowrap"
-                              style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
-                            >
-                              Registrar
-                            </button>
-                          )}
+                        <td className="hidden md:table-cell px-4 py-3 text-right">
+                          {reg?.valor_sessao != null
+                            ? <span className="text-sm font-medium text-gray-700">R$ {reg.valor_sessao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            : <span className="text-muted-foreground text-xs">—</span>
+                          }
                         </td>
                         <td className="px-3 py-3 text-right">
                           {temNotas && (
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleSessao(ag.id) }}
-                              title={aberto ? 'Fechar notas' : 'Ver notas'}
+                              title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
                               className={cn(
-                                'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+                                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
                                 aberto
-                                  ? 'bg-[#04c2fb]/10 text-[#04c2fb]'
-                                  : 'text-muted-foreground hover:bg-muted hover:text-gray-700',
+                                  ? 'bg-[#04c2fb] text-white shadow-sm shadow-[#04c2fb]/30'
+                                  : 'border border-[#04c2fb]/30 text-[#04c2fb] hover:bg-[#04c2fb]/8 hover:border-[#04c2fb]/50',
                               )}
                             >
-                              <span className="hidden sm:inline">{aberto ? 'Fechar' : 'Ver notas'}</span>
-                              {aberto
-                                ? <ChevronUp className="h-3.5 w-3.5" />
-                                : <ChevronDown className="h-3.5 w-3.5" />
-                              }
+                              <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                              {imagens.length > 0 && (
+                                <span className="flex items-center gap-0.5">
+                                  <ImageIcon className="h-3 w-3" />
+                                  <span>{imagens.length}</span>
+                                </span>
+                              )}
+                              {outrosArquivos.length > 0 && <Paperclip className="h-3 w-3" />}
+                              {links.length > 0 && <ExternalLink className="h-3 w-3" />}
                             </button>
                           )}
                         </td>
@@ -1759,89 +1796,109 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                               )}
                             >
                               <div className="overflow-hidden">
-                                <div className="mx-4 my-3 rounded-lg border-l-4 border-[#04c2fb] bg-[#04c2fb]/5 px-4 py-3">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <FileText className="h-3.5 w-3.5 text-[#04c2fb]" />
-                                    <span className="text-xs font-semibold text-[#04c2fb]">Notas da Sessão</span>
-                                  </div>
-                                  <div
-                                    className={cn(
-                                      'text-sm text-gray-700 leading-relaxed',
-                                      'max-h-[240px] overflow-y-auto pr-1',
-                                      '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
-                                      '[&_h1]:text-base [&_h1]:font-bold [&_h1]:my-1.5',
-                                      '[&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-1.5',
-                                      '[&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1',
-                                      '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
-                                      '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
-                                      '[&_li]:my-0.5',
-                                      '[&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through',
-                                      '[&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded-sm',
-                                      '[&_a]:text-[#04c2fb] [&_a]:underline [&_a]:break-all',
-                                      '[&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic [&_blockquote]:my-1',
-                                      '[&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
-                                      '[&_pre]:bg-gray-100 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-1.5',
-                                      '[&_hr]:border-gray-200 [&_hr]:my-2',
-                                    )}
-                                    dangerouslySetInnerHTML={{ __html: tiptapHtml }}
-                                  />
-                                  {/* Rodapé: material + links */}
-                                  {((reg?.material && reg.material !== '-') || links.length > 0) && (
-                                    <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
-                                      {reg?.material && reg.material !== '-' && (
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
-                                          Material: {reg.material}
+                                <div className="mx-4 my-3 rounded-xl border border-gray-200/80 bg-white shadow-sm overflow-hidden">
+                                  {/* Header */}
+                                  <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-[#04c2fb]/6 to-transparent border-b border-[#04c2fb]/10">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/12">
+                                        <BookOpen className="h-3.5 w-3.5 text-[#04c2fb]" />
+                                      </div>
+                                      <span className="text-xs font-semibold text-[#04c2fb]">Notas da sessão</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      {imagens.length > 0 && (
+                                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                          <ImageIcon className="h-3 w-3" />
+                                          {imagens.length} foto{imagens.length !== 1 ? 's' : ''}
                                         </span>
                                       )}
-                                      {links.map((link, i) => (
-                                        <a
-                                          key={i}
-                                          href={link}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 rounded-full border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-2.5 py-0.5 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[180px]"
-                                          title={link}
-                                        >
-                                          <ExternalLink className="h-3 w-3 shrink-0" />
-                                          <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
-                                        </a>
-                                      ))}
+                                      {outrosArquivos.length > 0 && (
+                                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                          <Paperclip className="h-3 w-3" />
+                                          {outrosArquivos.length} arquivo{outrosArquivos.length !== 1 ? 's' : ''}
+                                        </span>
+                                      )}
+                                      {links.length > 0 && (
+                                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                          <ExternalLink className="h-3 w-3" />
+                                          {links.length} link{links.length !== 1 ? 's' : ''}
+                                        </span>
+                                      )}
                                     </div>
+                                  </div>
+                                  {/* Corpo */}
+                                  <div className="px-4 py-4">
+                                    <div
+                                      className={cn(
+                                        'text-sm text-gray-700 leading-relaxed',
+                                        'max-h-[240px] overflow-y-auto pr-1',
+                                        '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+                                        '[&_h1]:text-base [&_h1]:font-bold [&_h1]:my-1.5',
+                                        '[&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-1.5',
+                                        '[&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1',
+                                        '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
+                                        '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
+                                        '[&_li]:my-0.5',
+                                        '[&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through',
+                                        '[&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded-sm',
+                                        '[&_a]:text-[#04c2fb] [&_a]:underline [&_a]:break-all',
+                                        '[&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic [&_blockquote]:my-1',
+                                        '[&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
+                                        '[&_pre]:bg-gray-100 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-1.5',
+                                        '[&_hr]:border-gray-200 [&_hr]:my-2',
+                                      )}
+                                      dangerouslySetInnerHTML={{ __html: tiptapHtml }}
+                                    />
+                                    {/* Fotos */}
+                                    {imagens.length > 0 && (
+                                      <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 mt-4 pt-4 border-t border-gray-100">
+                                        {imagens.map((img, i) => (
+                                          <button
+                                            key={i}
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setImagemLightboxUrl(img.url) }}
+                                            title={img.nome}
+                                            className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 hover:scale-105 transition-all cursor-zoom-in"
+                                          >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={img.url} alt={img.nome} className="h-full w-full object-cover" />
+                                          </button>
+                                        ))}
+                                      </div>
                                   )}
-                                  {/* Fotos — thumbnails clicáveis */}
-                                  {imagens.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
-                                      {imagens.map((img, i) => (
-                                        <button
-                                          key={i}
-                                          type="button"
-                                          onClick={(e) => { e.stopPropagation(); setImagemLightboxUrl(img.url) }}
-                                          title={img.nome}
-                                          className="block h-16 w-16 rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 transition-all shrink-0 cursor-zoom-in"
-                                        >
-                                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                                          <img src={img.url} alt={img.nome} className="h-full w-full object-cover" />
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {/* Arquivos — links clicáveis */}
-                                  {outrosArquivos.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
-                                      {outrosArquivos.map((arq, i) => (
-                                        <a
-                                          key={i}
-                                          href={arq.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-[#04c2fb]/40 transition-colors"
-                                        >
-                                          <Paperclip className="h-3 w-3 shrink-0" />
-                                          <span className="max-w-[160px] truncate">{arq.nome}</span>
-                                        </a>
-                                      ))}
-                                    </div>
-                                  )}
+                                    {/* Links + arquivos */}
+                                    {(links.length > 0 || outrosArquivos.length > 0) && (
+                                      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+                                        {links.map((link, i) => (
+                                          <a
+                                            key={i}
+                                            href={link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#04c2fb]/25 bg-[#04c2fb]/5 px-3 py-1 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[200px]"
+                                            title={link}
+                                          >
+                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                            <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
+                                          </a>
+                                        ))}
+                                        {outrosArquivos.map((arq, i) => (
+                                          <a
+                                            key={i}
+                                            href={arq.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:border-gray-300 transition-colors"
+                                          >
+                                            <Paperclip className="h-3 w-3 shrink-0" />
+                                            <span className="max-w-[160px] truncate">{arq.nome}</span>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1899,7 +1956,8 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       {/* Modal de visualização de registro */}
       <ModalVerRegistro
         registro={registroModal}
-        onClose={() => setRegistroModal(null)}
+        horario={horarioModal}
+        onClose={() => { setRegistroModal(null); setHorarioModal(null) }}
       />
     </div>
   )

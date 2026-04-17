@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, ChevronDown, ChevronUp, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Paperclip } from 'lucide-react'
+import { ClipboardList, ExternalLink, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Paperclip, BookOpen, Image as ImageIcon } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useRouter } from 'next/navigation'
@@ -307,7 +307,6 @@ export default function RegistrosPage() {
                 <th onClick={() => handleSort('presenca')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                   <span className="inline-flex items-center gap-1.5">Presença <SortIcon col="presenca" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
-                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Material</th>
                 <th className="hidden md:table-cell px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Valor</th>
                 <th className="px-4 py-3 w-10" />
               </tr>
@@ -334,7 +333,7 @@ export default function RegistrosPage() {
                 const links = r.link_youtube ? [r.link_youtube] : []
                 const imagens = (r.arquivos ?? []).filter(f => f.tipo.startsWith('image/'))
                 const outrosArquivos = (r.arquivos ?? []).filter(f => !f.tipo.startsWith('image/'))
-                const temNotas = (!!r.conteudo_json && tiptapHtml.length > 0) || imagens.length > 0 || outrosArquivos.length > 0 || links.length > 0
+                const temNotas = r.presenca && ((!!r.conteudo_json && tiptapHtml.length > 0) || imagens.length > 0 || outrosArquivos.length > 0 || links.length > 0)
 
                 return (
                   <Fragment key={r.id}>
@@ -398,9 +397,6 @@ export default function RegistrosPage() {
                           {r.presenca ? 'Presente' : 'Falta'}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3 text-muted-foreground max-w-[200px] truncate" title={r.material}>
-                        {r.presenca ? (r.material || '—') : (r.observacao || '—')}
-                      </td>
                       <td className="hidden md:table-cell px-4 py-3 text-right">
                         {r.valor_sessao != null ? (
                           <span className="text-sm font-medium text-gray-700">{formatBRL(r.valor_sessao)}</span>
@@ -413,19 +409,23 @@ export default function RegistrosPage() {
                         {temNotas && (
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleExpansao(r.id) }}
-                            title={aberto ? 'Fechar notas' : 'Ver notas'}
+                            title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
                             className={cn(
-                              'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+                              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
                               aberto
-                                ? 'bg-[#04c2fb]/10 text-[#04c2fb]'
-                                : 'text-muted-foreground hover:bg-muted hover:text-gray-700',
+                                ? 'bg-[#04c2fb] text-white shadow-sm shadow-[#04c2fb]/30'
+                                : 'border border-[#04c2fb]/30 text-[#04c2fb] hover:bg-[#04c2fb]/8 hover:border-[#04c2fb]/50',
                             )}
                           >
-                            <span className="hidden sm:inline">{aberto ? 'Fechar' : 'Ver notas'}</span>
-                            {aberto
-                              ? <ChevronUp className="h-3.5 w-3.5" />
-                              : <ChevronDown className="h-3.5 w-3.5" />
-                            }
+                            <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                            {imagens.length > 0 && (
+                              <span className="flex items-center gap-0.5">
+                                <ImageIcon className="h-3 w-3" />
+                                <span>{imagens.length}</span>
+                              </span>
+                            )}
+                            {outrosArquivos.length > 0 && <Paperclip className="h-3 w-3" />}
+                            {links.length > 0 && <ExternalLink className="h-3 w-3" />}
                           </button>
                         )}
                       </td>
@@ -442,88 +442,109 @@ export default function RegistrosPage() {
                             )}
                           >
                             <div className="overflow-hidden">
-                              <div className="mx-4 my-3 rounded-lg border-l-4 border-[#04c2fb] bg-[#04c2fb]/5 px-4 py-3">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <FileText className="h-3.5 w-3.5 text-[#04c2fb]" />
-                                  <span className="text-xs font-semibold text-[#04c2fb]">Notas da Sessão</span>
-                                </div>
-                                <div
-                                  className={cn(
-                                    'text-sm text-gray-700 leading-relaxed',
-                                    'max-h-[240px] overflow-y-auto pr-1',
-                                    '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
-                                    '[&_h1]:text-base [&_h1]:font-bold [&_h1]:my-1.5',
-                                    '[&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-1.5',
-                                    '[&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1',
-                                    '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
-                                    '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
-                                    '[&_li]:my-0.5',
-                                    '[&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through',
-                                    '[&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded-sm',
-                                    '[&_a]:text-[#04c2fb] [&_a]:underline [&_a]:break-all',
-                                    '[&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic [&_blockquote]:my-1',
-                                    '[&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
-                                    '[&_pre]:bg-gray-100 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-1.5',
-                                    '[&_hr]:border-gray-200 [&_hr]:my-2',
-                                  )}
-                                  dangerouslySetInnerHTML={{ __html: tiptapHtml }}
-                                />
-                                {/* Rodapé: material + links + anexos */}
-                                {(r.material && r.material !== '-') || links.length > 0 || imagens.length > 0 || outrosArquivos.length > 0 ? (
-                                  <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#04c2fb]/15">
-                                    {r.material && r.material !== '-' && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-2.5 py-0.5 text-[11px] text-gray-600">
-                                        Material: {r.material}
+                              <div className="mx-4 my-3 rounded-xl border border-gray-200/80 bg-white shadow-sm overflow-hidden">
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-[#04c2fb]/6 to-transparent border-b border-[#04c2fb]/10">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/12">
+                                      <BookOpen className="h-3.5 w-3.5 text-[#04c2fb]" />
+                                    </div>
+                                    <span className="text-xs font-semibold text-[#04c2fb]">Notas da sessão</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    {imagens.length > 0 && (
+                                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                        <ImageIcon className="h-3 w-3" />
+                                        {imagens.length} foto{imagens.length !== 1 ? 's' : ''}
                                       </span>
                                     )}
-                                    {links.map((link, i) => (
-                                      <a
-                                        key={i}
-                                        href={link}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 rounded-full border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-2.5 py-0.5 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[180px]"
-                                        title={link}
-                                      >
-                                        <ExternalLink className="h-3 w-3 shrink-0" />
-                                        <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
-                                      </a>
-                                    ))}
-                                    {imagens.length > 0 && (
-                                      <div className="flex flex-wrap gap-2 w-full mt-1">
-                                        {imagens.map((img, i) => (
-                                          <button
-                                            key={i}
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); setImagemLightboxUrl(img.url) }}
-                                            title={img.nome}
-                                            className="block h-14 w-14 rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 transition-all shrink-0 cursor-zoom-in"
-                                          >
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img src={img.url} alt={img.nome} className="h-full w-full object-cover" />
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
                                     {outrosArquivos.length > 0 && (
-                                      <div className="flex flex-wrap gap-2 w-full mt-1">
-                                        {outrosArquivos.map((arq, i) => (
-                                          <a
-                                            key={i}
-                                            href={arq.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-[#04c2fb]/40 transition-colors"
-                                          >
-                                            <Paperclip className="h-3 w-3 shrink-0" />
-                                            <span className="max-w-[160px] truncate">{arq.nome}</span>
-                                          </a>
-                                        ))}
-                                      </div>
+                                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                        <Paperclip className="h-3 w-3" />
+                                        {outrosArquivos.length} arquivo{outrosArquivos.length !== 1 ? 's' : ''}
+                                      </span>
+                                    )}
+                                    {links.length > 0 && (
+                                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                        <ExternalLink className="h-3 w-3" />
+                                        {links.length} link{links.length !== 1 ? 's' : ''}
+                                      </span>
                                     )}
                                   </div>
-                                ) : null}
+                                </div>
+                                {/* Corpo */}
+                                <div className="px-4 py-4">
+                                  <div
+                                    className={cn(
+                                      'text-sm text-gray-700 leading-relaxed',
+                                      'max-h-[240px] overflow-y-auto pr-1',
+                                      '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+                                      '[&_h1]:text-base [&_h1]:font-bold [&_h1]:my-1.5',
+                                      '[&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-1.5',
+                                      '[&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1',
+                                      '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1',
+                                      '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1',
+                                      '[&_li]:my-0.5',
+                                      '[&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through',
+                                      '[&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:rounded-sm',
+                                      '[&_a]:text-[#04c2fb] [&_a]:underline [&_a]:break-all',
+                                      '[&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic [&_blockquote]:my-1',
+                                      '[&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono',
+                                      '[&_pre]:bg-gray-100 [&_pre]:p-2 [&_pre]:rounded [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-1.5',
+                                      '[&_hr]:border-gray-200 [&_hr]:my-2',
+                                    )}
+                                    dangerouslySetInnerHTML={{ __html: tiptapHtml }}
+                                  />
+                                  {/* Fotos */}
+                                  {imagens.length > 0 && (
+                                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 mt-4 pt-4 border-t border-gray-100">
+                                      {imagens.map((img, i) => (
+                                        <button
+                                          key={i}
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); setImagemLightboxUrl(img.url) }}
+                                          title={img.nome}
+                                          className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-[#04c2fb]/50 hover:scale-105 transition-all cursor-zoom-in"
+                                        >
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img src={img.url} alt={img.nome} className="h-full w-full object-cover" />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {/* Links + arquivos */}
+                                  {(links.length > 0 || outrosArquivos.length > 0) && (
+                                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+                                      {links.map((link, i) => (
+                                        <a
+                                          key={i}
+                                          href={link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#04c2fb]/25 bg-[#04c2fb]/5 px-3 py-1 text-[11px] text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors max-w-[200px]"
+                                          title={link}
+                                        >
+                                          <ExternalLink className="h-3 w-3 shrink-0" />
+                                          <span className="truncate">{(() => { try { return new URL(link).hostname.replace('www.', '') } catch { return link } })()}</span>
+                                        </a>
+                                      ))}
+                                      {outrosArquivos.map((arq, i) => (
+                                        <a
+                                          key={i}
+                                          href={arq.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:border-gray-300 transition-colors"
+                                        >
+                                          <Paperclip className="h-3 w-3 shrink-0" />
+                                          <span className="max-w-[160px] truncate">{arq.nome}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>

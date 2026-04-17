@@ -28,6 +28,23 @@ function labelForma(forma?: FormaPagamento) {
   return FORMAS_PAGAMENTO.find(f => f.value === forma)?.label ?? '-'
 }
 
+const ORIGEM_CONFIG: Record<string, { label: string; cls: string }> = {
+  pacote:      { label: 'Pacote',      cls: 'bg-blue-50 text-blue-700' },
+  avulso:      { label: 'Avulso',      cls: 'bg-orange-50 text-orange-700' },
+  mensalidade: { label: 'Mensalidade', cls: 'bg-purple-50 text-purple-700' },
+  gratuito:    { label: 'Gratuito',    cls: 'bg-green-50 text-green-700' },
+}
+
+function BadgeOrigem({ origem }: { origem?: string }) {
+  if (!origem || !ORIGEM_CONFIG[origem]) return null
+  const { label, cls } = ORIGEM_CONFIG[origem]
+  return (
+    <span className={cn('inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium', cls)}>
+      {label}
+    </span>
+  )
+}
+
 function FormaPagamentoDropdown({
   value,
   onChange,
@@ -266,7 +283,10 @@ function ModalDetalheTransacao({
                 <Receipt className={cn('h-4 w-4', eReceita ? 'text-emerald-600' : 'text-red-500')} />
               </div>
               <div>
-                <h2 className="text-sm font-semibold tracking-tight leading-tight">{transacao.descricao}</h2>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-semibold tracking-tight leading-tight">{transacao.descricao}</h2>
+                  <BadgeOrigem origem={transacao.origem_cobranca} />
+                </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {transacao.paciente_nome ?? (eReceita ? 'Receita' : 'Despesa')}
                 </p>
@@ -426,6 +446,7 @@ function ModalExclusaoTransacao({
 }) {
   const titulo = transacao.tipo === 'receita' ? 'Excluir receita' : 'Excluir despesa'
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backdropFilter: 'blur(5px)', background: 'rgba(0,0,0,0.22)' }}
@@ -466,6 +487,7 @@ function ModalExclusaoTransacao({
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }
 
@@ -1100,9 +1122,7 @@ export default function FinanceiroPage() {
                   <td className="px-4 py-3 font-medium text-gray-800">
                     <div className="flex items-center gap-1.5">
                       {t.descricao}
-                      {t.registro_id && (
-                        <span className="inline-flex items-center rounded-full bg-violet-50 text-violet-600 px-1.5 py-0.5 text-[10px] font-medium">Sessão</span>
-                      )}
+                      <BadgeOrigem origem={t.origem_cobranca} />
                     </div>
                     {t.paciente_nome && (
                       <div className="text-[11px] text-muted-foreground">{t.paciente_nome}</div>
