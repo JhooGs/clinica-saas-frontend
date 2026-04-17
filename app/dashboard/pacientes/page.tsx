@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { Suspense, useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Users, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Search, Loader2 } from 'lucide-react'
 import { cn, hoje } from '@/lib/utils'
@@ -510,7 +510,7 @@ function apiParaLocal(p: ApiPaciente): Paciente {
   }
 }
 
-export default function PacientesPage() {
+function PacientesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const onboardingNovoPaciente = searchParams.get('onboarding') === '1' && searchParams.get('novo') === '1'
@@ -830,5 +830,13 @@ export default function PacientesPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PacientesPage() {
+  return (
+    <Suspense>
+      <PacientesContent />
+    </Suspense>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { Suspense, useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Pencil, Trash2, Save, X, Tag, Info,
@@ -659,7 +659,7 @@ function ModalExclusao({
    Page
    ══════════════════════════════════════════════════════ */
 
-export default function PlanosPage() {
+function PlanosContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const onboardingMode = searchParams.get('onboarding') === '1'
@@ -1149,5 +1149,13 @@ export default function PlanosPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PlanosPage() {
+  return (
+    <Suspense>
+      <PlanosContent />
+    </Suspense>
   )
 }
