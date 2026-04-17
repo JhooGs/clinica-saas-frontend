@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Users,
@@ -42,7 +42,7 @@ const MODULOS: Record<ImportModulo, { label: string; icon: React.ElementType; de
   },
 }
 
-export default function ConfiguracoesDadosPage() {
+function ConfiguracoesDadosContent() {
   const searchParams = useSearchParams()
   const moduloQuery = searchParams.get('modulo')
   const moduloForcado: ImportModulo | null =
@@ -109,5 +109,13 @@ export default function ConfiguracoesDadosPage() {
       {/* Wizard de importação — key força reset ao trocar módulo */}
       <ImportWizard key={modulo} modulo={modulo} />
     </div>
+  )
+}
+
+export default function ConfiguracoesDadosPage() {
+  return (
+    <Suspense>
+      <ConfiguracoesDadosContent />
+    </Suspense>
   )
 }
