@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, startTransition } from 'react'
 import { Clock, User, AlertTriangle, FileText, X, CheckCircle2, NotebookPen } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { nowSP, diasAtrasISO } from '@/lib/timezone'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
 import { useAgendamentosHoje, useAgendamentos } from '@/hooks/use-agenda'
 import type { Agendamento } from '@/types'
@@ -66,13 +67,13 @@ function toRelatorioPendente(a: Agendamento): RelatorioPendente {
 
 function getAtendStatus(horario: string, falta?: boolean, now?: Date): AtendStatus {
   if (falta) return 'falta'
-  const ref = now ?? new Date()
+  const ref = now ?? nowSP()
   const [h, m] = horario.split(':').map(Number)
   const t = new Date(ref)
   t.setHours(h, m, 0, 0)
   const diff = t.getTime() - ref.getTime()
   if (diff < -30 * 60 * 1000) return 'passado'
-  if (diff < 15 * 60 * 1000)  return 'agora'
+  if (diff <= 0)               return 'agora'
   return 'futuro'
 }
 
@@ -92,15 +93,11 @@ function labelAtraso(dias: number, horario: string): string {
 }
 
 function dataOntem(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
+  return diasAtrasISO(1)
 }
 
 function data90DiasAtras(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 90)
-  return d.toISOString().slice(0, 10)
+  return diasAtrasISO(90)
 }
 
 // ---------------------------------------------------------------------------

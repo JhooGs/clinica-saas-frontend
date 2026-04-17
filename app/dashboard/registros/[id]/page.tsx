@@ -392,34 +392,6 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
     links: registro.link_youtube ? [registro.link_youtube] : [],
     notasSessaoJson: registro.conteudo_json,
   })
-  // Exibe o valor formatado em BRL (ex: "120,00") mas mantém form.valorSessao como string
-  // numérica com ponto decimal para parseFloat no submit (ex: "120.00")
-  const [valorDisplay, setValorDisplay] = useState<string>(() => {
-    const n = parseFloat(registro.valor_sessao?.toString() ?? '')
-    return isNaN(n) ? '' : n.toFixed(2).replace('.', ',')
-  })
-
-  function handleValorChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value
-    // Permite dígitos, vírgula e ponto; descarta todo o resto
-    const limpo = raw.replace(/[^\d,.]/g, '')
-    setValorDisplay(limpo)
-    // Converte para ponto decimal para que parseFloat no submit funcione
-    const numerico = limpo.replace(',', '.')
-    f('valorSessao', numerico)
-  }
-
-  function handleValorBlur() {
-    const n = parseFloat(form.valorSessao.replace(',', '.'))
-    if (!isNaN(n)) {
-      const formatado = n.toFixed(2).replace('.', ',')
-      setValorDisplay(formatado)
-      f('valorSessao', n.toFixed(2))
-    } else {
-      setValorDisplay('')
-    }
-  }
-
   function handleNumeroSessaoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/[^\d]/g, '')
     f('numeroSessao', raw)
@@ -528,58 +500,51 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
         <div className="p-4 sm:p-6 space-y-5">
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Data da sessão *</label>
-                <DatePicker
-                  value={form.data}
-                  onChange={v => f('data', v)}
-                  placeholder="Selecionar data"
-                />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data da sessão</label>
+                <div className="flex items-center gap-2 py-1.5 select-none">
+                  <Calendar className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />
+                  <span className="text-sm font-semibold text-gray-800">{formatDataBR(form.data)}</span>
+                </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Tipo de sessão</label>
-                <TipoSessaoSelect
-                  value={form.tipoSessao}
-                  onChange={v => f('tipoSessao', v)}
-                />
+                <div className="flex items-center gap-2 py-1.5 select-none">
+                  <Tag className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />
+                  <span className="text-sm font-semibold text-gray-800">{form.tipoSessao}</span>
+                </div>
               </div>
             </div>
 
+            {form.presenca && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
                 Nº Sessão
-                {form.presenca && (
-                  <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-normal">
-                    {numeroSessaoAlterado ? '(âncora manual)' : '(automático)'}
-                  </span>
-                )}
+                <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-normal">
+                  {numeroSessaoAlterado ? '(âncora manual)' : '(automático)'}
+                </span>
               </label>
-              {form.presenca ? (
-                <div className="space-y-1.5">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={form.numeroSessao}
-                    onChange={handleNumeroSessaoChange}
-                    placeholder={registro.numero_sessao?.toString() ?? '—'}
-                    className={cn(
-                      'w-28 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
-                      numeroSessaoAlterado && 'border-amber-400 ring-1 ring-amber-400/30'
-                    )}
-                  />
-                  {numeroSessaoAlterado && (
-                    <p className="text-[11px] text-amber-600 leading-snug max-w-xs">
-                      Ao salvar, os números de todas as sessões deste paciente serão
-                      recalculados com este valor como referência.
-                    </p>
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.numeroSessao}
+                  onChange={handleNumeroSessaoChange}
+                  placeholder={registro.numero_sessao?.toString() ?? '—'}
+                  className={cn(
+                    'w-28 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
+                    numeroSessaoAlterado && 'border-amber-400 ring-1 ring-amber-400/30'
                   )}
-                </div>
-              ) : (
-                <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm text-muted-foreground select-none">
-                  <span className="text-gray-300 text-xs italic">faltas não têm número</span>
-                </div>
-              )}
+                />
+                {numeroSessaoAlterado && (
+                  <p className="text-[11px] text-amber-600 leading-snug max-w-xs">
+                    Ao salvar, os números de todas as sessões deste paciente serão
+                    recalculados com este valor como referência.
+                  </p>
+                )}
+              </div>
             </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Presença</label>
@@ -602,66 +567,33 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Valor da sessão
-                {form.presenca && <span className="ml-1.5 text-[10px] text-amber-500 font-normal">(automático)</span>}
-              </label>
-              {form.presenca ? (
-                <div className="flex items-center h-9 rounded-lg border border-dashed border-gray-200 bg-muted/30 px-3 text-sm select-none">
-                  <span className="text-gray-600">
-                    {registro.valor_sessao != null
-                      ? Number(registro.valor_sessao).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                      : <span className="text-gray-300 text-xs italic">calculado pelo backend</span>
-                    }
+              <label className="text-xs font-medium text-muted-foreground">Valor da sessão</label>
+              <div className="flex items-center gap-2 py-1.5 select-none">
+                {registro.valor_sessao != null ? (
+                  <span className="text-sm font-semibold text-gray-800">
+                    {Number(registro.valor_sessao).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </span>
-                </div>
-              ) : (
-                <>
-                  <div className="relative max-w-[180px]">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">R$</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={valorDisplay}
-                      onChange={handleValorChange}
-                      onBlur={handleValorBlur}
-                      placeholder="0,00"
-                      className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
-                    />
-                  </div>
-                  <p className="text-[11px] text-muted-foreground/70">
-                    Deixe em 0 para não gerar cobrança pela falta.
-                  </p>
-                </>
-              )}
+                ) : (
+                  <span className="text-xs italic text-muted-foreground">sem cobrança</span>
+                )}
+              </div>
             </div>
 
+            {form.presenca && (
+            <>
             <div className="space-y-1.5">
-              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
-                Material utilizado
-              </label>
+              <label className="text-xs font-medium text-muted-foreground">Material utilizado</label>
               <input
                 value={form.material}
                 onChange={e => f('material', e.target.value)}
-                disabled={!form.presenca}
                 placeholder="Ex: Bolas, cordas e tecidos"
-                className={cn(
-                  'w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
-                  !form.presenca && 'opacity-40 cursor-not-allowed'
-                )}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className={cn('text-xs font-medium', !form.presenca ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
-                Links
-              </label>
-              <div
-                className={cn(
-                  'rounded-lg border bg-background transition-all',
-                  !form.presenca && 'opacity-40 cursor-not-allowed',
-                )}
-              >
+              <label className="text-xs font-medium text-muted-foreground">Links</label>
+              <div className="rounded-lg border bg-background transition-all">
                 {form.links.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
                     {form.links.map((link, i) => {
@@ -689,7 +621,6 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
                               const updated = form.links.filter((_, idx) => idx !== i)
                               f('links', updated)
                             }}
-                            disabled={!form.presenca}
                             className="ml-0.5 rounded p-0.5 text-[#04c2fb]/60 hover:text-red-500 hover:bg-red-50 transition-colors"
                             title="Remover link"
                           >
@@ -728,7 +659,6 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
                       setLinkInput('')
                     }
                   }}
-                  disabled={!form.presenca}
                   placeholder={form.links.length > 0 ? 'Adicionar outro link...' : 'Cole ou digite um link e pressione Enter'}
                   className={cn(
                     'w-full bg-transparent px-3 py-2 text-sm focus:outline-none placeholder:text-muted-foreground/50',
@@ -753,6 +683,8 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
                 onRemoveFile={handleRemoverArquivo}
               />
             </div>
+            </>
+            )}
 
         </div>
 

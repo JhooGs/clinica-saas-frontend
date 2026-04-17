@@ -129,12 +129,14 @@ export interface AgendamentoCreatePayload {
 }
 
 export interface AgendamentoUpdatePayload {
+  paciente_id?: string
   tipo_sessao?: string
   data?: string
   horario?: string
   horario_fim?: string
   status?: StatusAgendamento
   observacao?: string
+  pacientes_ids?: string[]
 }
 
 export interface RegistroGrupoParticipante {

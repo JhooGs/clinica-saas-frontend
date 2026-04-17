@@ -21,6 +21,17 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.2.1',
+    date: '17 de abril de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Ajustado fuso horário, algumas funções exibiam horários incorretos.'},
+      { category: 'Fixed', description: 'Ajustado bug que não editava participantes depois de um agendamento feito.'},
+      { category: 'Changed', description: 'Agenda foi alterada para mostrar o dia atual antes, retrair dias passados e visual da semana melhorado.'},
+      { category: 'Changed', description: 'Agora editar um registro não permite editar a Data da sessão e nem seu tipo.'},
+      
+    ],
+  },
+  {
     version: 'v0.2.0',
     date: '16 de abril de 2026',
     changes: [

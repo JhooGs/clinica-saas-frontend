@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { hojeISO } from '@/lib/timezone'
 import type { Agendamento, AgendamentoListResponse, AgendamentoCreatePayload, AgendamentoUpdatePayload } from '@/types'
 
 // ── Tipos para geração de recorrentes ────────────────────────────────────────
@@ -61,7 +62,7 @@ export function useAgendamentos(filtros: AgendaFilter) {
 }
 
 export function useAgendamentosHoje() {
-  const hoje = new Date().toISOString().slice(0, 10)
+  const hoje = hojeISO()
   return useAgendamentos({ data_inicio: hoje, data_fim: hoje })
 }
 

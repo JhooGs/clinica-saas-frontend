@@ -92,7 +92,8 @@ export function ModalVerRegistro({ registro, onClose }: ModalVerRegistroProps) {
                 </div>
               </div>
 
-              {/* Corpo */}
+              {/* Corpo — apenas para registros com presença */}
+              {registro.presenca && (
               <div className="px-6 py-4 space-y-4">
                 {/* Notas */}
                 {tiptapHtml.length > 0 ? (
@@ -196,6 +197,7 @@ export function ModalVerRegistro({ registro, onClose }: ModalVerRegistroProps) {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Rodapé com botão Editar */}
               <div className="flex items-center justify-end px-6 py-4 border-t border-gray-100">

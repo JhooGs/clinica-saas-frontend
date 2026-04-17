@@ -732,21 +732,28 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
         {
           id: String(agendamento.id),
           payload: {
+            paciente_id: pacienteIdPrincipal,
             tipo_sessao: tipoFinal,
             data: form.data,
             horario: form.horarioInicio,
             horario_fim: form.horarioFim,
             observacao: form.observacoes || undefined,
+            // lista completa para grupo, array vazio para limpar (individual)
+            pacientes_ids: pacientesIds ?? [],
           },
         },
         {
           onSuccess: (updated) => {
-            toast.success('Agendamento atualizado', { description: `${updated.paciente_nome ?? ''} — ${updated.horario}` })
+            const nomesGrupo = form.pacientes.length > 1
+              ? form.pacientes.map(p => p.nome.split(' ')[0]).join(', ')
+              : (updated.paciente_nome ?? '')
+            toast.success('Agendamento atualizado', { description: `${nomesGrupo} — ${updated.horario}` })
             const ag: AgendamentoComSource = {
               id: updated.id,
               paciente: updated.paciente_nome ?? pacienteIdPrincipal,
               paciente_id: updated.paciente_id,
               pacientes: form.pacientes.map(p => p.nome),
+              pacientes_ids: pacientesIds,
               tipo: updated.tipo_sessao,
               data: updated.data,
               horario: updated.horario,
@@ -776,12 +783,16 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
         },
         {
           onSuccess: (created) => {
-            toast.success('Agendamento criado', { description: `${created.paciente_nome ?? ''} — ${created.horario}` })
+            const nomesGrupo = form.pacientes.length > 1
+              ? form.pacientes.map(p => p.nome.split(' ')[0]).join(', ')
+              : (created.paciente_nome ?? '')
+            toast.success('Agendamento criado', { description: `${nomesGrupo} — ${created.horario}` })
             const ag: AgendamentoComSource = {
               id: created.id,
               paciente: created.paciente_nome ?? pacienteIdPrincipal,
               paciente_id: created.paciente_id,
               pacientes: form.pacientes.map(p => p.nome),
+              pacientes_ids: pacientesIds,
               tipo: created.tipo_sessao,
               data: created.data,
               horario: created.horario,
