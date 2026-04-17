@@ -10,6 +10,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { createClient } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { useQueryClient } from '@tanstack/react-query'
 
 const NAV_ITEMS = [
   { title: 'Visao Geral', href: '/clinitra-admin', icon: LayoutDashboard },
@@ -21,6 +22,7 @@ export function AdminMobileHeader() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   function isActive(href: string) {
     if (href === '/clinitra-admin') return pathname === '/clinitra-admin'
@@ -30,6 +32,7 @@ export function AdminMobileHeader() {
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
+    queryClient.clear()
     router.push('/auth/login')
     router.refresh()
   }

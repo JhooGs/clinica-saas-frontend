@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Pencil, Trash2, Save, X, Tag, Info,
   AlertTriangle, ArrowUp, ArrowDown, Package,
@@ -659,7 +660,13 @@ function ModalExclusao({
    ══════════════════════════════════════════════════════ */
 
 export default function PlanosPage() {
-  const [tab, setTab] = useState<TabId>('tipos')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const onboardingMode = searchParams.get('onboarding') === '1'
+  const onboardingAction = searchParams.get('action')
+  const onboardingAbrirCriacaoPacote = onboardingMode && onboardingAction === 'create_pacote'
+
+  const [tab, setTab] = useState<TabId>(onboardingAbrirCriacaoPacote ? 'pacotes' : 'tipos')
 
   /* ── API: Tipos de sessão ── */
   const { data: tiposData, isLoading: loadingTipos } = useTiposSessao()
@@ -679,7 +686,9 @@ export default function PlanosPage() {
   const [modalTipo, setModalTipo] = useState<{ modo: 'criar' | 'editar'; tipo?: TipoSessao } | null>(null)
   const [excluindoTipo, setExcluindoTipo] = useState<TipoSessao | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [modalPacote, setModalPacote] = useState<{ modo: 'criar' | 'editar'; pacote?: Pacote } | null>(null)
+  const [modalPacote, setModalPacote] = useState<{ modo: 'criar' | 'editar'; pacote?: Pacote } | null>(
+    onboardingAbrirCriacaoPacote ? { modo: 'criar' } : null,
+  )
   const [excluindoPacote, setExcluindoPacote] = useState<Pacote | null>(null)
 
   /* ── Derived ── */
@@ -746,6 +755,10 @@ export default function PlanosPage() {
         onSuccess: () => {
           setModalPacote(null)
           toast.success('Pacote criado', { description: `"${dados.nome}" está disponível para uso.` })
+          if (onboardingMode) {
+            router.push('/dashboard/onboarding')
+            router.refresh()
+          }
         },
         onError: (err) => toast.error('Erro ao criar pacote', { description: err.message }),
       },

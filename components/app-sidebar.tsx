@@ -10,6 +10,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { usePermissions } from '@/hooks/use-permissions'
 import type { Role } from '@/types'
@@ -73,6 +74,7 @@ function NavItem({
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
   const [initials, setInitials] = useState('CL')
   const [collapsed, setCollapsed] = useState(false)
@@ -90,6 +92,7 @@ export function AppSidebar() {
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
+    queryClient.clear()
     router.push('/auth/login')
     router.refresh()
   }
@@ -97,6 +100,10 @@ export function AppSidebar() {
   function isActive(href: string) {
     if (href === '/dashboard') return pathname === '/dashboard'
     return pathname.startsWith(href)
+  }
+
+  if (pathname.startsWith('/dashboard/onboarding')) {
+    return null
   }
 
   return (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Users, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Search, Loader2 } from 'lucide-react'
 import { cn, hoje } from '@/lib/utils'
 import { usePacientes, useCriarPaciente } from '@/hooks/use-pacientes'
@@ -512,8 +512,10 @@ function apiParaLocal(p: ApiPaciente): Paciente {
 
 export default function PacientesPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const onboardingNovoPaciente = searchParams.get('onboarding') === '1' && searchParams.get('novo') === '1'
   const { data: pacotesData } = usePacotes()
-  const [abrirModal, setAbrirModal] = useState(false)
+  const [abrirModal, setAbrirModal] = useState(onboardingNovoPaciente)
   const [filtroAtivo, setFiltroAtivo] = useState<'todos' | 'ativos' | 'inativos'>('ativos')
   const [sortKey, setSortKey] = useState<SortKey>('nome')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -596,6 +598,10 @@ export default function PacientesPage() {
         onSuccess: () => {
           setAbrirModal(false)
           toast.success('Paciente cadastrado', { description: `${form.nome} foi adicionado com sucesso.` })
+          if (onboardingNovoPaciente) {
+            router.push('/dashboard/onboarding')
+            router.refresh()
+          }
         },
         onError: (err) => {
           toast.error('Erro ao cadastrar paciente', { description: err.message })

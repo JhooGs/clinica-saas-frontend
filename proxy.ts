@@ -29,6 +29,7 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
   const role = user?.user_metadata?.role as string | undefined
+  const onboardingRequired = user?.user_metadata?.onboarding_required === true
 
   // ── Guard: /clinitra-admin/* — apenas clinitra_admin ──────────────────────
   if (pathname.startsWith('/clinitra-admin')) {
@@ -55,6 +56,9 @@ export async function proxy(request: NextRequest) {
       if (role === 'clinitra_admin') {
         return NextResponse.redirect(new URL('/clinitra-admin', request.url))
       }
+      if (role === 'super_admin' && onboardingRequired) {
+        return NextResponse.redirect(new URL('/onboarding', request.url))
+      }
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   }
@@ -62,6 +66,23 @@ export async function proxy(request: NextRequest) {
   // Usuário autenticado mas sem clinica_id → e-mail ainda não confirmado
   if (user && !user.user_metadata?.clinica_id && pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/auth/aguardando-confirmacao', request.url))
+  }
+
+  // Guard onboarding: super_admin inicial bloqueado ate concluir
+  if (user && role === 'super_admin' && onboardingRequired) {
+    if (pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(new URL('/onboarding', request.url))
+    }
+  }
+
+  // Guard /onboarding: somente super_admin com onboarding pendente
+  if (pathname.startsWith('/onboarding')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth/login', request.url))
+    }
+    if (!(role === 'super_admin' && onboardingRequired)) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   if (user) {
@@ -84,5 +105,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/auth/:path*', '/clinitra-admin/:path*'],
+  matcher: ['/dashboard/:path*', '/auth/:path*', '/clinitra-admin/:path*', '/onboarding/:path*', '/onboarding'],
 }

@@ -9,6 +9,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
@@ -51,6 +52,7 @@ function NavItem({
 export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
   const [initials, setInitials] = useState('CA')
   const [collapsed, setCollapsed] = useState(false)
@@ -67,6 +69,7 @@ export function AdminSidebar() {
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
+    queryClient.clear()
     router.push('/auth/login')
     router.refresh()
   }
