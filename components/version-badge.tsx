@@ -25,10 +25,11 @@ const CHANGELOG: VersionEntry[] = [
     date: '18 de abril de 2026',
     changes: [
       { category: 'Fixed', description: 'Ajustado erro que não deletava um registro corretamente.'},
-      { category: 'Changed', description: 'Mudanças visuais nas configurações.'},
+      { category: 'Fixed', description: 'Alguns dados do perfil da clínica não eram salvos, isso foi corrigido.'},
       { category: 'Changed', description: 'Mudanças visuais no financeiro.'},
-      
-      
+      { category: 'Changed', description: 'Mudanças visuais nas configurações.'},
+      { category: 'Changed', description: 'Barra lateral foi visualmente reformulada.'},
+      { category: 'Changed', description: 'Agora novas clínicas precisam informar nome do responsável e especialidade.'},
     ],
   },
   {
