@@ -1665,9 +1665,12 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   const regB = registroByAgendamentoId.get(b.id) ?? registroByData.get(b.data)
                   let cmp = 0
                   switch (sortKeyHist) {
-                    case 'data':
-                      cmp = a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario)
+                    case 'data': {
+                      const dateA = regA?.data_sessao ?? a.data
+                      const dateB = regB?.data_sessao ?? b.data
+                      cmp = dateA.localeCompare(dateB) || a.horario.localeCompare(b.horario)
                       break
+                    }
                     case 'tipo_sessao':
                       cmp = (a.tipo_sessao ?? '').localeCompare(b.tipo_sessao ?? '', 'pt-BR')
                       break

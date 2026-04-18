@@ -1,5 +1,4 @@
 import Script from 'next/script'
-import { AppSidebar } from '@/components/app-sidebar'
 import { VersionBadge } from '@/components/version-badge'
 import { DashboardContentShell } from '@/components/dashboard-content-shell'
 
@@ -12,7 +11,6 @@ export default function DashboardLayout({
     <div className="flex h-screen overflow-hidden">
       {/* Google Identity Services - carregado apenas quando necessario */}
       <Script src="https://accounts.google.com/gsi/client" strategy="lazyOnload" />
-      <AppSidebar />
       <DashboardContentShell>{children}</DashboardContentShell>
       <VersionBadge />
     </div>

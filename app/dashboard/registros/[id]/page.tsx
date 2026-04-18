@@ -736,8 +736,15 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
           onConfirmar={executarDelete}
           onCancelar={() => setConfirmarDeletar(false)}
           titulo="Excluir este registro?"
-          descricao="Esta ação é permanente e causa dois efeitos: (1) a transação financeira vinculada será excluída; (2) os números de sessão dos registros seguintes serão recalculados."
+          descricao="Esta ação não pode ser desfeita. O registro será removido permanentemente junto com todos os dados vinculados."
+          consequencias={[
+            'A transação financeira gerada por este registro será excluída',
+            'Os números de sessão dos registros seguintes serão recalculados',
+            'O agendamento será marcado como cancelado',
+            'Documentos e imagens anexados serão removidos permanentemente do storage',
+          ]}
           textoBotaoConfirmar="Excluir registro"
+          isLoading={excluirRegistro.isPending}
         />
       )}
 

@@ -35,14 +35,25 @@ const ORIGEM_CONFIG: Record<string, { label: string; cls: string }> = {
   gratuito:    { label: 'Gratuito',    cls: 'bg-green-50 text-green-700' },
 }
 
-function BadgeOrigem({ origem }: { origem?: string }) {
+function BadgeOrigem({ origem, size = 'sm' }: { origem?: string; size?: 'sm' | 'md' }) {
   if (!origem || !ORIGEM_CONFIG[origem]) return null
   const { label, cls } = ORIGEM_CONFIG[origem]
   return (
-    <span className={cn('inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium', cls)}>
+    <span className={cn(
+      'inline-flex items-center rounded-full font-medium',
+      size === 'md' ? 'px-2.5 py-0.5 text-xs' : 'px-2 py-0.5 text-[11px]',
+      cls
+    )}>
       {label}
     </span>
   )
+}
+
+function extractTipoSessao(descricao: string): string | null {
+  const idx = descricao.indexOf(' | ')
+  if (idx === -1) return null
+  const tipo = descricao.slice(idx + 3).trim()
+  return tipo || null
 }
 
 function FormaPagamentoDropdown({
@@ -283,13 +294,10 @@ function ModalDetalheTransacao({
                 <Receipt className={cn('h-4 w-4', eReceita ? 'text-emerald-600' : 'text-red-500')} />
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
-                  <h2 className="text-sm font-semibold tracking-tight leading-tight">{transacao.descricao}</h2>
-                  <BadgeOrigem origem={transacao.origem_cobranca} />
+                <h2 className="text-sm font-semibold tracking-tight leading-tight">{transacao.descricao}</h2>
+                <div className="mt-1">
+                  <BadgeOrigem origem={transacao.origem_cobranca} size="md" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {transacao.paciente_nome ?? (eReceita ? 'Receita' : 'Despesa')}
-                </p>
               </div>
             </div>
             <button onClick={onFechar} className="rounded-lg p-1.5 text-muted-foreground hover:bg-gray-100 transition-colors">
@@ -315,7 +323,7 @@ function ModalDetalheTransacao({
               </span>
               {transacao.registro_id && (
                 <span className="inline-flex items-center rounded-full bg-violet-50 text-violet-700 px-2.5 py-1 text-xs font-medium">
-                  Sessão
+                  {extractTipoSessao(transacao.descricao) ?? 'Sessão'}
                 </span>
               )}
             </div>
@@ -1120,13 +1128,8 @@ export default function FinanceiroPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-800">
-                    <div className="flex items-center gap-1.5">
-                      {t.descricao}
-                      <BadgeOrigem origem={t.origem_cobranca} />
-                    </div>
-                    {t.paciente_nome && (
-                      <div className="text-[11px] text-muted-foreground">{t.paciente_nome}</div>
-                    )}
+                    <div>{t.descricao}</div>
+                    <BadgeOrigem origem={t.origem_cobranca} />
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn(

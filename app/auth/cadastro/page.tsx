@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, Eye, EyeOff, Mail, Lock, Building2, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Mail, Lock, Building2, CheckCircle2, User, Stethoscope } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -9,6 +9,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 export default function CadastroPage() {
   const [nomeClinica, setNomeClinica] = useState('')
+  const [nomePessoa, setNomePessoa] = useState('')
+  const [especialidade, setEspecialidade] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [showSenha, setShowSenha] = useState(false)
@@ -25,7 +27,7 @@ export default function CadastroPage() {
       const res = await fetch(`${API_URL}/api/v1/onboarding/registrar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome_clinica: nomeClinica, email, senha }),
+        body: JSON.stringify({ nome_clinica: nomeClinica, nome_pessoa: nomePessoa, especialidade: especialidade || null, email, senha }),
       })
 
       if (res.status === 409) {
@@ -139,6 +141,43 @@ export default function CadastroPage() {
                       placeholder="Clínica Exemplo"
                       required
                       minLength={2}
+                      className="block w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-colors focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb]"
+                    />
+                  </div>
+                </div>
+
+                {/* Nome completo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-900">
+                    Seu nome completo
+                  </label>
+                  <div className="relative mt-2">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={nomePessoa}
+                      onChange={(e) => { setNomePessoa(e.target.value); setErro('') }}
+                      placeholder="João da Silva"
+                      required
+                      minLength={2}
+                      className="block w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-colors focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb]"
+                    />
+                  </div>
+                </div>
+
+                {/* Especialidade */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-900">
+                    Especialidade
+                    <span className="ml-1 text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <div className="relative mt-2">
+                    <Stethoscope className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={especialidade}
+                      onChange={(e) => { setEspecialidade(e.target.value); setErro('') }}
+                      placeholder="Ex: Psicologia, Fisioterapia..."
                       className="block w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-colors focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb]"
                     />
                   </div>

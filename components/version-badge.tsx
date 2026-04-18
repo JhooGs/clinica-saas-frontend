@@ -21,6 +21,17 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.2.2',
+    date: '18 de abril de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Ajustado erro que não deletava um registro corretamente.'},
+      { category: 'Changed', description: 'Mudanças visuais nas configurações.'},
+      { category: 'Changed', description: 'Mudanças visuais no financeiro.'},
+      
+      
+    ],
+  },
+  {
     version: 'v0.2.1',
     date: '17 de abril de 2026',
     changes: [

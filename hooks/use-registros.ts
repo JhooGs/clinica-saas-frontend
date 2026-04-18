@@ -126,6 +126,7 @@ export function useExcluirRegistro() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['registros'] })
       queryClient.invalidateQueries({ queryKey: ['agenda'] })
+      queryClient.invalidateQueries({ queryKey: ['financeiro'] })
     },
   })
 }
