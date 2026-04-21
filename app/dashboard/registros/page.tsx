@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
-import { ClipboardList, ExternalLink, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Paperclip, BookOpen, Image as ImageIcon } from 'lucide-react'
+import { ClipboardList, ExternalLink, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Paperclip, BookOpen, Image as ImageIcon, Columns3, Check } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useRouter } from 'next/navigation'
@@ -38,7 +39,7 @@ function formatDataBRSimples(iso: string) {
   return `${d}/${m}/${y}`
 }
 
-type SortKey = 'paciente_nome' | 'data_sessao' | 'titulo' | 'presenca'
+type SortKey = 'paciente_nome' | 'data_sessao' | 'titulo' | 'presenca' | 'numero_sessao'
 type SortDir = 'asc' | 'desc'
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -89,6 +90,40 @@ export default function RegistrosPage() {
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
   const [registroModal, setRegistroModal] = useState<import('@/types').Registro | null>(null)
 
+  type ColReg = 'numero_sessao' | 'data_sessao' | 'tipo_sessao' | 'status' | 'presenca' | 'material' | 'valor' | 'notas'
+  const COLUNAS_REG_OCULTAVEIS: { key: ColReg; label: string }[] = [
+    { key: 'numero_sessao', label: 'Nº da sessão' },
+    { key: 'data_sessao',   label: 'Data' },
+    { key: 'tipo_sessao',   label: 'Tipo' },
+    { key: 'status',        label: 'Status' },
+    { key: 'presenca',      label: 'Presença' },
+    { key: 'material',      label: 'Material' },
+    { key: 'valor',         label: 'Valor' },
+    { key: 'notas',         label: 'Notas' },
+  ]
+  const COLUNAS_REG_PADRAO: ColReg[] = ['data_sessao', 'tipo_sessao', 'presenca', 'valor', 'notas']
+  const COLUNAS_REG_LS_KEY = 'clinitra_reg_colunas'
+
+  const [colunasVisiveis, setColunasVisiveis] = useState<ColReg[]>(() => {
+    try {
+      const saved = localStorage.getItem(COLUNAS_REG_LS_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColReg[]
+        const validas = COLUNAS_REG_OCULTAVEIS.map(c => c.key).filter(c => parsed.includes(c))
+        if (validas.length > 0) return validas
+      }
+    } catch { /* ignore */ }
+    return COLUNAS_REG_PADRAO
+  })
+
+  const toggleColuna = (col: ColReg) => {
+    setColunasVisiveis(prev => {
+      const novo = prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+      try { localStorage.setItem(COLUNAS_REG_LS_KEY, JSON.stringify(novo)) } catch { /* ignore */ }
+      return novo
+    })
+  }
+
   const filtroDataInicio = filtroPeriodo?.from?.toISOString().slice(0, 10)
   const filtroDataFim = filtroPeriodo?.to?.toISOString().slice(0, 10)
 
@@ -136,6 +171,9 @@ export default function RegistrosPage() {
           break
         case 'presenca':
           cmp = (a.presenca === b.presenca) ? 0 : a.presenca ? -1 : 1
+          break
+        case 'numero_sessao':
+          cmp = (a.numero_sessao ?? -1) - (b.numero_sessao ?? -1)
           break
       }
       return sortDir === 'asc' ? cmp : -cmp
@@ -274,6 +312,64 @@ export default function RegistrosPage() {
             onChange={setFiltroPeriodo}
             placeholder="Filtrar por período"
           />
+          {/* Popover de visibilidade de colunas */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  colunasVisiveis.length !== COLUNAS_REG_PADRAO.length || colunasVisiveis.some(c => !COLUNAS_REG_PADRAO.includes(c))
+                    ? 'border-[#04c2fb]/40 bg-[#04c2fb]/8 text-[#04c2fb]'
+                    : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                <Columns3 className="h-3.5 w-3.5" />
+                <span>Colunas</span>
+                <span className="ml-0.5 rounded-full bg-[#04c2fb] text-white px-1.5 py-px text-[10px] font-semibold leading-none">
+                  {colunasVisiveis.length}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-2">
+              <p className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Exibir colunas
+              </p>
+              <div className="space-y-0.5">
+                {COLUNAS_REG_OCULTAVEIS.map(col => {
+                  const ativo = colunasVisiveis.includes(col.key)
+                  return (
+                    <button
+                      key={col.key}
+                      onClick={() => toggleColuna(col.key)}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-xs transition-colors text-left',
+                        ativo ? 'bg-[#04c2fb]/8 text-[#04c2fb]' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      )}
+                    >
+                      <span className={cn(
+                        'h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                        ativo ? 'bg-[#04c2fb] border-[#04c2fb]' : 'border-border bg-background',
+                      )}>
+                        {ativo && <Check className="h-2.5 w-2.5 text-white" />}
+                      </span>
+                      {col.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-2 border-t pt-2 px-2">
+                <button
+                  onClick={() => {
+                    setColunasVisiveis([...COLUNAS_REG_PADRAO])
+                    try { localStorage.removeItem(COLUNAS_REG_LS_KEY) } catch { /* ignore */ }
+                  }}
+                  className="text-[11px] text-[#04c2fb] hover:underline"
+                >
+                  Redefinir
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
           {temFiltro && (
             <button
               onClick={() => { setFiltroPeriodo(undefined); setBusca('') }}
@@ -298,30 +394,51 @@ export default function RegistrosPage() {
                 <th onClick={() => handleSort('paciente_nome')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                   <span className="inline-flex items-center gap-1.5">Paciente <SortIcon col="paciente_nome" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
-                <th onClick={() => handleSort('data_sessao')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data_sessao" sortKey={sortKey} sortDir={sortDir} /></span>
-                </th>
-                <th onClick={() => handleSort('titulo')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="titulo" sortKey={sortKey} sortDir={sortDir} /></span>
-                </th>
-                <th onClick={() => handleSort('presenca')} className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Presença <SortIcon col="presenca" sortKey={sortKey} sortDir={sortDir} /></span>
-                </th>
-                <th className="hidden md:table-cell px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Valor</th>
-                <th className="px-4 py-3 w-10" />
+                {colunasVisiveis.includes('numero_sessao') && (
+                  <th onClick={() => handleSort('numero_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-12">
+                    <span className="inline-flex items-center gap-1.5">Nº <SortIcon col="numero_sessao" sortKey={sortKey} sortDir={sortDir} /></span>
+                  </th>
+                )}
+                {colunasVisiveis.includes('data_sessao') && (
+                  <th onClick={() => handleSort('data_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                    <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data_sessao" sortKey={sortKey} sortDir={sortDir} /></span>
+                  </th>
+                )}
+                {colunasVisiveis.includes('tipo_sessao') && (
+                  <th onClick={() => handleSort('titulo')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                    <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="titulo" sortKey={sortKey} sortDir={sortDir} /></span>
+                  </th>
+                )}
+                {colunasVisiveis.includes('status') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground select-none">Status</th>
+                )}
+                {colunasVisiveis.includes('presenca') && (
+                  <th onClick={() => handleSort('presenca')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                    <span className="inline-flex items-center gap-1.5">Presença <SortIcon col="presenca" sortKey={sortKey} sortDir={sortDir} /></span>
+                  </th>
+                )}
+                {colunasVisiveis.includes('material') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground select-none">Material</th>
+                )}
+                {colunasVisiveis.includes('valor') && (
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Valor</th>
+                )}
+                {colunasVisiveis.includes('notas') && (
+                  <th className="px-4 py-3 w-10" />
+                )}
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading && (
                 <tr>
-                  <td colSpan={7} className="px-4">
+                  <td colSpan={1 + colunasVisiveis.length} className="px-4">
                     <PageLoader compact />
                   </td>
                 </tr>
               )}
               {isError && !isLoading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
+                  <td colSpan={1 + colunasVisiveis.length} className="px-4 py-12 text-center">
                     <p className="text-sm text-red-500">Erro ao carregar registros. Tente novamente.</p>
                   </td>
                 </tr>
@@ -378,63 +495,100 @@ export default function RegistrosPage() {
                       </td>
 
                       {/* Desktop: colunas */}
-                      <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{formatDataBR(r.data_sessao ?? r.criado_em.slice(0, 10))}</td>
-                      <td className="hidden md:table-cell px-4 py-3">
-                        {r.tipo_sessao ? (
-                          <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
-                            {r.tipo_sessao}
+                      {colunasVisiveis.includes('numero_sessao') && (
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                          {r.numero_sessao != null
+                            ? <span className="font-semibold text-foreground">#{r.numero_sessao}</span>
+                            : <span className="text-muted-foreground/40">—</span>
+                          }
+                        </td>
+                      )}
+                      {colunasVisiveis.includes('data_sessao') && (
+                        <td className="px-4 py-3 text-muted-foreground">{formatDataBR(r.data_sessao ?? r.criado_em.slice(0, 10))}</td>
+                      )}
+                      {colunasVisiveis.includes('tipo_sessao') && (
+                        <td className="px-4 py-3">
+                          {r.tipo_sessao ? (
+                            <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
+                              {r.tipo_sessao}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      )}
+                      {colunasVisiveis.includes('status') && (
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
+                            r.presenca ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600',
+                          )}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', r.presenca ? 'bg-green-500' : 'bg-red-500')} />
+                            {r.presenca ? 'Realizado' : 'Falta'}
                           </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="hidden md:table-cell px-4 py-3">
-                        <span className={cn(
-                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                          r.presenca ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
-                        )}>
-                          <span className={cn('h-1.5 w-1.5 rounded-full', r.presenca ? 'bg-green-500' : 'bg-red-500')} />
-                          {r.presenca ? 'Presente' : 'Falta'}
-                        </span>
-                      </td>
-                      <td className="hidden md:table-cell px-4 py-3 text-right">
-                        {r.valor_sessao != null ? (
-                          <span className="text-sm font-medium text-gray-700">{formatBRL(r.valor_sessao)}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">sem cobrança</span>
-                        )}
-                      </td>
+                        </td>
+                      )}
+                      {colunasVisiveis.includes('presenca') && (
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                            r.presenca ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+                          )}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', r.presenca ? 'bg-green-500' : 'bg-red-500')} />
+                            {r.presenca ? 'Presente' : 'Falta'}
+                          </span>
+                        </td>
+                      )}
+                      {colunasVisiveis.includes('material') && (
+                        <td className="px-4 py-3">
+                          {r.material && r.material !== '-'
+                            ? <span className="inline-flex items-center rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 max-w-[120px] truncate">{r.material}</span>
+                            : <span className="text-muted-foreground/40 text-xs">—</span>
+                          }
+                        </td>
+                      )}
+                      {colunasVisiveis.includes('valor') && (
+                        <td className="px-4 py-3 text-right">
+                          {r.valor_sessao != null ? (
+                            <span className="text-sm font-medium text-gray-700">{formatBRL(r.valor_sessao)}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">sem cobrança</span>
+                          )}
+                        </td>
+                      )}
                       {/* Botão expandir */}
-                      <td className="px-3 py-3 text-right">
-                        {temNotas && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleExpansao(r.id) }}
-                            title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
-                            className={cn(
-                              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
-                              aberto
-                                ? 'bg-[#04c2fb] text-white shadow-sm shadow-[#04c2fb]/30'
-                                : 'border border-[#04c2fb]/30 text-[#04c2fb] hover:bg-[#04c2fb]/8 hover:border-[#04c2fb]/50',
-                            )}
-                          >
-                            <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                            {imagens.length > 0 && (
-                              <span className="flex items-center gap-0.5">
-                                <ImageIcon className="h-3 w-3" />
-                                <span>{imagens.length}</span>
-                              </span>
-                            )}
-                            {outrosArquivos.length > 0 && <Paperclip className="h-3 w-3" />}
-                            {links.length > 0 && <ExternalLink className="h-3 w-3" />}
-                          </button>
-                        )}
-                      </td>
+                      {colunasVisiveis.includes('notas') && (
+                        <td className="px-3 py-3 text-right">
+                          {temNotas && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleExpansao(r.id) }}
+                              title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
+                              className={cn(
+                                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
+                                aberto
+                                  ? 'bg-[#04c2fb] text-white shadow-sm shadow-[#04c2fb]/30'
+                                  : 'border border-[#04c2fb]/30 text-[#04c2fb] hover:bg-[#04c2fb]/8 hover:border-[#04c2fb]/50',
+                              )}
+                            >
+                              <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                              {imagens.length > 0 && (
+                                <span className="flex items-center gap-0.5">
+                                  <ImageIcon className="h-3 w-3" />
+                                  <span>{imagens.length}</span>
+                                </span>
+                              )}
+                              {outrosArquivos.length > 0 && <Paperclip className="h-3 w-3" />}
+                              {links.length > 0 && <ExternalLink className="h-3 w-3" />}
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
 
                     {/* Linha expandida */}
                     {temNotas && (
                       <tr className={aberto ? '' : 'hidden'}>
-                        <td colSpan={7} className="px-0 py-0">
+                        <td colSpan={1 + colunasVisiveis.length} className="px-0 py-0">
                           <div
                             className={cn(
                               'grid transition-all duration-200',
@@ -556,7 +710,7 @@ export default function RegistrosPage() {
               })}
               {!isLoading && !isError && lista.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
+                  <td colSpan={1 + colunasVisiveis.length} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Search className="h-8 w-8 text-muted-foreground/30" />
                       <p className="text-sm font-medium text-muted-foreground">

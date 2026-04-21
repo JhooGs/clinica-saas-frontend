@@ -21,6 +21,14 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.3.1',
+    date: '21 de abril de 2026',
+    changes: [
+      { category: 'Added', description: 'Agora é possível escolher quais colunas deseja visualizar nas tabelas de registro e do paciente.'},
+      { category: 'Fixed', description: 'Resolvido bug onde um agendamendo mostrava ocupado quando não tinha nada agendado.'},
+    ],
+  },
+  {
     version: 'v0.3.0',
     date: '20 de abril de 2026',
     changes: [

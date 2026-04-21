@@ -2,7 +2,8 @@
 
 import { Suspense, useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Users, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Search, Loader2 } from 'lucide-react'
+import { Users, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Search, Loader2, Columns3, Check } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, hoje } from '@/lib/utils'
 import { usePacientes, useCriarPaciente } from '@/hooks/use-pacientes'
 import { usePacotes } from '@/hooks/use-planos'
@@ -24,6 +25,9 @@ type Paciente = {
   dataInicio: string
   pacoteId: string | null
   cobranca: 'por_atendimento' | 'mensal' | null
+  gratuito: boolean
+  telefone?: string
+  email?: string
   cpf?: string
   endereco?: string
   cidade?: string
@@ -56,7 +60,7 @@ function formInicial(): FormState {
   }
 }
 
-type SortKey = 'nome' | 'responsavel' | 'dataNascimento' | 'ativo' | 'dataInicio' | 'pacoteId' | 'cobranca'
+type SortKey = 'nome' | 'responsavel' | 'dataNascimento' | 'ativo' | 'dataInicio' | 'dataAnamnese' | 'pacoteId' | 'cobranca' | 'gratuito'
 type SortDir = 'asc' | 'desc'
 
 function parseDateBR(d: string | null): number {
@@ -454,14 +458,23 @@ function ModalNovoPaciente({
   )
 }
 
-const colunas: { key: SortKey; label: string }[] = [
-  { key: 'nome',        label: 'Nome'        },
-  { key: 'responsavel', label: 'Responsável' },
-  { key: 'ativo',       label: 'Status'      },
-  { key: 'dataInicio',  label: 'Data Início' },
-  { key: 'pacoteId',    label: 'Plano'       },
-  { key: 'cobranca',    label: 'Cobrança'    },
+type ColPac = 'responsavel' | 'ativo' | 'dataInicio' | 'pacoteId' | 'cobranca' | 'dataNascimento' | 'dataAnamnese' | 'telefone' | 'email' | 'gratuito'
+
+const COLUNAS_PAC_TODAS: { key: ColPac; label: string; sortable?: SortKey }[] = [
+  { key: 'responsavel',    label: 'Responsável',    sortable: 'responsavel'    },
+  { key: 'ativo',          label: 'Status',         sortable: 'ativo'          },
+  { key: 'dataInicio',     label: 'Data Início',    sortable: 'dataInicio'     },
+  { key: 'pacoteId',       label: 'Plano',          sortable: 'pacoteId'       },
+  { key: 'cobranca',       label: 'Cobrança',       sortable: 'cobranca'       },
+  { key: 'dataNascimento', label: 'Nascimento',     sortable: 'dataNascimento' },
+  { key: 'dataAnamnese',   label: 'Anamnese',       sortable: 'dataAnamnese'   },
+  { key: 'telefone',       label: 'Telefone' },
+  { key: 'email',          label: 'E-mail'   },
+  { key: 'gratuito',       label: 'Gratuito',       sortable: 'gratuito'       },
 ]
+
+const COLUNAS_PAC_PADRAO: ColPac[] = ['responsavel', 'ativo', 'dataInicio', 'pacoteId', 'cobranca']
+const COLUNAS_PAC_LS_KEY = 'clinitra_pac_colunas'
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
   if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-gray-300" />
@@ -506,6 +519,9 @@ function apiParaLocal(p: ApiPaciente): Paciente {
     dataInicio: _fmtIso(p.data_inicio),
     pacoteId: (p.plano_atendimento?.pacoteId as string | null) ?? null,
     cobranca: (p.plano_atendimento?.cobranca as 'por_atendimento' | 'mensal' | null) ?? null,
+    gratuito: p.gratuito ?? false,
+    ...(p.telefone && { telefone: p.telefone }),
+    ...(p.email && { email: p.email }),
     ...(p.cpf && { cpf: p.cpf }),
   }
 }
@@ -522,6 +538,27 @@ function PacientesContent() {
   const [busca, setBusca] = useState('')
   const inputBuscaRef = useRef<HTMLInputElement>(null)
   const criarPaciente = useCriarPaciente()
+
+  const [colunasVisiveis, setColunasVisiveis] = useState<ColPac[]>(() => {
+    try {
+      const saved = localStorage.getItem(COLUNAS_PAC_LS_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColPac[]
+        const todas = COLUNAS_PAC_TODAS.map(c => c.key)
+        const validas = todas.filter(k => parsed.includes(k))
+        if (validas.length > 0) return validas
+      }
+    } catch { /* ignore */ }
+    return COLUNAS_PAC_PADRAO
+  })
+
+  function toggleColuna(col: ColPac) {
+    setColunasVisiveis(prev => {
+      const novo = prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+      try { localStorage.setItem(COLUNAS_PAC_LS_KEY, JSON.stringify(novo)) } catch { /* ignore */ }
+      return novo
+    })
+  }
 
   const { data: apiData, isLoading, isError } = usePacientes()
   const pacientes: Paciente[] = (apiData?.items ?? []).map(apiParaLocal)
@@ -556,10 +593,14 @@ function PacientesContent() {
           break
         case 'dataNascimento':
         case 'dataInicio':
+        case 'dataAnamnese':
           cmp = parseDateBR(a[sortKey]) - parseDateBR(b[sortKey])
           break
         case 'ativo':
           cmp = (a.ativo === b.ativo) ? 0 : a.ativo ? -1 : 1
+          break
+        case 'gratuito':
+          cmp = (a.gratuito === b.gratuito) ? 0 : a.gratuito ? -1 : 1
           break
         case 'pacoteId':
           cmp = (a.pacoteId ?? '').localeCompare(b.pacoteId ?? '', 'pt-BR')
@@ -678,7 +719,7 @@ function PacientesContent() {
           )}
         </div>
 
-        {/* Filtros de status */}
+        {/* Filtros de status + colunas */}
         <div className="flex items-center gap-2 flex-wrap">
           {(['todos', 'ativos', 'inativos'] as const).map(f => (
             <button
@@ -695,6 +736,65 @@ function PacientesContent() {
               {f === 'todos' ? 'Todos' : f === 'ativos' ? 'Ativos' : 'Inativos'}
             </button>
           ))}
+
+          {/* Popover de visibilidade de colunas */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  colunasVisiveis.some(c => !COLUNAS_PAC_PADRAO.includes(c)) || colunasVisiveis.length < COLUNAS_PAC_PADRAO.length
+                    ? 'border-[#04c2fb]/40 bg-[#04c2fb]/8 text-[#04c2fb]'
+                    : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                <Columns3 className="h-3.5 w-3.5" />
+                <span>Colunas</span>
+                <span className="ml-0.5 rounded-full bg-[#04c2fb] text-white px-1.5 py-px text-[10px] font-semibold leading-none">
+                  {colunasVisiveis.length}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-2">
+              <p className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Exibir colunas
+              </p>
+              <div className="space-y-0.5">
+                {COLUNAS_PAC_TODAS.map(col => {
+                  const ativo = colunasVisiveis.includes(col.key)
+                  return (
+                    <button
+                      key={col.key}
+                      onClick={() => toggleColuna(col.key)}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-xs transition-colors text-left',
+                        ativo ? 'bg-[#04c2fb]/8 text-[#04c2fb]' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      )}
+                    >
+                      <span className={cn(
+                        'h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                        ativo ? 'bg-[#04c2fb] border-[#04c2fb]' : 'border-border bg-background',
+                      )}>
+                        {ativo && <Check className="h-2.5 w-2.5 text-white" />}
+                      </span>
+                      {col.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-2 border-t pt-2 px-2">
+                <button
+                  onClick={() => {
+                    setColunasVisiveis([...COLUNAS_PAC_PADRAO])
+                    try { localStorage.removeItem(COLUNAS_PAC_LS_KEY) } catch { /* ignore */ }
+                  }}
+                  className="text-[11px] text-[#04c2fb] hover:underline"
+                >
+                  Redefinir
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <span className="text-xs text-muted-foreground ml-2">
             {lista.length} paciente(s)
@@ -719,16 +819,18 @@ function PacientesContent() {
                     <SortIcon col="nome" sortKey={sortKey} sortDir={sortDir} />
                   </span>
                 </th>
-                {/* Colunas sortáveis (desktop) */}
-                {colunas.filter(c => c.key !== 'nome').map(col => (
+                {COLUNAS_PAC_TODAS.filter(c => colunasVisiveis.includes(c.key)).map(col => (
                   <th
                     key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+                    onClick={col.sortable ? () => handleSort(col.sortable!) : undefined}
+                    className={cn(
+                      'hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-muted-foreground select-none transition-colors',
+                      col.sortable && 'cursor-pointer hover:text-foreground',
+                    )}
                   >
                     <span className="inline-flex items-center gap-1.5">
                       {col.label}
-                      <SortIcon col={col.key} sortKey={sortKey} sortDir={sortDir} />
+                      {col.sortable && <SortIcon col={col.sortable} sortKey={sortKey} sortDir={sortDir} />}
                     </span>
                   </th>
                 ))}
@@ -737,7 +839,7 @@ function PacientesContent() {
             <tbody className="divide-y">
               {isLoading && (
                 <tr>
-                  <td colSpan={6} className="px-4">
+                  <td colSpan={1 + colunasVisiveis.length} className="px-4">
                     <PageLoader compact />
                   </td>
                 </tr>
@@ -764,48 +866,76 @@ function PacientesContent() {
                       <span className="text-[11px] text-muted-foreground">{p.responsavel}</span>
                     </div>
                   </td>
-                  {/* Colunas apenas desktop */}
-                  <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.responsavel}</td>
-                  <td className="hidden md:table-cell px-4 py-3">
-                    <span className={cn(
-                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                      p.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
-                    )}>
-                      <span className={cn('h-1.5 w-1.5 rounded-full', p.ativo ? 'bg-green-500' : 'bg-gray-400')} />
-                      {p.ativo ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.dataInicio}</td>
-                  {/* Plano de atendimento */}
-                  <td className="hidden md:table-cell px-4 py-3">
-                    {p.pacoteId
-                      ? <span className="inline-flex items-center rounded-md bg-[#04c2fb]/10 px-2 py-0.5 text-[11px] font-medium text-[#0094c8] ring-1 ring-inset ring-[#04c2fb]/20">
-                          {pacotesData?.items.find(pk => pk.id === p.pacoteId)?.nome ?? p.pacoteId}
+                  {/* Colunas condicionais desktop */}
+                  {colunasVisiveis.includes('responsavel') && (
+                    <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.responsavel}</td>
+                  )}
+                  {colunasVisiveis.includes('ativo') && (
+                    <td className="hidden md:table-cell px-4 py-3">
+                      <span className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                        p.ativo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                      )}>
+                        <span className={cn('h-1.5 w-1.5 rounded-full', p.ativo ? 'bg-green-500' : 'bg-gray-400')} />
+                        {p.ativo ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                  )}
+                  {colunasVisiveis.includes('dataInicio') && (
+                    <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.dataInicio}</td>
+                  )}
+                  {colunasVisiveis.includes('pacoteId') && (
+                    <td className="hidden md:table-cell px-4 py-3">
+                      {p.pacoteId
+                        ? <span className="inline-flex items-center rounded-md bg-[#04c2fb]/10 px-2 py-0.5 text-[11px] font-medium text-[#0094c8] ring-1 ring-inset ring-[#04c2fb]/20">
+                            {pacotesData?.items.find(pk => pk.id === p.pacoteId)?.nome ?? p.pacoteId}
+                          </span>
+                        : <span className="text-[11px] text-muted-foreground/50">Sem plano</span>
+                      }
+                    </td>
+                  )}
+                  {colunasVisiveis.includes('cobranca') && (
+                    <td className="hidden md:table-cell px-4 py-3">
+                      {p.cobranca === 'por_atendimento' && (
+                        <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
+                          Por sessão
                         </span>
-                      : <span className="text-[11px] text-muted-foreground/50">Sem plano</span>
-                    }
-                  </td>
-                  {/* Tipo de cobranca */}
-                  <td className="hidden md:table-cell px-4 py-3">
-                    {p.cobranca === 'por_atendimento' && (
-                      <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
-                        Por sessao
-                      </span>
-                    )}
-                    {p.cobranca === 'mensal' && (
-                      <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                        Mensalidade
-                      </span>
-                    )}
-                    {!p.cobranca && (
-                      <span className="text-[11px] text-muted-foreground/50">-</span>
-                    )}
-                  </td>
+                      )}
+                      {p.cobranca === 'mensal' && (
+                        <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                          Mensalidade
+                        </span>
+                      )}
+                      {!p.cobranca && (
+                        <span className="text-[11px] text-muted-foreground/50">-</span>
+                      )}
+                    </td>
+                  )}
+                  {colunasVisiveis.includes('dataNascimento') && (
+                    <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.dataNascimento || '-'}</td>
+                  )}
+                  {colunasVisiveis.includes('dataAnamnese') && (
+                    <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.dataAnamnese || '-'}</td>
+                  )}
+                  {colunasVisiveis.includes('telefone') && (
+                    <td className="hidden md:table-cell px-4 py-3 text-muted-foreground">{p.telefone || '-'}</td>
+                  )}
+                  {colunasVisiveis.includes('email') && (
+                    <td className="hidden md:table-cell px-4 py-3 text-muted-foreground truncate max-w-[180px]">{p.email || '-'}</td>
+                  )}
+                  {colunasVisiveis.includes('gratuito') && (
+                    <td className="hidden md:table-cell px-4 py-3">
+                      {p.gratuito
+                        ? <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">Gratuito</span>
+                        : <span className="text-[11px] text-muted-foreground/50">-</span>
+                      }
+                    </td>
+                  )}
                 </tr>
               ))}
               {!isLoading && lista.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
+                  <td colSpan={1 + colunasVisiveis.length} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Search className="h-8 w-8 text-muted-foreground/30" />
                       <p className="text-sm font-medium text-muted-foreground">

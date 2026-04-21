@@ -171,12 +171,6 @@ export default function AgendaPage() {
   const cancelarAgendamento = useCancelarAgendamento()
 
   const [exportedIds, setExportedIds] = useState<Set<string>>(() => loadExportedIds())
-  const [agendamentosRecorrentes] = useState<AgendamentoComSource[]>(() => {
-    try {
-      const raw = localStorage.getItem('clinitra_agenda_recorrentes')
-      return raw ? JSON.parse(raw) as AgendamentoComSource[] : []
-    } catch { return [] }
-  })
   const [modalOpen, setModalOpen] = useState(false)
   const [agendamentoEditando, setAgendamentoEditando] = useState<AgendamentoComSource | undefined>()
   const [confirmarDeletar, setConfirmarDeletar] = useState<AgendamentoComSource | null>(null)
@@ -186,12 +180,12 @@ export default function AgendaPage() {
   const todosAgendamentos = useMemo<AgendamentoComSource[]>(() => {
     const clinitaItems = (apiData?.items ?? []).map(agendamentoToComSource)
     const clinitaKey = new Set(clinitaItems.map(a => `${a.data}_${a.horario}_${a.paciente}`))
-    const recorrentesFiltrados = agendamentosRecorrentes.filter(
+    const googleFiltrados = googleEvents.filter(
       a => !clinitaKey.has(`${a.data}_${a.horario}_${a.paciente}`)
     )
-    const todos = [...clinitaItems, ...recorrentesFiltrados, ...googleEvents]
-    return todos.filter(a => a.data >= semana.inicio && a.data <= semana.fim)
-  }, [apiData, googleEvents, agendamentosRecorrentes, semana])
+    return [...clinitaItems, ...googleFiltrados]
+      .filter(a => a.data >= semana.inicio && a.data <= semana.fim)
+  }, [apiData, googleEvents, semana])
 
   useEffect(() => {
     const ids = todosAgendamentos

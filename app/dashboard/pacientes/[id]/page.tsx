@@ -10,7 +10,7 @@ import {
   Package, CalendarDays, Check, Ban, Receipt, Repeat2,
   Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
   Paperclip, BookOpen, Image as ImageIcon,
-  ArrowUpDown, ArrowUp, ArrowDown,
+  ArrowUpDown, ArrowUp, ArrowDown, Columns3,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
@@ -1176,6 +1176,39 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const FILTRO_PADRAO: StatusHist[] = ['Realizado', 'Falta', 'Pendente']
   const FILTRO_LS_KEY = `clinitra_hist_filtros_${pacienteInicial.id}`
 
+  type ColHist = 'numero_sessao' | 'status' | 'presenca' | 'tipo_sessao' | 'material' | 'valor' | 'notas'
+  const COLUNAS_OCULTAVEIS: { key: ColHist; label: string }[] = [
+    { key: 'numero_sessao', label: 'Nº da sessão' },
+    { key: 'status',        label: 'Status' },
+    { key: 'presenca',      label: 'Presença' },
+    { key: 'tipo_sessao',   label: 'Tipo' },
+    { key: 'material',      label: 'Material' },
+    { key: 'valor',         label: 'Valor' },
+    { key: 'notas',         label: 'Notas' },
+  ]
+  const COLUNAS_HIST_PADRAO: ColHist[] = ['numero_sessao', 'status', 'tipo_sessao', 'valor', 'notas']
+  const COLUNAS_LS_KEY = 'clinitra_hist_colunas'
+
+  const [colunasVisiveis, setColunasVisiveis] = useState<ColHist[]>(() => {
+    try {
+      const saved = localStorage.getItem(COLUNAS_LS_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColHist[]
+        const validas = COLUNAS_OCULTAVEIS.map(c => c.key).filter(c => parsed.includes(c))
+        if (validas.length > 0) return validas
+      }
+    } catch { /* ignore */ }
+    return COLUNAS_HIST_PADRAO
+  })
+
+  const toggleColuna = (col: ColHist) => {
+    setColunasVisiveis(prev => {
+      const novo = prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+      try { localStorage.setItem(COLUNAS_LS_KEY, JSON.stringify(novo)) } catch { /* ignore */ }
+      return novo
+    })
+  }
+
   const [filtrosStatus, setFiltrosStatus] = useState<StatusHist[]>(() => {
     try {
       const salvo = localStorage.getItem(FILTRO_LS_KEY)
@@ -1566,6 +1599,64 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 {agendamentosFiltrados.length} de {agendamentosHist.length} exibida(s)
               </span>
             )}
+            {/* Popover de visibilidade de colunas */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                    colunasVisiveis.length !== COLUNAS_HIST_PADRAO.length || colunasVisiveis.some(c => !COLUNAS_HIST_PADRAO.includes(c))
+                      ? 'border-[#04c2fb]/40 bg-[#04c2fb]/8 text-[#04c2fb]'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  <Columns3 className="h-3.5 w-3.5" />
+                  <span>Colunas</span>
+                  <span className="ml-0.5 rounded-full bg-[#04c2fb] text-white px-1.5 py-px text-[10px] font-semibold leading-none">
+                    {colunasVisiveis.length}
+                  </span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-52 p-2">
+                <p className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Exibir colunas
+                </p>
+                <div className="space-y-0.5">
+                  {COLUNAS_OCULTAVEIS.map(col => {
+                    const ativo = colunasVisiveis.includes(col.key)
+                    return (
+                      <button
+                        key={col.key}
+                        onClick={() => toggleColuna(col.key)}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-xs transition-colors text-left',
+                          ativo ? 'bg-[#04c2fb]/8 text-[#04c2fb]' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        )}
+                      >
+                        <span className={cn(
+                          'h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                          ativo ? 'bg-[#04c2fb] border-[#04c2fb]' : 'border-border bg-background',
+                        )}>
+                          {ativo && <Check className="h-2.5 w-2.5 text-white" />}
+                        </span>
+                        {col.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="mt-2 border-t pt-2 px-2">
+                  <button
+                    onClick={() => {
+                      setColunasVisiveis([...COLUNAS_HIST_PADRAO])
+                      try { localStorage.removeItem(COLUNAS_LS_KEY) } catch { /* ignore */ }
+                    }}
+                    className="text-[11px] text-[#04c2fb] hover:underline"
+                  >
+                    Redefinir
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Popover open={filtroAberto} onOpenChange={setFiltroAberto}>
               <PopoverTrigger asChild>
                 <button
@@ -1640,22 +1731,42 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th onClick={() => handleSortHist('numero_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-10">
-                  <span className="inline-flex items-center gap-1.5">Nº <SortIconHist col="numero_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
-                </th>
+                {colunasVisiveis.includes('numero_sessao') && (
+                  <th onClick={() => handleSortHist('numero_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-10">
+                    <span className="inline-flex items-center gap-1.5">Nº <SortIconHist col="numero_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
+                  </th>
+                )}
                 <th onClick={() => handleSortHist('data')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                   <span className="inline-flex items-center gap-1.5">Data <SortIconHist col="data" sk={sortKeyHist} sd={sortDirHist} /></span>
                 </th>
-                <th onClick={() => handleSortHist('status')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Status <SortIconHist col="status" sk={sortKeyHist} sd={sortDirHist} /></span>
-                </th>
-                <th onClick={() => handleSortHist('tipo_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5">Tipo <SortIconHist col="tipo_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
-                </th>
-                <th onClick={() => handleSortHist('valor')} className="hidden md:table-cell px-4 py-3 text-right text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                  <span className="inline-flex items-center gap-1.5 justify-end">Valor <SortIconHist col="valor" sk={sortKeyHist} sd={sortDirHist} /></span>
-                </th>
-                <th className="px-4 py-3 w-10" />
+                {colunasVisiveis.includes('status') && (
+                  <th onClick={() => handleSortHist('status')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                    <span className="inline-flex items-center gap-1.5">Status <SortIconHist col="status" sk={sortKeyHist} sd={sortDirHist} /></span>
+                  </th>
+                )}
+                {colunasVisiveis.includes('presenca') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground select-none">
+                    Presença
+                  </th>
+                )}
+                {colunasVisiveis.includes('tipo_sessao') && (
+                  <th onClick={() => handleSortHist('tipo_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                    <span className="inline-flex items-center gap-1.5">Tipo <SortIconHist col="tipo_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
+                  </th>
+                )}
+                {colunasVisiveis.includes('material') && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground select-none">
+                    Material
+                  </th>
+                )}
+                {colunasVisiveis.includes('valor') && (
+                  <th onClick={() => handleSortHist('valor')} className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                    <span className="inline-flex items-center gap-1.5 justify-end">Valor <SortIconHist col="valor" sk={sortKeyHist} sd={sortDirHist} /></span>
+                  </th>
+                )}
+                {colunasVisiveis.includes('notas') && (
+                  <th className="px-4 py-3 w-10" />
+                )}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -1727,12 +1838,14 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                         )}
                         onClick={reg ? () => { setRegistroModal(reg); setHorarioModal(ag.horario ?? null) } : (destinoNovo ? () => router.push(destinoNovo) : undefined)}
                       >
-                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                          {reg?.numero_sessao != null
-                            ? <span className="font-semibold text-foreground">#{reg.numero_sessao}</span>
-                            : <span className="text-muted-foreground/40">—</span>
-                          }
-                        </td>
+                        {colunasVisiveis.includes('numero_sessao') && (
+                          <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                            {reg?.numero_sessao != null
+                              ? <span className="font-semibold text-foreground">#{reg.numero_sessao}</span>
+                              : <span className="text-muted-foreground/40">—</span>
+                            }
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-muted-foreground">
                           <span>{isoToBR(reg?.data_sessao ?? ag.data)}</span>
                           {temNotas && (
@@ -1742,56 +1855,82 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={cn(
-                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
-                            statusInfo.cls,
-                          )}>
-                            <span className={cn('h-1.5 w-1.5 rounded-full', statusInfo.dot)} />
-                            {statusInfo.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 max-w-[130px]">
-                          <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb] truncate max-w-full">
-                            {ag.tipo_sessao ?? '—'}
-                          </span>
-                        </td>
-                        <td className="hidden md:table-cell px-4 py-3 text-right">
-                          {reg?.valor_sessao != null
-                            ? <span className="text-sm font-medium text-gray-700">R$ {reg.valor_sessao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            : <span className="text-muted-foreground text-xs">—</span>
-                          }
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {temNotas && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleSessao(ag.id) }}
-                              title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
-                              className={cn(
-                                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
-                                aberto
-                                  ? 'bg-[#04c2fb] text-white shadow-sm shadow-[#04c2fb]/30'
-                                  : 'border border-[#04c2fb]/30 text-[#04c2fb] hover:bg-[#04c2fb]/8 hover:border-[#04c2fb]/50',
-                              )}
-                            >
-                              <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                              {imagens.length > 0 && (
-                                <span className="flex items-center gap-0.5">
-                                  <ImageIcon className="h-3 w-3" />
-                                  <span>{imagens.length}</span>
-                                </span>
-                              )}
-                              {outrosArquivos.length > 0 && <Paperclip className="h-3 w-3" />}
-                              {links.length > 0 && <ExternalLink className="h-3 w-3" />}
-                            </button>
-                          )}
-                        </td>
+                        {colunasVisiveis.includes('status') && (
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
+                              statusInfo.cls,
+                            )}>
+                              <span className={cn('h-1.5 w-1.5 rounded-full', statusInfo.dot)} />
+                              {statusInfo.label}
+                            </span>
+                          </td>
+                        )}
+                        {colunasVisiveis.includes('presenca') && (
+                          <td className="px-4 py-3">
+                            {reg != null
+                              ? reg.presenca
+                                ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-medium"><CheckCircle2 className="h-3.5 w-3.5" />Sim</span>
+                                : <span className="inline-flex items-center gap-1 text-red-500 text-xs font-medium"><XCircle className="h-3.5 w-3.5" />Não</span>
+                              : <span className="text-muted-foreground/40 text-xs">—</span>
+                            }
+                          </td>
+                        )}
+                        {colunasVisiveis.includes('tipo_sessao') && (
+                          <td className="px-4 py-3 max-w-[130px]">
+                            <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb] truncate max-w-full">
+                              {ag.tipo_sessao ?? '—'}
+                            </span>
+                          </td>
+                        )}
+                        {colunasVisiveis.includes('material') && (
+                          <td className="px-4 py-3">
+                            {reg?.material && reg.material !== '-'
+                              ? <span className="inline-flex items-center rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 max-w-[120px] truncate">{reg.material}</span>
+                              : <span className="text-muted-foreground/40 text-xs">—</span>
+                            }
+                          </td>
+                        )}
+                        {colunasVisiveis.includes('valor') && (
+                          <td className="px-4 py-3 text-right">
+                            {reg?.valor_sessao != null
+                              ? <span className="text-sm font-medium text-gray-700">R$ {reg.valor_sessao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              : <span className="text-muted-foreground text-xs">—</span>
+                            }
+                          </td>
+                        )}
+                        {colunasVisiveis.includes('notas') && (
+                          <td className="px-3 py-3 text-right">
+                            {temNotas && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleSessao(ag.id) }}
+                                title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
+                                className={cn(
+                                  'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
+                                  aberto
+                                    ? 'bg-[#04c2fb] text-white shadow-sm shadow-[#04c2fb]/30'
+                                    : 'border border-[#04c2fb]/30 text-[#04c2fb] hover:bg-[#04c2fb]/8 hover:border-[#04c2fb]/50',
+                                )}
+                              >
+                                <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                                {imagens.length > 0 && (
+                                  <span className="flex items-center gap-0.5">
+                                    <ImageIcon className="h-3 w-3" />
+                                    <span>{imagens.length}</span>
+                                  </span>
+                                )}
+                                {outrosArquivos.length > 0 && <Paperclip className="h-3 w-3" />}
+                                {links.length > 0 && <ExternalLink className="h-3 w-3" />}
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
 
                       {/* Painel expandido */}
                       {temNotas && (
                         <tr className={aberto ? '' : 'hidden'}>
-                          <td colSpan={8} className="px-0 py-0">
+                          <td colSpan={2 + colunasVisiveis.length} className="px-0 py-0">
                             <div
                               className={cn(
                                 'grid transition-all duration-200',
