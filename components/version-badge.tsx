@@ -21,6 +21,18 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.3.0',
+    date: '20 de abril de 2026',
+    changes: [
+      { category: 'Added', description: 'Menu com perfil da clínica foi adicionado.'},
+      { category: 'Added', description: 'Agora existem cards informativos na página inicial.'},
+      { category: 'Added', description: 'Agora a imagem da clínica fica visivel no canto direito.'},
+      { category: 'Fixed', description: 'Logo da clínica não era salvo em banco, isso foi corrigido.'},
+      { category: 'Changed', description: 'Fonte do sistema foi alterada.'},
+      { category: 'Changed', description: 'Novo menu de configurações no mobile.'},
+    ],
+  },
+  {
     version: 'v0.2.2',
     date: '18 de abril de 2026',
     changes: [

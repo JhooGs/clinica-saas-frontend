@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
@@ -8,14 +8,23 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Menu, X, Home, Users, ClipboardList, CalendarDays,
   DollarSign, BarChart2, Settings, LogOut, Package, UserCog, ChevronRight,
+  Building2,
 } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { NotificationsBell } from '@/components/notifications-bell'
+import { ProximaSessaoPill } from '@/components/proxima-sessao-pill'
 import { createClient } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useConfiguracoes } from '@/hooks/use-configuracoes'
 import { cn } from '@/lib/utils'
-import type { Role } from '@/types'
 
 const COLLAPSED_W = 56
 const EXPANDED_W  = 288
@@ -46,12 +55,12 @@ const staggerItem = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function roleLabel(role: Role | null): string {
-  switch (role) {
-    case 'super_admin': return 'Super Admin'
-    case 'admin': return 'Admin'
-    case 'usuario': return 'Usuário'
-    default: return 'Usuário'
+function planoLabel(plano?: string): string {
+  switch (plano) {
+    case 'free':    return 'Plano Free'
+    case 'pro':     return 'Plano Pro'
+    case 'clinica': return 'Plano Clínica'
+    default:        return 'Plano Free'
   }
 }
 
@@ -90,11 +99,13 @@ function DesktopNavItem({
   active,
   expanded,
   onClick,
+  danger,
 }: {
   item: { title: string; href: string; icon: React.ElementType }
   active: boolean
   expanded: boolean
   onClick?: () => void
+  danger?: boolean
 }) {
   const Tag = onClick ? 'button' : Link
   const extraProps = onClick ? { onClick } : { href: item.href }
@@ -105,10 +116,12 @@ function DesktopNavItem({
       {...extraProps}
       className={cn(
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-colors duration-150',
-        active ? 'bg-[#e0f7fe] text-[#0094c8]' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
+        danger
+          ? 'text-rose-500 hover:bg-rose-50 hover:text-rose-600'
+          : active ? 'bg-[#e0f7fe] text-[#0094c8]' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
       )}
     >
-      <item.icon className={cn('h-5 w-5 shrink-0', active ? 'text-[#0094c8]' : 'text-gray-400')} />
+      <item.icon className={cn('h-5 w-5 shrink-0', danger ? 'text-rose-500' : active ? 'text-[#0094c8]' : 'text-gray-400')} />
       <motion.span
         animate={{ opacity: expanded ? 1 : 0 }}
         transition={{ duration: expanded ? 0.12 : 0.05, delay: expanded ? 0.08 : 0 }}
@@ -133,27 +146,114 @@ function DesktopSectionLabel({ label, expanded }: { label: string; expanded: boo
   )
 }
 
+// ── Avatar dropdown da clínica ────────────────────────────────────────────────
+
+function ClinicaAvatarDropdown({
+  logoUrl,
+  clinicaIniciais,
+  nomeClinica,
+  plano,
+  onLogout,
+  className,
+}: {
+  logoUrl: string | null
+  clinicaIniciais: string
+  nomeClinica?: string
+  plano?: string
+  onLogout: () => void
+  className?: string
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            'rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-[#04c2fb] focus-visible:ring-offset-2',
+            className,
+          )}
+          aria-label="Menu da clínica"
+        >
+          <Avatar className="h-8 w-8 cursor-pointer transition-all hover:ring-2 hover:ring-[#04c2fb]/50 hover:ring-offset-2">
+            {logoUrl && <AvatarImage src={logoUrl} alt={nomeClinica ?? 'Logo'} className="object-cover" />}
+            <AvatarFallback className="text-[11px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #0094c8, #04c2fb)' }}>
+              {clinicaIniciais}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" sideOffset={8} className="w-60">
+        {/* Cabeçalho */}
+        <div className="flex items-center gap-3 px-3 py-3">
+          <Avatar className="h-10 w-10 shrink-0">
+            {logoUrl && <AvatarImage src={logoUrl} alt={nomeClinica ?? 'Logo'} className="object-cover" />}
+            <AvatarFallback className="text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #0094c8, #04c2fb)' }}>
+              {clinicaIniciais}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{nomeClinica || 'Clínica'}</p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-none truncate">{planoLabel(plano)}</p>
+          </div>
+        </div>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard/configuracoes" className="cursor-pointer flex items-center gap-2.5">
+            <Building2 className="h-4 w-4 text-gray-400" />
+            <span>Perfil da clínica</span>
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onClick={onLogout}
+          className="cursor-pointer flex items-center gap-2.5 text-rose-500 focus:text-rose-600 focus:bg-rose-50"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sair</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export function AppNav() {
   const [mobileOpen,      setMobileOpen]      = useState(false)
   const [desktopExpanded, setDesktopExpanded] = useState(false)
-  const [email,    setEmail]    = useState('')
-  const [initials, setInitials] = useState('CL')
+  const [email, setEmail] = useState('')
 
   const pathname    = usePathname()
   const router      = useRouter()
   const queryClient = useQueryClient()
-  const { role, can, isSuperAdmin, isAdmin } = usePermissions()
+  const { can, isSuperAdmin, isAdmin } = usePermissions()
+  const { data: clinicaConfig } = useConfiguracoes()
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      const e = data.user?.email ?? ''
-      setEmail(e)
-      setInitials(e.slice(0, 2).toUpperCase())
+      setEmail(data.user?.email ?? '')
     })
   }, [])
+
+  const clinicaIniciais = useMemo(() => {
+    const nome = clinicaConfig?.nome_clinica ?? ''
+    return nome.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || 'CL'
+  }, [clinicaConfig?.nome_clinica])
+
+  const userIniciais = useMemo(() => {
+    const nome = clinicaConfig?.nome_responsavel ?? ''
+    if (nome.trim()) {
+      return nome.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+    }
+    return email.slice(0, 2).toUpperCase() || 'CL'
+  }, [clinicaConfig?.nome_responsavel, email])
+
+  const logoUrl = clinicaConfig?.logo_url ?? null
 
   // Escape fecha o drawer mobile
   useEffect(() => {
@@ -193,9 +293,8 @@ export function AppNav() {
   ].filter(i => i.show)
 
   const adminNav = [
-    { title: 'Usuários',      href: '/dashboard/usuarios',      icon: UserCog, show: isAdmin || isSuperAdmin },
-    { title: 'Planos',        href: '/dashboard/planos',        icon: Package, show: isSuperAdmin },
-    { title: 'Configurações', href: '/dashboard/configuracoes', icon: Settings,show: isSuperAdmin },
+    { title: 'Usuários', href: '/dashboard/usuarios', icon: UserCog, show: isAdmin || isSuperAdmin },
+    { title: 'Planos',   href: '/dashboard/planos',   icon: Package, show: isSuperAdmin },
   ].filter(i => i.show)
 
   return (
@@ -222,22 +321,28 @@ export function AppNav() {
         </div>
         <div className="flex items-center gap-1">
           <NotificationsBell />
-          <Avatar className="h-8 w-8 ml-1 cursor-default">
-            <AvatarFallback className="text-[11px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #0094c8, #04c2fb)' }}>
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <ClinicaAvatarDropdown
+            logoUrl={logoUrl}
+            clinicaIniciais={clinicaIniciais}
+            nomeClinica={clinicaConfig?.nome_clinica}
+            plano={clinicaConfig?.plano}
+            onLogout={handleLogout}
+            className="ml-1"
+          />
         </div>
       </header>
 
       {/* ═══════════════════ DESKTOP topbar ═══════════════════ */}
-      <header className="hidden md:flex shrink-0 items-center justify-end gap-2 px-6 h-14 border-b bg-background">
+      <header className="hidden md:flex shrink-0 items-center justify-end gap-2 px-6 h-14 bg-background">
+        <ProximaSessaoPill />
         <NotificationsBell />
-        <Avatar className="h-8 w-8 cursor-default">
-          <AvatarFallback className="text-[11px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #0094c8, #04c2fb)' }}>
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <ClinicaAvatarDropdown
+          logoUrl={logoUrl}
+          clinicaIniciais={clinicaIniciais}
+          nomeClinica={clinicaConfig?.nome_clinica}
+          plano={clinicaConfig?.plano}
+          onLogout={handleLogout}
+        />
       </header>
 
       {/* ═══════════════════ MOBILE drawer ═══════════════════ */}
@@ -283,12 +388,12 @@ export function AppNav() {
               <div className="flex items-center gap-3 px-5 py-3.5 border-b shrink-0">
                 <Avatar className="h-9 w-9 shrink-0">
                   <AvatarFallback className="text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #0094c8, #04c2fb)' }}>
-                    {initials}
+                    {userIniciais}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{email || 'Usuário'}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-tight">{roleLabel(role)}</p>
+                  <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{clinicaConfig?.nome_responsavel || email || 'Usuário'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-tight">{planoLabel(clinicaConfig?.plano)}</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
               </div>
@@ -316,12 +421,20 @@ export function AppNav() {
               </nav>
 
               {/* Rodapé */}
-              <div className="shrink-0 border-t px-3 py-3">
-                <button
-                  onClick={handleLogout}
+              <div className="shrink-0 border-t px-3 py-3 space-y-0.5">
+                <Link
+                  href="/dashboard/configuracoes"
+                  onClick={() => setMobileOpen(false)}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
                 >
-                  <LogOut className="h-4 w-4 shrink-0 text-gray-400" />
+                  <Settings className="h-4 w-4 shrink-0 text-gray-400" />
+                  <span>Configurações</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                >
+                  <LogOut className="h-4 w-4 shrink-0 text-rose-500" />
                   <span>Sair</span>
                 </button>
               </div>
@@ -367,7 +480,7 @@ export function AppNav() {
         <div className="flex items-center px-3 py-3.5 border-b shrink-0 gap-3 overflow-hidden">
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="text-[11px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #0094c8, #04c2fb)' }}>
-              {initials}
+              {userIniciais}
             </AvatarFallback>
           </Avatar>
           <motion.div
@@ -375,8 +488,8 @@ export function AppNav() {
             transition={{ duration: desktopExpanded ? 0.15 : 0.05, delay: desktopExpanded ? 0.08 : 0 }}
             className="min-w-0 overflow-hidden"
           >
-            <p className="text-sm font-semibold text-gray-900 truncate leading-tight whitespace-nowrap">{email || 'Usuário'}</p>
-            <p className="text-xs text-gray-500 mt-0.5 leading-tight whitespace-nowrap">{roleLabel(role)}</p>
+            <p className="text-sm font-semibold text-gray-900 truncate leading-tight whitespace-nowrap">{clinicaConfig?.nome_responsavel || email || 'Usuário'}</p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-tight whitespace-nowrap">{planoLabel(clinicaConfig?.plano)}</p>
           </motion.div>
         </div>
 
@@ -398,13 +511,19 @@ export function AppNav() {
           )}
         </nav>
 
-        {/* Rodapé — Sair */}
-        <div className="shrink-0 border-t px-2 py-3">
+        {/* Rodapé — Configurações + Sair */}
+        <div className="shrink-0 border-t px-2 py-3 space-y-0.5">
+          <DesktopNavItem
+            item={{ title: 'Configurações', href: '/dashboard/configuracoes', icon: Settings }}
+            active={isActive('/dashboard/configuracoes')}
+            expanded={desktopExpanded}
+          />
           <DesktopNavItem
             item={{ title: 'Sair', href: '#logout', icon: LogOut }}
             active={false}
             expanded={desktopExpanded}
             onClick={handleLogout}
+            danger
           />
         </div>
       </motion.aside>

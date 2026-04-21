@@ -9,6 +9,8 @@ import { ModalPauta, chavePauta } from '@/components/modal-pauta'
 import { useAgendamentosHoje, useAgendamentos } from '@/hooks/use-agenda'
 import type { Agendamento } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
+import { SaudacaoHome } from '@/components/dashboard/saudacao-home'
+import { CardsMetricasDashboard } from '@/components/dashboard/cards-metricas'
 
 // ---------------------------------------------------------------------------
 // Tipos locais
@@ -438,12 +440,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
 
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Agenda de hoje</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
-      </div>
+      <SaudacaoHome totalAtendimentos={atendimentosHoje.length} loading={loadingHoje} />
+
+      <CardsMetricasDashboard />
 
       {/* Agenda do dia — full width */}
       <div className="rounded-xl border bg-card shadow-sm">

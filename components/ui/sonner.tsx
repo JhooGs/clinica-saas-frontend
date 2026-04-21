@@ -11,7 +11,7 @@ export function Toaster(props: ToasterProps) {
       duration={4500}
       toastOptions={{
         style: {
-          fontFamily: 'var(--font-montserrat), sans-serif',
+          fontFamily: 'var(--font-poppins), sans-serif',
         },
         classNames: {
           toast: 'rounded-xl shadow-lg text-sm',

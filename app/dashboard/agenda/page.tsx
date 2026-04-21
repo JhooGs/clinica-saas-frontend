@@ -704,7 +704,7 @@ export default function AgendaPage() {
             </p>
           </div>
           <Link
-            href="/dashboard/configuracoes/conexoes"
+            href="/dashboard/configuracoes?aba=conexoes"
             className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 shrink-0"
           >
             Conectar

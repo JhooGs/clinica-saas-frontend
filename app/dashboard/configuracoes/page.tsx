@@ -1,33 +1,55 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState, type ElementType } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  AlertCircle,
+  Banknote,
+  BookOpen,
   Building2,
+  Calendar,
+  CalendarClock,
   Camera,
   CheckCircle2,
+  Database,
+  DollarSign,
+  Info,
   Loader2,
   MapPin,
+  MessageSquare,
+  Plug,
   Save,
+  SlidersHorizontal,
+  Trash2,
   User,
+  Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { useConfiguracoes, useSalvarConfiguracoes } from '@/hooks/use-configuracoes'
+import {
+  useConfiguracoes,
+  useSalvarConfiguracoes,
+  useUploadLogo,
+  useRemoverLogo,
+} from '@/hooks/use-configuracoes'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useGoogleCalendar } from '@/hooks/use-google-calendar'
+import { ImportWizard } from '@/components/onboarding/import-wizard'
+import type { ImportModulo } from '@/components/onboarding/import-wizard'
 
-// ─── Logo (localStorage — upload para Supabase Storage é task futura) ─────────
+// ─── Constantes e helpers compartilhados ──────────────────────────────────────
 
-const LOGO_KEY = 'clinitra:logo_base64'
-
-function carregarLogo(): string {
-  if (typeof window === 'undefined') return ''
-  try { return localStorage.getItem(LOGO_KEY) ?? '' } catch { return '' }
-}
-
-// ─── Máscaras ─────────────────────────────────────────────────────────────────
+const GRADIENT = 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)'
 
 function maskCEP(v: string): string {
   const d = v.replace(/\D/g, '').slice(0, 8)
@@ -40,12 +62,6 @@ function maskTelefone(v: string): string {
   if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
-
-// ─── Gradiente ────────────────────────────────────────────────────────────────
-
-const GRADIENT = 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)'
-
-// ─── Componente de campo ──────────────────────────────────────────────────────
 
 function Campo({
   label,
@@ -64,11 +80,24 @@ function Campo({
   )
 }
 
-// ─── Página principal ────────────────────────────────────────────────────────
+// ─── Navegação ────────────────────────────────────────────────────────────────
 
-export default function ConfiguracoesGeralPage() {
+type AbaConfig = 'geral' | 'financeiro' | 'dados' | 'conexoes'
+
+const configNav: { id: AbaConfig; title: string; icon: ElementType }[] = [
+  { id: 'geral',       title: 'Geral',       icon: SlidersHorizontal },
+  { id: 'financeiro',  title: 'Financeiro',  icon: Banknote },
+  { id: 'dados',       title: 'Dados',       icon: Database },
+  { id: 'conexoes',    title: 'Conexões',    icon: Plug },
+]
+
+// ─── Aba Geral ────────────────────────────────────────────────────────────────
+
+function AbaGeral() {
   const { data: config, isLoading } = useConfiguracoes()
   const { mutateAsync: salvar, isPending: salvando } = useSalvarConfiguracoes()
+  const { mutateAsync: uploadLogo, isPending: uploadando } = useUploadLogo()
+  const { mutateAsync: removerLogo, isPending: removendo } = useRemoverLogo()
 
   const [nomeClinica, setNomeClinica] = useState('')
   const [especialidade, setEspecialidade] = useState('')
@@ -82,14 +111,12 @@ export default function ConfiguracoesGeralPage() {
   const [bairro, setBairro] = useState('')
   const [cidade, setCidade] = useState('')
   const [estado, setEstado] = useState('')
-  const [logoBase64, setLogoBase64] = useState('')
   const [buscandoCEP, setBuscandoCEP] = useState(false)
   const [hoverLogo, setHoverLogo] = useState(false)
   const [salvoComSucesso, setSalvoComSucesso] = useState(false)
 
   const inputFileRef = useRef<HTMLInputElement>(null)
 
-  // Preenche o formulário quando os dados chegam da API
   useEffect(() => {
     if (!config) return
     setNomeClinica(config.nome_clinica ?? '')
@@ -106,31 +133,35 @@ export default function ConfiguracoesGeralPage() {
     setEstado(config.estado ?? '')
   }, [config])
 
-  useEffect(() => {
-    setLogoBase64(carregarLogo())
-  }, [])
-
-  // ── Logo ──────────────────────────────────────────────────────────────────
-
-  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    e.target.value = ''
     if (file.size > 2 * 1024 * 1024) {
       toast.error('Imagem muito grande', { description: 'O tamanho máximo é 2 MB.' })
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const b64 = reader.result as string
-      setLogoBase64(b64)
-      localStorage.setItem(LOGO_KEY, b64)
-      toast.info('Imagem carregada', { description: 'Logo atualizado.' })
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Formato inválido', { description: 'Use JPEG, PNG ou WebP.' })
+      return
     }
-    reader.readAsDataURL(file)
-    e.target.value = ''
+    try {
+      await uploadLogo({ file, logoAtual: config?.logo_url ?? null })
+      toast.success('Logo atualizada', { description: 'Imagem salva com sucesso.' })
+    } catch {
+      toast.error('Erro ao salvar logo', { description: 'Tente novamente.' })
+    }
   }
 
-  // ── CEP ───────────────────────────────────────────────────────────────────
+  async function handleRemoverLogo() {
+    if (!config?.logo_url) return
+    try {
+      await removerLogo(config.logo_url)
+      toast.success('Logo removida')
+    } catch {
+      toast.error('Erro ao remover logo', { description: 'Tente novamente.' })
+    }
+  }
 
   async function handleCEP(raw: string) {
     const masked = maskCEP(raw)
@@ -155,8 +186,6 @@ export default function ConfiguracoesGeralPage() {
       setBuscandoCEP(false)
     }
   }
-
-  // ── Salvar ─────────────────────────────────────────────────────────────────
 
   async function handleSave() {
     if (!nomeClinica.trim()) {
@@ -185,8 +214,6 @@ export default function ConfiguracoesGeralPage() {
     }
   }
 
-  // ── Iniciais para avatar ───────────────────────────────────────────────────
-
   const iniciais = nomeClinica
     .trim()
     .split(/\s+/)
@@ -196,6 +223,7 @@ export default function ConfiguracoesGeralPage() {
 
   const cepCompleto = cep.replace(/\D/g, '').length === 8
   const enderecoDesabilitado = !cepCompleto || buscandoCEP
+  const logoProcessando = uploadando || removendo
 
   if (isLoading) {
     return (
@@ -207,7 +235,6 @@ export default function ConfiguracoesGeralPage() {
 
   return (
     <div className="space-y-4 pb-6">
-      {/* ── Card 1: Identidade ─────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3 p-4 sm:p-6">
           <div className="flex items-center gap-3">
@@ -216,27 +243,24 @@ export default function ConfiguracoesGeralPage() {
             </div>
             <div>
               <CardTitle className="text-sm font-semibold">Identidade da clínica</CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Logo, nome e área de atuação
-              </CardDescription>
+              <CardDescription className="text-xs mt-0.5">Logo, nome e área de atuação</CardDescription>
             </div>
           </div>
         </CardHeader>
-
         <CardContent className="space-y-5 px-4 sm:px-6 pb-4 sm:pb-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-            {/* Avatar / logo */}
             <div className="flex flex-col items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => inputFileRef.current?.click()}
+                onClick={() => !logoProcessando && inputFileRef.current?.click()}
                 onMouseEnter={() => setHoverLogo(true)}
                 onMouseLeave={() => setHoverLogo(false)}
-                className="relative h-24 w-24 rounded-full overflow-hidden ring-2 ring-white shadow-md focus-visible:outline-none focus-visible:ring-[#04c2fb] focus-visible:ring-offset-2 transition-transform active:scale-95"
+                disabled={logoProcessando}
+                className="relative h-24 w-24 rounded-full overflow-hidden ring-2 ring-white shadow-md focus-visible:outline-none focus-visible:ring-[#04c2fb] focus-visible:ring-offset-2 transition-transform active:scale-95 disabled:cursor-not-allowed"
               >
-                {logoBase64 ? (
+                {config?.logo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoBase64} alt="Logo da clínica" className="h-full w-full object-cover" />
+                  <img src={config.logo_url} alt="Logo da clínica" className="h-full w-full object-cover" />
                 ) : (
                   <div
                     className="h-full w-full flex items-center justify-center text-white text-2xl font-bold tracking-tight select-none"
@@ -248,17 +272,37 @@ export default function ConfiguracoesGeralPage() {
                 <div
                   className={cn(
                     'absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity duration-150',
-                    hoverLogo ? 'opacity-100' : 'opacity-0',
+                    (hoverLogo && !logoProcessando) ? 'opacity-100' : 'opacity-0',
+                    logoProcessando && 'opacity-100',
                   )}
                 >
-                  <Camera className="h-6 w-6 text-white drop-shadow" />
+                  {logoProcessando ? (
+                    <Loader2 className="h-6 w-6 text-white animate-spin drop-shadow" />
+                  ) : (
+                    <Camera className="h-6 w-6 text-white drop-shadow" />
+                  )}
                 </div>
               </button>
               <span className="text-[11px] text-muted-foreground">Clique para alterar</span>
-              <input ref={inputFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+              {config?.logo_url && (
+                <button
+                  type="button"
+                  onClick={handleRemoverLogo}
+                  disabled={logoProcessando}
+                  className="flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Remover
+                </button>
+              )}
+              <input
+                ref={inputFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleLogoChange}
+              />
             </div>
-
-            {/* Nome + especialidade */}
             <div className="flex-1 w-full space-y-3">
               <Campo label="Nome da clínica">
                 <Input
@@ -268,7 +312,6 @@ export default function ConfiguracoesGeralPage() {
                   className="h-9 text-sm"
                 />
               </Campo>
-
               <Campo label="Especialidade">
                 <Input
                   placeholder="Ex: Psicologia Clínica, Fisioterapia..."
@@ -282,7 +325,6 @@ export default function ConfiguracoesGeralPage() {
         </CardContent>
       </Card>
 
-      {/* ── Card 2: Responsável ────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3 p-4 sm:p-6">
           <div className="flex items-center gap-3">
@@ -291,13 +333,10 @@ export default function ConfiguracoesGeralPage() {
             </div>
             <div>
               <CardTitle className="text-sm font-semibold">Responsável</CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Dados de contato do responsável pela clínica
-              </CardDescription>
+              <CardDescription className="text-xs mt-0.5">Dados de contato do responsável pela clínica</CardDescription>
             </div>
           </div>
         </CardHeader>
-
         <CardContent className="space-y-3 px-4 sm:px-6 pb-4 sm:pb-6">
           <Campo label="Nome completo">
             <Input
@@ -307,7 +346,6 @@ export default function ConfiguracoesGeralPage() {
               className="h-9 text-sm"
             />
           </Campo>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Campo label="Telefone">
               <Input
@@ -318,7 +356,6 @@ export default function ConfiguracoesGeralPage() {
                 className="h-9 text-sm"
               />
             </Campo>
-
             <Campo label="E-mail de contato">
               <Input
                 type="email"
@@ -329,7 +366,6 @@ export default function ConfiguracoesGeralPage() {
               />
             </Campo>
           </div>
-
           <Campo label="E-mail de acesso">
             <Input
               type="email"
@@ -344,7 +380,6 @@ export default function ConfiguracoesGeralPage() {
         </CardContent>
       </Card>
 
-      {/* ── Card 3: Endereço ───────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3 p-4 sm:p-6">
           <div className="flex items-center gap-3">
@@ -353,13 +388,10 @@ export default function ConfiguracoesGeralPage() {
             </div>
             <div>
               <CardTitle className="text-sm font-semibold">Endereço</CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Localização física da clínica
-              </CardDescription>
+              <CardDescription className="text-xs mt-0.5">Localização física da clínica</CardDescription>
             </div>
           </div>
         </CardHeader>
-
         <CardContent className="space-y-3 px-4 sm:px-6 pb-4 sm:pb-6">
           <Campo label="CEP" className="max-w-[180px]">
             <div className="relative">
@@ -376,7 +408,6 @@ export default function ConfiguracoesGeralPage() {
               )}
             </div>
           </Campo>
-
           <Campo label="Logradouro">
             <Input
               placeholder="Rua, Avenida, Alameda..."
@@ -386,7 +417,6 @@ export default function ConfiguracoesGeralPage() {
               className={cn('h-9 text-sm', enderecoDesabilitado && 'opacity-50')}
             />
           </Campo>
-
           <div className="grid grid-cols-2 gap-3">
             <Campo label="Número">
               <Input
@@ -407,7 +437,6 @@ export default function ConfiguracoesGeralPage() {
               />
             </Campo>
           </div>
-
           <Campo label="Bairro">
             <Input
               placeholder="Bairro"
@@ -417,7 +446,6 @@ export default function ConfiguracoesGeralPage() {
               className={cn('h-9 text-sm', enderecoDesabilitado && 'opacity-50')}
             />
           </Campo>
-
           <div className="grid grid-cols-3 gap-3">
             <Campo label="Cidade" className="col-span-2">
               <Input
@@ -439,7 +467,6 @@ export default function ConfiguracoesGeralPage() {
               />
             </Campo>
           </div>
-
           {!cepCompleto && (
             <p className="text-[11px] text-muted-foreground">
               Digite o CEP para preencher os campos de endereço automaticamente.
@@ -448,7 +475,6 @@ export default function ConfiguracoesGeralPage() {
         </CardContent>
       </Card>
 
-      {/* ── Rodapé ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pt-1">
         {salvoComSucesso ? (
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -458,7 +484,6 @@ export default function ConfiguracoesGeralPage() {
         ) : (
           <span />
         )}
-
         <Button
           size="sm"
           disabled={salvando}
@@ -466,14 +491,522 @@ export default function ConfiguracoesGeralPage() {
           className="gap-1.5 text-white transition-all active:scale-95 hover:brightness-110"
           style={{ background: GRADIENT }}
         >
-          {salvando ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Save className="h-3.5 w-3.5" />
-          )}
+          {salvando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           Salvar alterações
         </Button>
       </div>
     </div>
+  )
+}
+
+// ─── Aba Financeiro ───────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'clinitra:dia_vencimento'
+const DIAS = Array.from({ length: 28 }, (_, i) => i + 1)
+const MESES = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+]
+
+function proximoVencimento(dia: number): string {
+  const hoje = new Date()
+  const anoAtual = hoje.getFullYear()
+  const mesAtual = hoje.getMonth()
+  const candidato = new Date(anoAtual, mesAtual, dia)
+  const alvo = candidato > hoje ? candidato : new Date(anoAtual, mesAtual + 1, dia)
+  return `${alvo.getDate()} de ${MESES[alvo.getMonth()]} de ${alvo.getFullYear()}`
+}
+
+function AbaFinanceiro() {
+  const [selecionado, setSelecionado] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? Number(stored) : null
+  })
+  const [salvo, setSalvo] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? Number(stored) : null
+  })
+
+  const dirty = selecionado !== salvo
+
+  function handleSave() {
+    if (!selecionado) {
+      toast.error('Selecione um dia', {
+        description: 'Toque em um dos dias abaixo para definir o vencimento padrão.',
+      })
+      return
+    }
+    localStorage.setItem(STORAGE_KEY, String(selecionado))
+    setSalvo(selecionado)
+    toast.success('Configuração salva', {
+      description: `Vencimento padrão definido para o dia ${selecionado} de cada mês.`,
+    })
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#04c2fb]/10 shrink-0">
+              <CalendarClock className="h-4 w-4 text-[#04c2fb]" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-semibold">Dia de vencimento padrão</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Pré-preenche a data de vencimento ao criar novas cobranças
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-7 gap-1 max-w-[220px]">
+            {DIAS.map((d) => {
+              const ativo = selecionado === d
+              return (
+                <button
+                  key={d}
+                  onClick={() => setSelecionado(d)}
+                  className={cn(
+                    'aspect-square rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#04c2fb]/50',
+                    ativo
+                      ? 'text-white shadow-md scale-105'
+                      : 'bg-slate-100 text-slate-600 hover:bg-[#04c2fb]/10 hover:text-[#04c2fb] hover:scale-105 active:scale-95',
+                  )}
+                  style={ativo ? { background: GRADIENT } : {}}
+                >
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+
+          {selecionado ? (
+            <div className="rounded-xl border border-[#04c2fb]/20 bg-[#04c2fb]/5 px-4 py-3 space-y-1">
+              <p className="text-sm text-slate-700">
+                Cobranças vencem todo{' '}
+                <span
+                  className="font-bold text-white px-2 py-0.5 rounded-md text-sm"
+                  style={{ background: GRADIENT }}
+                >
+                  dia {selecionado}
+                </span>{' '}
+                do mês
+              </p>
+              <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                <CalendarClock className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />
+                Próximo vencimento:{' '}
+                <span className="font-medium text-slate-700">{proximoVencimento(selecionado)}</span>
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-start gap-2 text-xs text-slate-400">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              Selecione um dia acima para ver o preview do vencimento.
+            </div>
+          )}
+
+          <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+            <Info className="h-3 w-3 mt-0.5 shrink-0" />
+            Os dias 29, 30 e 31 não estão disponíveis pois nem todos os meses os possuem.
+          </p>
+
+          <div className="flex items-center justify-between pt-1">
+            {salvo && !dirty ? (
+              <span className="text-xs text-muted-foreground">Dia {salvo} salvo</span>
+            ) : (
+              <span />
+            )}
+            <Button
+              size="sm"
+              disabled={!dirty}
+              onClick={handleSave}
+              className="gap-1.5 text-white hover:brightness-110 active:scale-95 transition-all"
+              style={dirty ? { background: GRADIENT } : {}}
+            >
+              <Save className="h-3.5 w-3.5" />
+              Salvar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-dashed">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 shrink-0">
+              <Banknote className="h-4 w-4 text-slate-400" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-semibold text-slate-500">Mais configurações</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Moeda, impostos e regras de cobrança em breve
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    </div>
+  )
+}
+
+// ─── Aba Dados ────────────────────────────────────────────────────────────────
+
+const MODULOS: Record<ImportModulo, {
+  label: string
+  icon: ElementType
+  descricao: string
+  exemplo: string
+  cor: string
+  corBg: string
+  corBorda: string
+}> = {
+  pacientes: {
+    label: 'Pacientes',
+    icon: Users,
+    descricao: 'Importe o cadastro completo dos seus pacientes com dados de contato e informações pessoais.',
+    exemplo: 'Nome, CPF, telefone, e-mail...',
+    cor: 'text-[#04c2fb]',
+    corBg: 'bg-[#04c2fb]/10',
+    corBorda: 'border-[#04c2fb]',
+  },
+  financeiro: {
+    label: 'Financeiro',
+    icon: DollarSign,
+    descricao: 'Traga o histórico de receitas e despesas da clínica, incluindo pagamentos de sessões passadas.',
+    exemplo: 'Tipo, valor, status, data de referência...',
+    cor: 'text-emerald-600',
+    corBg: 'bg-emerald-50',
+    corBorda: 'border-emerald-400',
+  },
+  registros: {
+    label: 'Registros de Sessão',
+    icon: BookOpen,
+    descricao: 'Importe anotações e registros de sessões anteriores vinculadas aos seus pacientes.',
+    exemplo: 'Paciente, data, presença, anotações...',
+    cor: 'text-violet-600',
+    corBg: 'bg-violet-50',
+    corBorda: 'border-violet-400',
+  },
+}
+
+function AbaDados({ moduloQuery }: { moduloQuery: string | null }) {
+  const moduloForcado: ImportModulo | null =
+    moduloQuery === 'pacientes' || moduloQuery === 'financeiro' || moduloQuery === 'registros'
+      ? moduloQuery
+      : null
+
+  const [modulo, setModulo] = useState<ImportModulo>(moduloForcado ?? 'pacientes')
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-800">Importação de Dados</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Traga seus dados históricos para o Clinitra em poucos passos.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">O que você quer importar?</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {(Object.entries(MODULOS) as [ImportModulo, (typeof MODULOS)[ImportModulo]][]).map(([key, cfg]) => {
+            const Icon = cfg.icon
+            const ativo = modulo === key
+            const bloqueado = !!moduloForcado && key !== moduloForcado
+            return (
+              <button
+                key={key}
+                onClick={() => { if (!bloqueado) setModulo(key) }}
+                className={cn(
+                  'group relative flex flex-col items-start gap-3 rounded-xl border-2 p-4 text-left transition-all duration-200',
+                  bloqueado && 'opacity-45 cursor-not-allowed',
+                  ativo
+                    ? cn('shadow-md', cfg.corBorda, cfg.corBg)
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm',
+                )}
+              >
+                {ativo && (
+                  <span className={cn('absolute top-3 right-3 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-white', cfg.corBorda)}>
+                    <CheckCircle2 className={cn('h-3 w-3', cfg.cor)} />
+                  </span>
+                )}
+                <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg transition-colors', ativo ? cfg.corBg : 'bg-slate-100 group-hover:bg-slate-200')}>
+                  <Icon className={cn('h-5 w-5', ativo ? cfg.cor : 'text-slate-500')} />
+                </div>
+                <div className="space-y-1 pr-6">
+                  <p className={cn('text-sm font-bold', ativo ? cfg.cor : 'text-slate-700')}>{cfg.label}</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{cfg.descricao}</p>
+                  <p className={cn('text-[10px] font-medium mt-1', ativo ? cfg.cor : 'text-slate-400')}>{cfg.exemplo}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {moduloForcado && (
+          <p className="text-[11px] text-slate-500">
+            Módulo fixado: <span className="font-semibold">{MODULOS[moduloForcado].label}</span>
+          </p>
+        )}
+      </div>
+
+      <ImportWizard key={modulo} modulo={modulo} />
+    </div>
+  )
+}
+
+// ─── Aba Conexões ─────────────────────────────────────────────────────────────
+
+function AbaConexoes() {
+  const { connected, googleEmail, loading, error, connect, disconnect } = useGoogleCalendar()
+
+  async function handleConnect() {
+    try {
+      connect()
+    } catch {
+      toast.error('Erro ao conectar', { description: 'Não foi possível iniciar a autenticação.' })
+    }
+  }
+
+  async function handleDisconnect() {
+    try {
+      await disconnect()
+      toast.success('Desconectado', { description: 'Google Calendar foi desvinculado da sua conta.' })
+    } catch {
+      toast.error('Erro ao desconectar', { description: 'Tente novamente.' })
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+          <Plug className="h-4 w-4 text-[#04c2fb]" />
+          Conexões e integrações
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Conecte serviços externos para sincronizar sua agenda e comunicação.
+        </p>
+      </div>
+
+      {error && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border shadow-sm">
+              <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none">
+                <rect x="4" y="4" width="24" height="24" rx="3" fill="#fff" stroke="#e0e0e0"/>
+                <rect x="4" y="4" width="24" height="8" rx="3" fill="#1a73e8"/>
+                <rect x="4" y="10" width="24" height="2" fill="#1a73e8"/>
+                <text x="16" y="25" textAnchor="middle" fontSize="11" fontWeight="700" fill="#1a73e8">G</text>
+                <rect x="9" y="7" width="3" height="6" rx="1.5" fill="white"/>
+                <rect x="20" y="7" width="3" height="6" rx="1.5" fill="white"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-semibold text-slate-800">Google Calendar</h3>
+                {connected && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Conectado
+                  </span>
+                )}
+              </div>
+              {connected && googleEmail ? (
+                <p className="text-xs text-muted-foreground mt-0.5">{googleEmail}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  Sincronize sua agenda pessoal do Google Calendar. Os eventos aparecerão
+                  na página Agenda do Clinitra e você poderá exportar agendamentos para o Google.
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 sm:mt-0.5">
+              {connected ? (
+                <button
+                  onClick={handleDisconnect}
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
+                >
+                  Desconectar
+                </button>
+              ) : (
+                <button
+                  onClick={handleConnect}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 rounded-lg border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-3 py-1.5 text-xs font-medium text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors disabled:opacity-60"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Aguardando…
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="h-3.5 w-3.5" />
+                      Conectar Google Calendar
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+          {connected && (
+            <div className="mt-4 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1">
+              <p>• Eventos do seu Google Calendar aparecem na página <strong className="text-slate-600">Agenda</strong> com badge distinto.</p>
+              <p>• Agendamentos do Clinitra podem ser exportados para o seu calendário.</p>
+              <p>• A conexão é individual — cada terapeuta conecta sua própria conta.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-card/50 shadow-sm p-4 sm:p-5 opacity-60">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border shadow-sm">
+              <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none">
+                <path d="M5 24l4.5-8h13L27 24H5z" fill="#1e88e5"/>
+                <path d="M11.5 8L5 24h7l6.5-16h-7z" fill="#4caf50"/>
+                <path d="M20.5 8L27 24h-7l-6.5-16h6.5z" fill="#fdd835"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-800">Google Drive</h3>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Em breve</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Faça backup dos arquivos dos registros no seu Google Drive de forma automática.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card/50 shadow-sm p-4 sm:p-5 opacity-60">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border shadow-sm">
+              <MessageSquare className="h-5 w-5 text-green-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-800">WhatsApp Business</h3>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Em breve</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Envie lembretes de sessão e confirmações de agendamento via WhatsApp.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Orquestrador principal ───────────────────────────────────────────────────
+
+function ConfiguracoesPageInner() {
+  const searchParams = useSearchParams()
+
+  const [abaAtiva, setAbaAtiva] = useState<AbaConfig>(() => {
+    const aba = searchParams.get('aba')
+    if (aba === 'financeiro' || aba === 'dados' || aba === 'conexoes') return aba
+    return 'geral'
+  })
+
+  const moduloQuery = searchParams.get('modulo')
+
+  function handleTabChange(aba: AbaConfig) {
+    setAbaAtiva(aba)
+    const params = new URLSearchParams(window.location.search)
+    params.set('aba', aba)
+    if (aba !== 'dados') params.delete('modulo')
+    window.history.replaceState(null, '', `?${params.toString()}`)
+  }
+
+  return (
+    <div>
+      {/* Cabeçalho */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">Configurações</h1>
+        <p className="text-muted-foreground mt-1">Gerencie as configurações da clínica</p>
+      </div>
+
+      {/* Mobile: select Clinitra */}
+      <div className="block md:hidden mb-4">
+        <Select value={abaAtiva} onValueChange={v => handleTabChange(v as AbaConfig)}>
+          <SelectTrigger
+            className="w-full h-11 rounded-xl border-2 border-[#04c2fb]/30 bg-white pl-3 pr-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#04c2fb]/60 focus:ring-2 focus:ring-[#04c2fb]/20 data-[state=open]:border-[#04c2fb] data-[state=open]:ring-2 data-[state=open]:ring-[#04c2fb]/20"
+            style={{ borderLeftWidth: 4, borderLeftColor: '#04c2fb' }}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl border border-slate-200 shadow-lg p-1">
+            {configNav.map(item => (
+              <SelectItem
+                key={item.id}
+                value={item.id}
+                className="rounded-lg py-2.5 pl-3 pr-8 text-sm font-medium text-slate-600 cursor-pointer focus:bg-[#04c2fb]/10 focus:text-[#04c2fb] data-[state=checked]:text-[#04c2fb] data-[state=checked]:font-semibold data-[state=checked]:bg-[#04c2fb]/8"
+              >
+                <span className="flex items-center gap-2.5">
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {item.title}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Desktop: trapézios */}
+      <nav className="hidden md:flex items-end border-b-2 border-slate-200">
+        {configNav.map((item, i) => {
+          const active = item.id === abaAtiva
+          return (
+            <div
+              key={item.id}
+              className={cn(
+                'shrink-0 rounded-t-md -skew-x-6 transition-all duration-150 cursor-pointer',
+                i > 0 && '-ml-2',
+                active
+                  ? 'relative z-10 -mb-0.5 shadow-sm'
+                  : 'z-0 bg-slate-100/80 hover:bg-slate-100',
+              )}
+              style={active ? { background: GRADIENT } : undefined}
+              onClick={() => handleTabChange(item.id)}
+            >
+              <div
+                className={cn(
+                  'flex items-center gap-2 px-5 py-2.5 text-sm font-medium whitespace-nowrap skew-x-6',
+                  active ? 'text-white' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {item.title}
+              </div>
+            </div>
+          )
+        })}
+      </nav>
+
+      {/* Conteúdo da aba ativa */}
+      <div key={abaAtiva} className="page-fade-in pt-6">
+        {abaAtiva === 'geral'      && <AbaGeral />}
+        {abaAtiva === 'financeiro' && <AbaFinanceiro />}
+        {abaAtiva === 'dados'      && <AbaDados moduloQuery={moduloQuery} />}
+        {abaAtiva === 'conexoes'   && <AbaConexoes />}
+      </div>
+    </div>
+  )
+}
+
+export default function ConfiguracoesPage() {
+  return (
+    <Suspense fallback={<div className="pt-6 text-sm text-muted-foreground">Carregando...</div>}>
+      <ConfiguracoesPageInner />
+    </Suspense>
   )
 }

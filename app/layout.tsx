@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from 'next'
-import { Montserrat } from 'next/font/google'
+import { Poppins } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { Providers } from './providers'
 import { ServiceWorkerRegister } from '@/components/service-worker-register'
 import './globals.css'
 
-const montserrat = Montserrat({
+const poppins = Poppins({
   subsets: ['latin'],
-  variable: '--font-montserrat',
+  variable: '--font-poppins',
   weight: ['300', '400', '500', '600', '700'],
 })
 
@@ -39,7 +39,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={`${montserrat.variable} font-sans antialiased`}>
+      <body className={`${poppins.variable} font-sans antialiased`}>
         <Providers>
           {children}
         </Providers>
