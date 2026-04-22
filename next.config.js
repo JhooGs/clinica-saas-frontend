@@ -26,12 +26,14 @@ const withPWA = require("next-pwa")({
       },
     },
     {
-      // Páginas do dashboard — stale-while-revalidate
-      urlPattern: /^https?:\/\/.*\/dashboard.*/i,
-      handler: "StaleWhileRevalidate",
+      // Chunks JS do Next.js — network-first para evitar ChunkLoadError após novos deploys.
+      // StaleWhileRevalidate serviria HTML antigo com hashes de chunks que já não existem.
+      urlPattern: /\/_next\/static\/.*/i,
+      handler: "NetworkFirst",
       options: {
-        cacheName: "pages-cache",
-        expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 },
+        cacheName: "next-static",
+        networkTimeoutSeconds: 5,
+        expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
       },
     },
   ],

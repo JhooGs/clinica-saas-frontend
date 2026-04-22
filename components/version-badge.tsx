@@ -21,6 +21,15 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.3.2',
+    date: '22 de abril de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Resolvido bug onde um registro aparecia pendente mas o atendimento não ocorreu ainda.'},
+      { category: 'Fixed', description: 'Acontecia um erro quando algumas páginas eram acessadas e precisava recarregar a página.'},
+      { category: 'Added', description: 'Adicionado uma forma de dizer qual tipo de atendimento deve ser contabilizado.'},
+    ],
+  },
+  {
     version: 'v0.3.1',
     date: '21 de abril de 2026',
     changes: [

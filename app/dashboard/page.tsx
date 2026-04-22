@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, startTransition } from 'react'
 import { Clock, User, AlertTriangle, FileText, X, CheckCircle2, NotebookPen } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { nowSP, diasAtrasISO } from '@/lib/timezone'
+import { nowSP, diasAtrasISO, hojeISO } from '@/lib/timezone'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
 import { useAgendamentosHoje, useAgendamentos } from '@/hooks/use-agenda'
 import type { Agendamento } from '@/types'
@@ -393,7 +393,7 @@ export default function DashboardPage() {
   )
 
   // Pendentes de hoje: sessões sem registro cujo horário já passou
-  const hoje = new Date().toISOString().slice(0, 10)
+  const hoje = hojeISO()
   const { data: agendaPendenteHoje } = useAgendamentos({
     data_inicio: hoje,
     data_fim: hoje,

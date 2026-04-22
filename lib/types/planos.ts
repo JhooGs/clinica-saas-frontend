@@ -8,6 +8,7 @@ export type TipoSessao = {
   nome: string
   padrao: boolean
   valor_padrao?: string | null
+  conta_como_sessao: boolean
   criado_em?: string
 }
 

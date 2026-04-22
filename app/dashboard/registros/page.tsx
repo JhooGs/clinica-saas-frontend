@@ -9,21 +9,13 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useRouter } from 'next/navigation'
 import { ModalVerRegistro } from '@/components/modal-ver-registro'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
+import { hojeISO, diasAtrasISO } from '@/lib/timezone'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { useRegistros } from '@/hooks/use-registros'
 import { useAgendamentos } from '@/hooks/use-agenda'
 import type { Registro } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
 
-function dataHoje(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function data90DiasAtras(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 90)
-  return d.toISOString().slice(0, 10)
-}
 
 function diasDesde(dataISO: string): number {
   const hoje = new Date()
@@ -134,11 +126,11 @@ export default function RegistrosPage() {
   })
 
   const { data: pendentesData } = useAgendamentos({
-    data_inicio: data90DiasAtras(),
-    data_fim: dataHoje(),
+    data_inicio: diasAtrasISO(90),
+    data_fim: hojeISO(),
     sem_registro: true,
   })
-  const agendamentosPendentes = pendentesData?.items ?? []
+  const agendamentosPendentes = (pendentesData?.items ?? []).filter(ag => diasDesde(ag.data) >= 0)
   const registros: Registro[] = useMemo(() => apiData?.items ?? [], [apiData])
 
   function handleSort(key: SortKey) {

@@ -38,11 +38,25 @@ export function useCriarTipoSessao() {
 
 export function useAtualizarTipoSessao() {
   const queryClient = useQueryClient()
-  return useMutation<TipoSessao, Error, { id: string; payload: { nome?: string | null; valor_padrao?: string | null } }>({
+  return useMutation<TipoSessao, Error, { id: string; payload: { nome?: string | null; valor_padrao?: string | null; conta_como_sessao?: boolean } }>({
     mutationFn: ({ id, payload }) =>
       apiFetch<TipoSessao>(`/api/v1/planos/tipos-sessao/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-sessao'] })
+    },
+  })
+}
+
+export function useAtualizarContaComoSessaoLote() {
+  const queryClient = useQueryClient()
+  return useMutation<void, Error, { id: string; conta_como_sessao: boolean }[]>({
+    mutationFn: (items) =>
+      apiFetch<void>('/api/v1/planos/tipos-sessao/conta-como-sessao-lote', {
+        method: 'PATCH',
+        body: JSON.stringify({ items }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-sessao'] })

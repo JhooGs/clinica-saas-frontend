@@ -24,6 +24,7 @@ import {
   Plug,
   Save,
   SlidersHorizontal,
+  Stethoscope,
   Trash2,
   User,
   Users,
@@ -44,6 +45,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useGoogleCalendar } from '@/hooks/use-google-calendar'
+import { useTiposSessao, useAtualizarContaComoSessaoLote } from '@/hooks/use-planos'
+import { Switch } from '@/components/ui/switch'
 import { ImportWizard } from '@/components/onboarding/import-wizard'
 import type { ImportModulo } from '@/components/onboarding/import-wizard'
 
@@ -82,13 +85,14 @@ function Campo({
 
 // ─── Navegação ────────────────────────────────────────────────────────────────
 
-type AbaConfig = 'geral' | 'financeiro' | 'dados' | 'conexoes'
+type AbaConfig = 'geral' | 'financeiro' | 'atendimentos' | 'dados' | 'conexoes'
 
 const configNav: { id: AbaConfig; title: string; icon: ElementType }[] = [
-  { id: 'geral',       title: 'Geral',       icon: SlidersHorizontal },
-  { id: 'financeiro',  title: 'Financeiro',  icon: Banknote },
-  { id: 'dados',       title: 'Dados',       icon: Database },
-  { id: 'conexoes',    title: 'Conexões',    icon: Plug },
+  { id: 'geral',          title: 'Geral',          icon: SlidersHorizontal },
+  { id: 'financeiro',     title: 'Financeiro',     icon: Banknote },
+  { id: 'atendimentos',   title: 'Atendimentos',   icon: Stethoscope },
+  { id: 'dados',          title: 'Dados',          icon: Database },
+  { id: 'conexoes',       title: 'Conexões',       icon: Plug },
 ]
 
 // ─── Aba Geral ────────────────────────────────────────────────────────────────
@@ -757,6 +761,143 @@ function AbaDados({ moduloQuery }: { moduloQuery: string | null }) {
   )
 }
 
+// ─── Aba Atendimentos ─────────────────────────────────────────────────────────
+
+function AbaAtendimentos() {
+  const { data, isLoading } = useTiposSessao()
+  const salvarLote = useAtualizarContaComoSessaoLote()
+
+  // Estado local: map de id → valor pendente (só ids alterados pelo usuário)
+  const [pendentes, setPendentes] = useState<Record<string, boolean>>({})
+
+  const temAlteracoes = Object.keys(pendentes).length > 0
+
+  // Valor exibido: pendente se alterado, senão valor da API
+  function valorAtual(id: string, valorApi: boolean): boolean {
+    return id in pendentes ? pendentes[id] : valorApi
+  }
+
+  function handleToggle(id: string, valorAtualItem: boolean) {
+    const novoValor = !valorAtualItem
+    setPendentes(prev => {
+      const next = { ...prev }
+      // Se voltou ao valor original da API, remove das pendências
+      const original = data?.items.find(t => t.id === id)?.conta_como_sessao
+      if (novoValor === original) {
+        delete next[id]
+      } else {
+        next[id] = novoValor
+      }
+      return next
+    })
+  }
+
+  function handleSalvar() {
+    const items = Object.entries(pendentes).map(([id, conta_como_sessao]) => ({
+      id,
+      conta_como_sessao,
+    }))
+    salvarLote.mutate(items, {
+      onSuccess: () => {
+        setPendentes({})
+        toast.success('Configurações salvas', {
+          description: 'Numeração de sessões recalculada para os pacientes afetados.',
+        })
+      },
+      onError: () =>
+        toast.error('Erro ao salvar', { description: 'Tente novamente.' }),
+    })
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+          <Stethoscope className="h-4 w-4 text-[#04c2fb]" />
+          Contagem de atendimentos
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+          Defina quais tipos de atendimento entram na numeração sequencial de sessões.
+          Tipos desativados ainda aparecem nos registros, mas não recebem número de sessão.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold text-slate-700">Tipos de atendimento</CardTitle>
+          <CardDescription className="text-xs">
+            Ative ou desative cada tipo. O recálculo ocorre ao salvar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex items-center gap-2 px-6 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando tipos...
+            </div>
+          ) : !data?.items.length ? (
+            <p className="px-6 py-4 text-sm text-muted-foreground">Nenhum tipo de atendimento cadastrado.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {data.items.map((tipo) => {
+                const atual = valorAtual(tipo.id, tipo.conta_como_sessao)
+                const alterado = tipo.id in pendentes
+                return (
+                  <li key={tipo.id} className="flex items-center justify-between gap-4 px-6 py-3 min-h-[52px]">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-slate-800 truncate">{tipo.nome}</p>
+                        {alterado && (
+                          <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                            alterado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {tipo.padrao ? 'Tipo padrão' : 'Tipo personalizado'}
+                        {atual
+                          ? ' · conta na numeração'
+                          : ' · não conta na numeração'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={atual}
+                      onCheckedChange={() => handleToggle(tipo.id, atual)}
+                      disabled={salvarLote.isPending}
+                      aria-label={`${atual ? 'Desativar' : 'Ativar'} contagem para ${tipo.nome}`}
+                    />
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 flex items-start gap-3">
+        <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+        <p className="text-xs text-blue-700 leading-relaxed">
+          Ao salvar, os números de sessão de todos os pacientes com registros dos tipos
+          alterados são recalculados de uma vez.
+        </p>
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          onClick={handleSalvar}
+          disabled={!temAlteracoes || salvarLote.isPending}
+          className="gap-1.5 text-white transition-all active:scale-95 hover:brightness-110"
+          style={{ background: GRADIENT }}
+        >
+          {salvarLote.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Salvar configurações
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Aba Conexões ─────────────────────────────────────────────────────────────
 
 function AbaConexoes() {
@@ -913,7 +1054,7 @@ function ConfiguracoesPageInner() {
 
   const [abaAtiva, setAbaAtiva] = useState<AbaConfig>(() => {
     const aba = searchParams.get('aba')
-    if (aba === 'financeiro' || aba === 'dados' || aba === 'conexoes') return aba
+    if (aba === 'financeiro' || aba === 'atendimentos' || aba === 'dados' || aba === 'conexoes') return aba
     return 'geral'
   })
 
@@ -994,10 +1135,11 @@ function ConfiguracoesPageInner() {
 
       {/* Conteúdo da aba ativa */}
       <div key={abaAtiva} className="page-fade-in pt-6">
-        {abaAtiva === 'geral'      && <AbaGeral />}
-        {abaAtiva === 'financeiro' && <AbaFinanceiro />}
-        {abaAtiva === 'dados'      && <AbaDados moduloQuery={moduloQuery} />}
-        {abaAtiva === 'conexoes'   && <AbaConexoes />}
+        {abaAtiva === 'geral'          && <AbaGeral />}
+        {abaAtiva === 'financeiro'    && <AbaFinanceiro />}
+        {abaAtiva === 'atendimentos'  && <AbaAtendimentos />}
+        {abaAtiva === 'dados'         && <AbaDados moduloQuery={moduloQuery} />}
+        {abaAtiva === 'conexoes'      && <AbaConexoes />}
       </div>
     </div>
   )
