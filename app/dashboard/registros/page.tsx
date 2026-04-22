@@ -388,7 +388,7 @@ export default function RegistrosPage() {
                 </th>
                 {colunasVisiveis.includes('numero_atendimento') && (
                   <th onClick={() => handleSort('numero_atendimento')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-12">
-                    <span className="inline-flex items-center gap-1.5">Nº <SortIcon col="numero_sessao" sortKey={sortKey} sortDir={sortDir} /></span>
+                    <span className="inline-flex items-center gap-1.5">Nº <SortIcon col="numero_atendimento" sortKey={sortKey} sortDir={sortDir} /></span>
                   </th>
                 )}
                 {colunasVisiveis.includes('data_atendimento') && (
