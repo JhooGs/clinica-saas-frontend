@@ -125,7 +125,7 @@ export function CriarPlanoForm({ onSuccess, tiposSelecionados }: CriarPlanoFormP
             maxLength={20}
           />
         </div>
-        <p className="text-xs text-slate-400">Valor cobrado por sessão. Pode ser ajustado por tipo de atendimento depois.</p>
+        <p className="text-xs text-slate-400">Valor cobrado por atendimento. Pode ser ajustado por tipo de atendimento depois.</p>
       </div>
 
       {/* Botão */}

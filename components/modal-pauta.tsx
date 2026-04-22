@@ -99,7 +99,7 @@ export function ModalPauta({
               <NotebookPen className="h-4 w-4 text-[#04c2fb]" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold leading-tight">Pauta da sessão</p>
+              <p className="text-sm font-semibold leading-tight">Pauta do atendimento</p>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">{atendimento.nome}</p>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-medium text-[#04c2fb]">
@@ -123,7 +123,7 @@ export function ModalPauta({
             ref={textareaRef}
             value={texto}
             onChange={handleChange}
-            placeholder="Escreva objetivos, ideias de atividades ou materiais para esta sessão..."
+            placeholder="Escreva objetivos, ideias de atividades ou materiais para este atendimento..."
             className="w-full resize-none bg-transparent text-sm text-gray-800 placeholder:text-muted-foreground/60 focus:outline-none leading-relaxed min-h-[160px]"
             style={{ overflow: 'hidden' }}
           />

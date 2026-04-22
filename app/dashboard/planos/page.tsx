@@ -156,7 +156,7 @@ function ModalTipo({
             <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
               <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700 leading-relaxed">
-                Alterações afetam apenas novos registros. Sessões já registradas com este tipo não são recalculadas.
+                Alterações afetam apenas novos registros. Atendimentos já registrados com este tipo não são recalculados.
               </p>
             </div>
           )}
@@ -719,9 +719,8 @@ function PlanosContent() {
   function salvarEdicaoTipo(dados: { nome: string; valor_padrao: string }) {
     const id = modalTipo?.tipo?.id
     if (!id) return
-    const isPadrao = modalTipo?.tipo?.padrao
     atualizarTipoMutation.mutate(
-      { id, payload: { ...(isPadrao ? {} : { nome: dados.nome }), valor_padrao: dados.valor_padrao || null } },
+      { id, payload: { nome: dados.nome, valor_padrao: dados.valor_padrao || null } },
       {
         onSuccess: () => {
           setModalTipo(null)
@@ -1000,7 +999,7 @@ function PlanosContent() {
             <Info className="h-4 w-4 text-[#04c2fb] shrink-0 mt-0.5" />
             <p className="text-xs text-slate-600 leading-relaxed">
               Todos os tipos podem ser editados ou removidos livremente.
-              Sessões já registradas no passado não são afetadas por alterações aqui.
+              Atendimentos já registrados no passado não são afetados por alterações aqui.
             </p>
           </div>
         </div>

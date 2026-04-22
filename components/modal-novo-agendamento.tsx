@@ -508,7 +508,7 @@ function TimePicker({
         )}
       >
         <Clock className="h-4 w-4 text-muted-foreground/50 shrink-0" />
-        <span className={cn('flex-1 text-left font-mono tracking-wide', value ? 'text-gray-900' : 'text-muted-foreground/50')}>
+        <span className={cn('flex-1 text-left tabular-nums tracking-wide', value ? 'text-gray-900' : 'text-muted-foreground/50')}>
           {value || '--:--'}
         </span>
         <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-150', aberto && 'rotate-180')} />
@@ -529,7 +529,7 @@ function TimePicker({
               onBlur={handleManualBlur}
               placeholder="HH:MM"
               maxLength={5}
-              className="w-full bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground/60"
+              className="w-full bg-transparent tabular-nums text-sm outline-none placeholder:text-muted-foreground/60"
             />
           </div>
           {/* Slots de horário */}
@@ -540,7 +540,7 @@ function TimePicker({
                 type="button"
                 onMouseDown={e => { e.preventDefault(); selecionar(slot) }}
                 className={cn(
-                  'w-full px-3 py-2 text-left text-sm font-mono transition-colors flex items-center justify-between gap-2',
+                  'w-full px-3 py-2 text-left text-sm tabular-nums transition-colors flex items-center justify-between gap-2',
                   slot === value
                     ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
                     : 'text-gray-700 hover:bg-[#04c2fb]/8 hover:text-[#04c2fb]'

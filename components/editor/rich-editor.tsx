@@ -94,7 +94,7 @@ export default function RichEditor({
   onUploadFile,
   uploadedFiles = [],
   onRemoveFile,
-  placeholder = 'Escreva as notas da sessão...',
+  placeholder = 'Escreva as notas do atendimento...',
   disabled = false,
   className,
 }: RichEditorProps) {

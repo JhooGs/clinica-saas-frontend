@@ -679,7 +679,7 @@ const MODULOS: Record<ImportModulo, {
   financeiro: {
     label: 'Financeiro',
     icon: DollarSign,
-    descricao: 'Traga o histórico de receitas e despesas da clínica, incluindo pagamentos de sessões passadas.',
+    descricao: 'Traga o histórico de receitas e despesas da clínica, incluindo pagamentos de atendimentos passados.',
     exemplo: 'Tipo, valor, status, data de referência...',
     cor: 'text-emerald-600',
     corBg: 'bg-emerald-50',

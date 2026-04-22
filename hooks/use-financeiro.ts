@@ -6,7 +6,10 @@ export interface TransacoesFilter {
   tipo?: 'receita' | 'despesa'
   status?: 'pendente' | 'pago' | 'atrasado' | 'cancelado'
   paciente_id?: string
-  mes?: string // YYYY-MM
+  mes?: string           // YYYY-MM — mês exato
+  ano?: number           // ano inteiro
+  periodo_inicio?: string // YYYY-MM — início de período customizado
+  periodo_fim?: string    // YYYY-MM — fim de período customizado
   page?: number
   page_size?: number
 }
@@ -37,6 +40,9 @@ export function useTransacoes(filtros?: TransacoesFilter) {
   if (filtros?.status) params.set('status', filtros.status)
   if (filtros?.paciente_id) params.set('paciente_id', filtros.paciente_id)
   if (filtros?.mes) params.set('mes', filtros.mes)
+  if (filtros?.ano) params.set('ano', String(filtros.ano))
+  if (filtros?.periodo_inicio) params.set('periodo_inicio', filtros.periodo_inicio)
+  if (filtros?.periodo_fim) params.set('periodo_fim', filtros.periodo_fim)
   if (filtros?.page) params.set('page', String(filtros.page))
   if (filtros?.page_size) params.set('page_size', String(filtros.page_size))
 

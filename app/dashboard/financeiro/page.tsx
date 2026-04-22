@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { TrendingUp, TrendingDown, Clock, AlertCircle, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Loader2, Receipt, User, CalendarDays, Banknote, Info, FileText, Trash2, QrCode, CreditCard, ArrowLeftRight, Building2, ChevronDown, Check, Search } from 'lucide-react'
+import { TrendingUp, TrendingDown, Clock, AlertCircle, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Loader2, Receipt, User, CalendarDays, Banknote, Info, FileText, Trash2, QrCode, CreditCard, ArrowLeftRight, Building2, ChevronDown, Check, Search, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ModalPortal } from '@/components/modal-portal'
@@ -787,7 +787,7 @@ function ModalNovaTransacao({
               <input
                 value={form.descricao}
                 onChange={e => f('descricao', e.target.value)}
-                placeholder="Ex: Sessão com João Silva"
+                placeholder="Ex: Atendimento com João Silva"
                 className="w-full rounded-lg border bg-white/80 pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
               />
             </div>
@@ -831,7 +831,7 @@ function ModalNovaTransacao({
               hasError={!form.dataReferencia}
             />
             <p className="text-[11px] text-muted-foreground">
-              A qual mês/ano esta transação se refere (ex: sessões de março → 03/2025)
+              A qual mês/ano esta transação se refere (ex: atendimentos de março → 03/2025)
             </p>
           </div>
 
@@ -897,20 +897,334 @@ function ModalNovaTransacao({
   )
 }
 
+type ModoFiltro = 'mes' | 'ano' | 'periodo'
+
+const ANO_ATUAL = new Date().getFullYear()
+const ANOS_PICKER = Array.from({ length: 5 }, (_, i) => ANO_ATUAL - 4 + i)
+const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+const MESES_CURTOS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+function labelFiltroPeriodo(modo: ModoFiltro, mes: string, ano: number, inicio: string, fim: string): string {
+  if (modo === 'mes') {
+    const a = mes.slice(0, 4), m = mes.slice(5, 7)
+    return `${MESES_NOMES[parseInt(m) - 1] ?? ''} ${a}`
+  }
+  if (modo === 'ano') return String(ano)
+  const [aI, mI] = [inicio.slice(0, 4), inicio.slice(5, 7)]
+  const [aF, mF] = [fim.slice(0, 4), fim.slice(5, 7)]
+  const nI = MESES_CURTOS[parseInt(mI) - 1] ?? ''
+  const nF = MESES_CURTOS[parseInt(mF) - 1] ?? ''
+  return aI === aF ? `${nI} → ${nF} ${aF}` : `${nI} ${aI} → ${nF} ${aF}`
+}
+
+function MesSelect({ value, onChange }: { value: string; onChange: (mm: string) => void }) {
+  const [aberto, setAberto] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const nomeMes = MESES_NOMES[parseInt(value) - 1] ?? value
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setAberto(a => !a)}
+        className={cn(
+          'w-full flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm transition-all bg-white/80',
+          aberto ? 'border-[#04c2fb]/60 ring-2 ring-[#04c2fb]/25' : 'border-gray-200 hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5'
+        )}
+      >
+        <span className="font-medium text-gray-800">{nomeMes}</span>
+        <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground/60 shrink-0 transition-transform duration-150', aberto && 'rotate-180')} />
+      </button>
+      {aberto && (
+        <div
+          className="absolute left-0 right-0 top-full z-40 mt-1 rounded-xl border border-gray-200 shadow-lg overflow-hidden"
+          style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.98)' }}
+        >
+          <div className="max-h-48 overflow-y-auto py-1">
+            {MESES_NOMES.map((nome, idx) => {
+              const mm = String(idx + 1).padStart(2, '0')
+              const sel = value === mm
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); onChange(mm); setAberto(false) }}
+                  className={cn(
+                    'w-full px-3 py-1.5 text-left text-sm transition-colors flex items-center justify-between gap-2',
+                    sel ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium' : 'text-gray-700 hover:bg-[#04c2fb]/8 hover:text-[#04c2fb]'
+                  )}
+                >
+                  {nome}
+                  {sel && <Check className="h-3.5 w-3.5 shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AnoSelect({ value, onChange }: { value: string; onChange: (yyyy: string) => void }) {
+  const [aberto, setAberto] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setAberto(a => !a)}
+        className={cn(
+          'w-full flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm transition-all bg-white/80',
+          aberto ? 'border-[#04c2fb]/60 ring-2 ring-[#04c2fb]/25' : 'border-gray-200 hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5'
+        )}
+      >
+        <span className="font-medium text-gray-800">{value}</span>
+        <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground/60 shrink-0 transition-transform duration-150', aberto && 'rotate-180')} />
+      </button>
+      {aberto && (
+        <div
+          className="absolute left-0 right-0 top-full z-40 mt-1 rounded-xl border border-gray-200 shadow-lg overflow-hidden"
+          style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.98)' }}
+        >
+          <div className="py-1">
+            {ANOS_PICKER.map(y => {
+              const sel = value === String(y)
+              return (
+                <button
+                  key={y}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); onChange(String(y)); setAberto(false) }}
+                  className={cn(
+                    'w-full px-3 py-1.5 text-left text-sm transition-colors flex items-center justify-between gap-2',
+                    sel ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium' : 'text-gray-700 hover:bg-[#04c2fb]/8 hover:text-[#04c2fb]'
+                  )}
+                >
+                  {y}
+                  {sel && <Check className="h-3.5 w-3.5 shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FiltroPeriodoDropdown({
+  modoFiltro, setModoFiltro,
+  filtroMes, setFiltroMes,
+  filtroAno, setFiltroAno,
+  filtroInicio, setFiltroInicio,
+  filtroFim, setFiltroFim,
+}: {
+  modoFiltro: ModoFiltro; setModoFiltro: (m: ModoFiltro) => void
+  filtroMes: string; setFiltroMes: (v: string) => void
+  filtroAno: number; setFiltroAno: (v: number) => void
+  filtroInicio: string; setFiltroInicio: (v: string) => void
+  filtroFim: string; setFiltroFim: (v: string) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleFora(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleFora)
+    return () => document.removeEventListener('mousedown', handleFora)
+  }, [])
+
+  const label = labelFiltroPeriodo(modoFiltro, filtroMes, filtroAno, filtroInicio, filtroFim)
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setAberto(a => !a)}
+        className={cn(
+          'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all bg-white',
+          aberto
+            ? 'border-[#04c2fb]/60 ring-2 ring-[#04c2fb]/20'
+            : 'border-gray-200 hover:border-[#04c2fb]/30 hover:bg-gray-50/50'
+        )}
+      >
+        <CalendarDays className="h-4 w-4 text-[#04c2fb] shrink-0" />
+        <span className="text-gray-800 font-semibold">{label}</span>
+        <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ml-1', aberto && 'rotate-180')} />
+      </button>
+
+      {/* Painel dropdown */}
+      {aberto && (
+        <div
+          className="absolute left-0 top-full z-30 mt-1.5 w-72 rounded-2xl border border-gray-200 shadow-xl"
+          style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.98)' }}
+        >
+          {/* Abas de modo */}
+          <div className="flex gap-1 p-1.5 border-b border-gray-100 rounded-t-2xl overflow-hidden">
+            {(['mes', 'ano', 'periodo'] as ModoFiltro[]).map(m => (
+              <button
+                key={m}
+                onClick={() => setModoFiltro(m)}
+                className={cn(
+                  'flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all',
+                  modoFiltro === m ? 'text-white shadow-sm' : 'text-muted-foreground hover:bg-gray-100'
+                )}
+                style={modoFiltro === m ? { background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' } : undefined}
+              >
+                {m === 'mes' ? 'Mês' : m === 'ano' ? 'Ano' : 'Período'}
+              </button>
+            ))}
+          </div>
+
+          {/* Conteúdo do picker */}
+          <div className="p-3">
+            {/* Modo Mês */}
+            {modoFiltro === 'mes' && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <p className="text-[11px] text-muted-foreground mb-1.5">Mês</p>
+                  <MesSelect
+                    value={filtroMes.slice(5, 7)}
+                    onChange={mm => setFiltroMes(`${filtroMes.slice(0, 4)}-${mm}`)}
+                  />
+                </div>
+                <div className="w-[88px]">
+                  <p className="text-[11px] text-muted-foreground mb-1.5">Ano</p>
+                  <AnoSelect
+                    value={filtroMes.slice(0, 4)}
+                    onChange={yyyy => setFiltroMes(`${yyyy}-${filtroMes.slice(5, 7)}`)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Modo Ano */}
+            {modoFiltro === 'ano' && (
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-2">Selecione o ano</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ANOS_PICKER.map(y => (
+                    <button
+                      key={y}
+                      onClick={() => { setFiltroAno(y); setAberto(false) }}
+                      className={cn(
+                        'px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all flex-1',
+                        filtroAno === y
+                          ? 'text-white border-transparent shadow-sm'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-[#04c2fb]/40 hover:text-[#04c2fb]'
+                      )}
+                      style={filtroAno === y ? { background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' } : undefined}
+                    >
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modo Período */}
+            {modoFiltro === 'periodo' && (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">De</p>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <MesSelect
+                        value={filtroInicio.slice(5, 7)}
+                        onChange={mm => setFiltroInicio(`${filtroInicio.slice(0, 4)}-${mm}`)}
+                      />
+                    </div>
+                    <div className="w-[88px]">
+                      <AnoSelect
+                        value={filtroInicio.slice(0, 4)}
+                        onChange={yyyy => setFiltroInicio(`${yyyy}-${filtroInicio.slice(5, 7)}`)}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">Até</p>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <MesSelect
+                        value={filtroFim.slice(5, 7)}
+                        onChange={mm => setFiltroFim(`${filtroFim.slice(0, 4)}-${mm}`)}
+                      />
+                    </div>
+                    <div className="w-[88px]">
+                      <AnoSelect
+                        value={filtroFim.slice(0, 4)}
+                        onChange={yyyy => setFiltroFim(`${yyyy}-${filtroFim.slice(5, 7)}`)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function FinanceiroPage() {
   const [abrirModal, setAbrirModal] = useState(false)
   const [transacaoSelecionada, setTransacaoSelecionada] = useState<Financeiro | null>(null)
   const [excluindoTransacao, setExcluindoTransacao] = useState<Financeiro | null>(null)
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'receita' | 'despesa'>('todos')
+  const [modoFiltro, setModoFiltro] = useState<ModoFiltro>('mes')
   const [filtroMes, setFiltroMes] = useState<string>(mesAtualYYYYMM())
+  const [filtroAno, setFiltroAno] = useState<number>(ANO_ATUAL)
+  const [filtroInicio, setFiltroInicio] = useState<string>(mesAtualYYYYMM())
+  const [filtroFim, setFiltroFim] = useState<string>(mesAtualYYYYMM())
   const [sortKey, setSortKey] = useState<SortKey>('data_referencia')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const { data, isLoading } = useTransacoes({
-    mes: filtroMes || undefined,
+    mes: modoFiltro === 'mes' ? filtroMes || undefined : undefined,
+    ano: modoFiltro === 'ano' ? filtroAno : undefined,
+    periodo_inicio: modoFiltro === 'periodo' ? filtroInicio || undefined : undefined,
+    periodo_fim: modoFiltro === 'periodo' ? filtroFim || undefined : undefined,
     tipo: filtroTipo !== 'todos' ? filtroTipo : undefined,
   })
   const excluirTransacao = useExcluirTransacao()
+
+  const labelPeriodo = modoFiltro === 'mes' ? 'do Mês' : modoFiltro === 'ano' ? `de ${filtroAno}` : 'do Período'
+  const isFiltered =
+    filtroTipo !== 'todos' ||
+    (modoFiltro === 'mes' && filtroMes !== mesAtualYYYYMM()) ||
+    modoFiltro === 'ano' ||
+    modoFiltro === 'periodo'
+
+  function resetarFiltros() {
+    setModoFiltro('mes')
+    setFiltroMes(mesAtualYYYYMM())
+    setFiltroTipo('todos')
+  }
 
   async function confirmarExclusao() {
     if (!excluindoTransacao) return
@@ -999,7 +1313,7 @@ export default function FinanceiroPage() {
         <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Faturamento do Mês</p>
+              <p className="text-xs font-medium text-muted-foreground">Faturamento {labelPeriodo}</p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-600">{formatBRL(resumo?.receita_mes ?? 0)}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">total de entradas</p>
             </div>
@@ -1011,7 +1325,7 @@ export default function FinanceiroPage() {
         <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Despesa do Mês</p>
+              <p className="text-xs font-medium text-muted-foreground">Despesa {labelPeriodo}</p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-red-500">{formatBRL(resumo?.despesa_mes ?? 0)}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">total de saídas</p>
             </div>
@@ -1048,14 +1362,18 @@ export default function FinanceiroPage() {
 
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="w-44">
-          <MonthYearPicker
-            value={filtroMes}
-            onChange={setFiltroMes}
-            placeholder="Selecionar mês"
-          />
-        </div>
-        <div className="flex items-center gap-2">
+
+        {/* Dropdown de período */}
+        <FiltroPeriodoDropdown
+          modoFiltro={modoFiltro} setModoFiltro={setModoFiltro}
+          filtroMes={filtroMes} setFiltroMes={setFiltroMes}
+          filtroAno={filtroAno} setFiltroAno={setFiltroAno}
+          filtroInicio={filtroInicio} setFiltroInicio={setFiltroInicio}
+          filtroFim={filtroFim} setFiltroFim={setFiltroFim}
+        />
+
+        {/* Filtro por tipo */}
+        <div className="flex items-center gap-1.5">
           {(['todos', 'receita', 'despesa'] as const).map(f => (
             <button
               key={f}
@@ -1072,14 +1390,18 @@ export default function FinanceiroPage() {
             </button>
           ))}
         </div>
-        {(filtroMes !== mesAtualYYYYMM() || filtroTipo !== 'todos') && (
+
+        {/* Botão "Mês atual" */}
+        {isFiltered && (
           <button
-            onClick={() => { setFiltroMes(mesAtualYYYYMM()); setFiltroTipo('todos') }}
-            className="text-xs text-muted-foreground hover:text-foreground underline"
+            onClick={resetarFiltros}
+            className="flex items-center gap-1.5 rounded-full border border-[#04c2fb]/35 bg-[#04c2fb]/6 px-3.5 py-1.5 text-xs font-semibold text-[#04c2fb] hover:bg-[#04c2fb]/12 hover:border-[#04c2fb]/55 transition-all"
           >
+            <RotateCcw className="h-3 w-3" />
             Mês atual
           </button>
         )}
+
         <span className="ml-auto text-xs text-muted-foreground">{lista.length} registro(s)</span>
       </div>
 

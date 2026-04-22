@@ -543,7 +543,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
                 />
                 {numeroAtendimentoAlterado && (
                   <p className="text-[11px] text-amber-600 leading-snug max-w-xs">
-                    Ao salvar, os números de todas as sessões deste paciente serão
+                    Ao salvar, os números de todos os atendimentos deste paciente serão
                     recalculados com este valor como referência.
                   </p>
                 )}

@@ -20,14 +20,29 @@ export default function NovaSenhaPage() {
   useEffect(() => {
     const supabase = createClient()
 
-    // Fluxo PKCE: o middleware já trocou o code por uma sessão no servidor.
-    // Basta verificar se existe sessão ativa.
+    // Fluxo PKCE: Supabase redireciona para cá com ?code=XXX
+    // O code precisa ser trocado por sessão no cliente antes de qualquer coisa
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ data: { session }, error }) => {
+        if (session && !error) {
+          setPronto(true)
+        } else {
+          setLinkInvalido(true)
+        }
+      })
+      return
+    }
+
+    // Fluxo implícito (fallback): hash com access_token na URL
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setPronto(true)
         return
       }
-      // Fluxo implícito (fallback): escutar evento PASSWORD_RECOVERY via hash
+
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
         if (event === 'PASSWORD_RECOVERY') {
           setPronto(true)

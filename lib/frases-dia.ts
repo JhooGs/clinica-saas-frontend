@@ -5,7 +5,7 @@ export const FRASES_COM_ATENDIMENTOS = [
   'Foco, empatia e um bom café.',
   'Bora fazer um dia incrível.',
   'Respira fundo, você está preparado.',
-  'Cada sessão é uma chance de cuidar de alguém.',
+  'Cada atendimento é uma chance de cuidar de alguém.',
   'Dia cheio, mas dá pra fazer bonito.',
 ]
 
@@ -13,7 +13,7 @@ export const FRASES_SEM_ATENDIMENTOS = [
   'Hoje o dia está mais tranquilo.',
   'Um bom momento pra colocar os registros em dia.',
   'Agenda livre: aproveita pra respirar.',
-  'Dia sem sessões, ótimo pra planejar a semana.',
+  'Dia sem atendimentos, ótimo pra planejar a semana.',
   'Sem atendimentos hoje, uma pausa merecida.',
   'Tempo livre pra cuidar do que ficou pendente.',
   'Dia calmo pela frente, aproveita bem.',

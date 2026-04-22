@@ -719,7 +719,7 @@ export default function AgendaPage() {
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <p className="text-xs font-medium text-muted-foreground">Hoje</p>
             <p className="mt-1.5 text-2xl font-bold tracking-tight">{hojeCount}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">sessões agendadas</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">atendimentos agendados</p>
           </div>
         )}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -779,7 +779,7 @@ export default function AgendaPage() {
                 {gruposPassados.length} {gruposPassados.length === 1 ? 'dia anterior' : 'dias anteriores'}
               </span>
               <span className="text-xs text-muted-foreground">
-                ({gruposPassados.reduce((s, [, ags]) => s + ags.length, 0)} sessões)
+                ({gruposPassados.reduce((s, [, ags]) => s + ags.length, 0)} atendimentos)
               </span>
               <div className="flex-1" />
               <span className="text-xs text-muted-foreground/70">

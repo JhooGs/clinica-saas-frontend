@@ -898,7 +898,7 @@ function PacientesContent() {
                     <td className="hidden md:table-cell px-4 py-3">
                       {p.cobranca === 'por_atendimento' && (
                         <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
-                          Por sessão
+                          Por atendimento
                         </span>
                       )}
                       {p.cobranca === 'mensal' && (
