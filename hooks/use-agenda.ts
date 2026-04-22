@@ -16,8 +16,8 @@ export interface GerarRecorrentesInput {
   paciente_id: string
   recorrencia: 'semanal' | 'quinzenal' | 'mensal'
   vezes_por_semana?: number | null
-  sessao_em_grupo?: boolean
-  tipo_sessao?: string
+  atendimento_em_grupo?: boolean
+  tipo_atendimento?: string
   slots: SlotRecorrenteInput[]
   semana_referencia?: string | null  // YYYY-MM-DD
   pacientes_ids?: string[]   // UUIDs dos membros do grupo

@@ -93,9 +93,9 @@ const MODULOS_CFG: Record<ImportModulo, {
     corBorda: 'border-emerald-400',
   },
   registros: {
-    label: 'Registros de Sessão',
+    label: 'Registros de Atendimento',
     icon: BookOpen,
-    colunas: ['paciente_nome', 'data_sessao', 'tipo_sessao', 'presenca', 'valor_sessao', 'conteudo'],
+    colunas: ['paciente_nome', 'data_atendimento', 'tipo_atendimento', 'presenca', 'valor_atendimento', 'conteudo'],
     cor: 'text-violet-600',
     corBg: 'bg-violet-50',
     corBorda: 'border-violet-400',
@@ -125,11 +125,11 @@ const COLUNAS_INFO: Record<ImportModulo, ColInfo[]> = {
   ],
   registros: [
     { campo: 'paciente_nome', desc: 'Nome exato do paciente já cadastrado', obrigatorio: true },
-    { campo: 'data_sessao', desc: 'Data da sessão no formato DD/MM/AAAA', obrigatorio: true },
-    { campo: 'tipo_sessao', desc: 'Ex: Psicoterapia, Anamnese, Avaliação', obrigatorio: false },
+    { campo: 'data_atendimento', desc: 'Data do atendimento no formato DD/MM/AAAA', obrigatorio: true },
+    { campo: 'tipo_atendimento', desc: 'Ex: Psicoterapia, Anamnese, Avaliação', obrigatorio: false },
     { campo: 'presenca', desc: '"sim" ou "não"', obrigatorio: false },
-    { campo: 'valor_sessao', desc: 'Valor cobrado, ex: 200,00 (sem R$)', obrigatorio: false },
-    { campo: 'conteudo', desc: 'Anotações ou resumo da sessão', obrigatorio: false },
+    { campo: 'valor_atendimento', desc: 'Valor cobrado, ex: 200,00 (sem R$)', obrigatorio: false },
+    { campo: 'conteudo', desc: 'Anotações ou resumo do atendimento', obrigatorio: false },
   ],
 }
 
@@ -182,11 +182,11 @@ function resumirErros(erros: string[]): string {
     if (e.includes('CPF inválido')) return 'CPF inválido'
     if (e.includes('data_nascimento')) return 'Data de nascimento inválida'
     if (e.includes('email inválido')) return 'E-mail inválido'
-    if (e.includes('data_sessao') && e.includes('obrigatório')) return 'Data da sessão ausente'
-    if (e.includes('data_sessao') && e.includes('inválid')) return 'Data da sessão inválida'
+    if (e.includes('data_atendimento') && e.includes('obrigatório')) return 'Data do atendimento ausente'
+    if (e.includes('data_atendimento') && e.includes('inválid')) return 'Data do atendimento inválida'
     if (e.includes('data_pagamento')) return 'Data de pagamento inválida'
-    if (e.includes('valor_sessao') && e.includes('negativo')) return 'Valor negativo'
-    if (e.includes('valor_sessao') && e.includes('inválid')) return 'Valor inválido'
+    if (e.includes('valor_atendimento') && e.includes('negativo')) return 'Valor negativo'
+    if (e.includes('valor_atendimento') && e.includes('inválid')) return 'Valor inválido'
     if (e.includes('valor') && e.includes('negativo')) return 'Valor negativo'
     if (e.includes('valor') && e.includes('inválid')) return 'Valor inválido'
     if (e.includes('tipo inválido')) return 'Tipo inválido'
@@ -200,7 +200,7 @@ function resumirErros(erros: string[]): string {
 function exibirValor(coluna: string, valor: unknown): string {
   if (valor === null || valor === undefined || valor === '') return ''
   if (
-    (coluna === 'data_sessao' || coluna === 'data_nascimento' || coluna === 'data_pagamento' || coluna === 'data_referencia') &&
+    (coluna === 'data_atendimento' || coluna === 'data_nascimento' || coluna === 'data_pagamento' || coluna === 'data_referencia') &&
     typeof valor === 'string' &&
     /^\d{4}-\d{2}-\d{2}/.test(valor)
   ) {
@@ -208,7 +208,7 @@ function exibirValor(coluna: string, valor: unknown): string {
     return `${d}/${m}/${y}`
   }
   if (coluna === 'presenca' && typeof valor === 'boolean') return valor ? 'sim' : 'não'
-  if ((coluna === 'valor' || coluna === 'valor_sessao') && typeof valor === 'string') {
+  if ((coluna === 'valor' || coluna === 'valor_atendimento') && typeof valor === 'string') {
     const n = parseFloat(valor)
     if (!isNaN(n)) return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }

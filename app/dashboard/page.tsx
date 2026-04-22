@@ -48,7 +48,7 @@ function toAtendimentoUI(a: Agendamento): AtendimentoUI {
     id: a.id,
     nome: nomeAgendamento(a),
     horario: a.horario,
-    tipo: a.tipo_sessao,
+    tipo: a.tipo_atendimento,
     falta: a.status === 'falta',
   }
 }
@@ -57,7 +57,7 @@ function toRelatorioPendente(a: Agendamento): RelatorioPendente {
   return {
     id: a.id,
     paciente: nomeAgendamento(a),
-    tipo: a.tipo_sessao,
+    tipo: a.tipo_atendimento,
     data: typeof a.data === 'string' ? a.data : String(a.data),
     horario: a.horario,
   }

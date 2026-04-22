@@ -9,9 +9,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { TipoSessao, Pacote, PacoteTipo, PacoteTipoInput } from '@/lib/types/planos'
+import type { TipoAtendimento, Pacote, PacoteTipo, PacoteTipoInput } from '@/lib/types/planos'
 import {
-  useTiposSessao, useCriarTipoSessao, useAtualizarTipoSessao, useExcluirTipoSessao,
+  useTiposAtendimento, useCriarTipoAtendimento, useAtualizarTipoAtendimento, useExcluirTipoAtendimento,
   usePacotes, useCriarPacote, useAtualizarPacote, useExcluirPacote,
 } from '@/hooks/use-planos'
 import { PageLoader } from '@/components/ui/page-loader'
@@ -19,7 +19,7 @@ import { PageLoader } from '@/components/ui/page-loader'
 type TabId = 'tipos' | 'pacotes'
 
 /* ══════════════════════════════════════════════════════
-   Modal glassmorphism — Tipo de Sessão (criar/editar)
+   Modal glassmorphism — Tipo de Atendimento (criar/editar)
    ══════════════════════════════════════════════════════ */
 
 function ModalTipo({
@@ -30,7 +30,7 @@ function ModalTipo({
   onFechar,
 }: {
   modo: 'criar' | 'editar'
-  inicial?: TipoSessao
+  inicial?: TipoAtendimento
   nomesExistentes: string[]
   onSalvar: (dados: { nome: string; valor_padrao: string }) => void
   onFechar: () => void
@@ -202,14 +202,14 @@ type PacoteFormData = {
 function ModalPacote({
   modo,
   inicial,
-  tiposSessao,
+  tiposAtendimento,
   nomesExistentes,
   onSalvar,
   onFechar,
 }: {
   modo: 'criar' | 'editar'
   inicial?: Pacote
-  tiposSessao: TipoSessao[]
+  tiposAtendimento: TipoAtendimento[]
   nomesExistentes: string[]
   onSalvar: (dados: PacoteFormData) => void
   onFechar: () => void
@@ -226,11 +226,11 @@ function ModalPacote({
   const [tiposConfig, setTiposConfig] = useState<Record<string, TipoConfig>>(() => {
     const cfg: Record<string, TipoConfig> = {}
     // Inicializa todos como não incluídos
-    tiposSessao.forEach(t => { cfg[t.id] = { incluido: false, valor: '' } })
+    tiposAtendimento.forEach(t => { cfg[t.id] = { incluido: false, valor: '' } })
     // Sobrescreve com dados existentes
     if (inicial?.tipos) {
       inicial.tipos.forEach((pt: PacoteTipo) => {
-        cfg[pt.tipo_sessao_id] = { incluido: pt.incluido, valor: pt.valor ?? '' }
+        cfg[pt.tipo_atendimento_id] = { incluido: pt.incluido, valor: pt.valor ?? '' }
       })
     }
     return cfg
@@ -281,10 +281,10 @@ function ModalPacote({
       toast.error('Nenhum atendimento incluído', { description: 'Ative pelo menos um tipo de atendimento no pacote.' })
       return
     }
-    const tiposFinal: PacoteTipoInput[] = tiposSessao.map(t => {
+    const tiposFinal: PacoteTipoInput[] = tiposAtendimento.map(t => {
       const cfg = tiposConfig[t.id] ?? { incluido: false, valor: '' }
       return {
-        tipo_sessao_id: t.id,
+        tipo_atendimento_id: t.id,
         incluido: cfg.incluido,
         valor: cfg.incluido ? null : (cfg.valor || null),
       }
@@ -497,7 +497,7 @@ function ModalPacote({
             </div>
 
             <div className="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
-              {tiposSessao.map(tipo => {
+              {tiposAtendimento.map(tipo => {
                 const cfg = tiposConfig[tipo.id] ?? { incluido: false, valor: '' }
                 const valorExibido = cfg.incluido ? (valor || '0,00') : cfg.valor
                 return (
@@ -668,11 +668,11 @@ function PlanosContent() {
 
   const [tab, setTab] = useState<TabId>(onboardingAbrirCriacaoPacote ? 'pacotes' : 'tipos')
 
-  /* ── API: Tipos de sessão ── */
-  const { data: tiposData, isLoading: loadingTipos } = useTiposSessao()
-  const criarTipoMutation = useCriarTipoSessao()
-  const atualizarTipoMutation = useAtualizarTipoSessao()
-  const excluirTipoMutation = useExcluirTipoSessao()
+  /* ── API: Tipos de atendimento ── */
+  const { data: tiposData, isLoading: loadingTipos } = useTiposAtendimento()
+  const criarTipoMutation = useCriarTipoAtendimento()
+  const atualizarTipoMutation = useAtualizarTipoAtendimento()
+  const excluirTipoMutation = useExcluirTipoAtendimento()
   const tipos = useMemo(() => tiposData?.items ?? [], [tiposData])
 
   /* ── API: Pacotes ── */
@@ -683,8 +683,8 @@ function PlanosContent() {
   const pacotes = useMemo(() => pacotesData?.items ?? [], [pacotesData])
 
   /* ── State: Modais ── */
-  const [modalTipo, setModalTipo] = useState<{ modo: 'criar' | 'editar'; tipo?: TipoSessao } | null>(null)
-  const [excluindoTipo, setExcluindoTipo] = useState<TipoSessao | null>(null)
+  const [modalTipo, setModalTipo] = useState<{ modo: 'criar' | 'editar'; tipo?: TipoAtendimento } | null>(null)
+  const [excluindoTipo, setExcluindoTipo] = useState<TipoAtendimento | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [modalPacote, setModalPacote] = useState<{ modo: 'criar' | 'editar'; pacote?: Pacote } | null>(
     onboardingAbrirCriacaoPacote ? { modo: 'criar' } : null,
@@ -844,7 +844,7 @@ function PlanosContent() {
         <ModalPacote
           modo={modalPacote.modo}
           inicial={modalPacote.pacote}
-          tiposSessao={tipos}
+          tiposAtendimento={tipos}
           nomesExistentes={nomesExistentesPacotes}
           onSalvar={(dados: PacoteFormData) =>
             modalPacote.modo === 'criar' ? criarPacote(dados) : salvarEdicaoPacote(dados)
@@ -1038,7 +1038,7 @@ function PlanosContent() {
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-slate-700">Nenhum pacote criado</p>
                 <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
-                  Crie pacotes para agrupar sessões e facilitar a configuração do plano de atendimento dos pacientes.
+                  Crie pacotes para agrupar atendimentos e facilitar a configuração do plano de atendimento dos pacientes.
                 </p>
               </div>
               <button
@@ -1113,11 +1113,11 @@ function PlanosContent() {
                         <div className="flex flex-wrap gap-1.5">
                           {incluidos.slice(0, 4).map(t => (
                             <span
-                              key={t.tipo_sessao_id}
+                              key={t.tipo_atendimento_id}
                               className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-2 py-0.5 text-[11px] font-medium text-slate-600"
                             >
                               <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
-                              {getNomeTipo(t.tipo_sessao_id)}
+                              {getNomeTipo(t.tipo_atendimento_id)}
                             </span>
                           ))}
                           {incluidos.length > 4 && (

@@ -15,7 +15,7 @@ export interface SelectedTipo {
   valor_padrao: string | null
 }
 
-interface TipoSessaoRead {
+interface TipoAtendimentoRead {
   id: string
   nome: string
   padrao: boolean
@@ -35,9 +35,9 @@ export function TiposAtendimentoStep({ onSuccess }: TiposAtendimentoStepProps) {
   const [mostrarInput, setMostrarInput] = useState(false)
   const [criando, setCriando] = useState(false)
 
-  const { data, isLoading } = useQuery<{ items: TipoSessaoRead[] }>({
-    queryKey: ['onboarding', 'tipos-sessao'],
-    queryFn: () => apiFetch('/api/v1/planos/tipos-sessao'),
+  const { data, isLoading } = useQuery<{ items: TipoAtendimentoRead[] }>({
+    queryKey: ['onboarding', 'tipos-atendimento'],
+    queryFn: () => apiFetch('/api/v1/planos/tipos-atendimento'),
     staleTime: 60 * 1000,
   })
 
@@ -57,11 +57,11 @@ export function TiposAtendimentoStep({ onSuccess }: TiposAtendimentoStepProps) {
     if (!nome) return
     setCriando(true)
     try {
-      const novo = await apiFetch<TipoSessaoRead>('/api/v1/planos/tipos-sessao', {
+      const novo = await apiFetch<TipoAtendimentoRead>('/api/v1/planos/tipos-atendimento', {
         method: 'POST',
         body: JSON.stringify({ nome }),
       })
-      await queryClient.invalidateQueries({ queryKey: ['onboarding', 'tipos-sessao'] })
+      await queryClient.invalidateQueries({ queryKey: ['onboarding', 'tipos-atendimento'] })
       setSelecionados((prev) => new Set([...prev, novo.id]))
       toast.success(`"${novo.nome}" adicionado`)
       setNovoNome('')

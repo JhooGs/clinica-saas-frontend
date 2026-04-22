@@ -1,20 +1,20 @@
 // ---------------------------------------------------------------------------
-// Tipos do sistema de Planos (Pacotes + Sessões) — API backend
+// Tipos do sistema de Planos (Pacotes + Atendimentos) — API backend
 // ---------------------------------------------------------------------------
 
-export type TipoSessao = {
+export type TipoAtendimento = {
   id: string
   clinica_id?: string   // presente em respostas da API; ausente em objetos locais/mock
   nome: string
   padrao: boolean
   valor_padrao?: string | null
-  conta_como_sessao: boolean
+  conta_como_atendimento: boolean
   criado_em?: string
 }
 
 export type PacoteTipo = {
   id: string
-  tipo_sessao_id: string
+  tipo_atendimento_id: string
   incluido: boolean
   valor?: string | null
 }
@@ -31,8 +31,8 @@ export type Pacote = {
   criado_em?: string
 }
 
-export type TipoSessaoListResponse = {
-  items: TipoSessao[]
+export type TipoAtendimentoListResponse = {
+  items: TipoAtendimento[]
   total: number
 }
 
@@ -61,7 +61,7 @@ export type PlanoAtendimentoPayload = {
   vezesPorSemana: number | null
   cobranca: 'por_atendimento' | 'mensal' | null
   agenda: AgendaRecorrente | null
-  sessoEmGrupo: boolean
+  atendimentoEmGrupo: boolean
   vigenciaInicio?: string | null
   vigenciaFim?: string | null
 }
@@ -91,7 +91,7 @@ export function getPacoteGratuito(data: PacoteListResponse | undefined): Pacote 
 
 /** Tipo de input para criar/atualizar PacoteTipo */
 export type PacoteTipoInput = {
-  tipo_sessao_id: string
+  tipo_atendimento_id: string
   incluido: boolean
   valor?: string | null
 }

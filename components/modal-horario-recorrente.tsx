@@ -25,7 +25,7 @@ type PlanoAtendimento = {
   vezesPorSemana: number | null
   cobranca: string | null
   agenda: { slots: SlotAgendamento[] } | null
-  sessoEmGrupo: boolean
+  atendimentoEmGrupo: boolean
 }
 
 // ── Constantes ───────────────────────────────────────────────────────────────
@@ -201,7 +201,7 @@ function StyledSelect({
 interface ModalHorarioRecorrenteProps {
   open: boolean
   onClose: () => void
-  onConfirmar: (slots: SlotAgendamento[], sessoEmGrupo: boolean) => void
+  onConfirmar: (slots: SlotAgendamento[], atendimentoEmGrupo: boolean) => void
   pacienteId?: string  // UUID
   pacienteNome: string
   planoAtual: PlanoAtendimento
@@ -232,15 +232,15 @@ export function ModalHorarioRecorrente({
   }
 
   const [slots, setSlots] = useState<SlotAgendamento[]>(initSlots)
-  const [sessoEmGrupo, setSessoEmGrupo] = useState(planoAtual.sessoEmGrupo)
+  const [atendimentoEmGrupo, setAtendimentoEmGrupo] = useState(planoAtual.atendimentoEmGrupo)
   const [gruposExpandidos, setGruposExpandidos] = useState<Set<string>>(new Set())
 
   // Reinicia quando o modal abre + limpa cache legado de localStorage
   useEffect(() => {
     if (open) {
       setSlots(initSlots())
-      setSessoEmGrupo(planoAtual.sessoEmGrupo)
-      // Limpa o cache antigo de sessões recorrentes (substituído pela API)
+      setAtendimentoEmGrupo(planoAtual.atendimentoEmGrupo)
+      // Limpa o cache antigo de atendimentos recorrentes (substituído pela API)
       try { localStorage.removeItem('clinitra_agenda_recorrentes') } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,7 +262,7 @@ export function ModalHorarioRecorrente({
 
     // Agendamentos da API real (passados como prop pelo parent)
     for (const ag of agendamentosBase) {
-      const ehGrupo = ag.tipo === 'Sessão em grupo'
+      const ehGrupo = ag.tipo === 'Atendimento em grupo'
       todos.push({
         data: ag.data,
         horario: ag.horario,
@@ -351,10 +351,10 @@ export function ModalHorarioRecorrente({
       if (pacienteId && colisao.paciente_id === pacienteId) {
         return [{ data: cand.data, horario: cand.horario, tipo: 'mesmo-paciente' as const, pacienteConflito: nomesColisao }]
       }
-      const tipo: ConflitoCandidato['tipo'] = sessoEmGrupo && colisao.ehGrupo ? 'aviso' : 'bloqueante'
+      const tipo: ConflitoCandidato['tipo'] = atendimentoEmGrupo && colisao.ehGrupo ? 'aviso' : 'bloqueante'
       return [{ data: cand.data, horario: cand.horario, tipo, pacienteConflito: nomesColisao }]
     })
-  }, [sessoesCandidatas, ocupadosPorData, sessoEmGrupo, pacienteId])
+  }, [sessoesCandidatas, ocupadosPorData, atendimentoEmGrupo, pacienteId])
 
   const temBloqueante = conflitos.some(c => c.tipo === 'bloqueante')
   // Desabilita quando toda a agenda configurada já é o horário atual do paciente
@@ -362,7 +362,7 @@ export function ModalHorarioRecorrente({
   const semAlteracao = sessoesCandidatas.length > 0
     && conflitos.length === sessoesCandidatas.length
     && conflitos.every(c => c.tipo === 'mesmo-paciente')
-    && sessoEmGrupo === planoAtual.sessoEmGrupo
+    && atendimentoEmGrupo === planoAtual.atendimentoEmGrupo
 
   // Mapa de horários bloqueados por dia da semana (para desabilitar no StyledSelect)
   // Não bloqueia o próprio horário do paciente que está sendo reconfigurado
@@ -374,12 +374,12 @@ export function ModalHorarioRecorrente({
       const dow = new Date(y, m - 1, d).getDay()
       if (!mapa.has(dow)) mapa.set(dow, new Set())
       // Só bloqueia se o conflito seria bloqueante (solo ou meu tipo é solo)
-      if (!sessoEmGrupo || !ag.ehGrupo) {
+      if (!atendimentoEmGrupo || !ag.ehGrupo) {
         mapa.get(dow)!.add(ag.horario)
       }
     }
     return mapa
-  }, [agendamentosExistentes, sessoEmGrupo, pacienteId])
+  }, [agendamentosExistentes, atendimentoEmGrupo, pacienteId])
 
   const horariosBloqueadosPorDiaMes = useMemo(() => {
     const mapa = new Map<number, Set<string>>()
@@ -387,12 +387,12 @@ export function ModalHorarioRecorrente({
       if (pacienteId && ag.paciente_id === pacienteId) continue
       const dm = parseInt(ag.data.split('-')[2])
       if (!mapa.has(dm)) mapa.set(dm, new Set())
-      if (!sessoEmGrupo || !ag.ehGrupo) {
+      if (!atendimentoEmGrupo || !ag.ehGrupo) {
         mapa.get(dm)!.add(ag.horario)
       }
     }
     return mapa
-  }, [agendamentosExistentes, sessoEmGrupo, pacienteId])
+  }, [agendamentosExistentes, atendimentoEmGrupo, pacienteId])
 
   function getBloqueados(slot: SlotAgendamento): Set<string> {
     if (recorrencia === 'mensal' && slot.diaMes !== undefined) {
@@ -641,7 +641,7 @@ export function ModalHorarioRecorrente({
                       >
                         {slots.length > 1 && (
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Sessão {i + 1}
+                            Atendimento {i + 1}
                           </p>
                         )}
 
@@ -730,30 +730,30 @@ export function ModalHorarioRecorrente({
                   })}
                 </div>
 
-                {/* Sessão em grupo */}
+                {/* Atendimento em grupo */}
                 <div className="rounded-xl border border-gray-200 bg-white px-4 py-3.5">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <div className="relative mt-0.5">
                       <input
                         type="checkbox"
-                        checked={sessoEmGrupo}
-                        onChange={e => setSessoEmGrupo(e.target.checked)}
+                        checked={atendimentoEmGrupo}
+                        onChange={e => setAtendimentoEmGrupo(e.target.checked)}
                         className="sr-only"
                       />
                       <div
                         className={cn(
                           'h-4 w-4 rounded border-2 flex items-center justify-center transition-colors',
-                          sessoEmGrupo
+                          atendimentoEmGrupo
                             ? 'bg-emerald-500 border-emerald-500'
                             : 'bg-white border-gray-300',
                         )}
                       >
-                        {sessoEmGrupo && <Check className="h-2.5 w-2.5 text-white" />}
+                        {atendimentoEmGrupo && <Check className="h-2.5 w-2.5 text-white" />}
                       </div>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-gray-800">Sessão em grupo</p>
+                        <p className="text-sm font-semibold text-gray-800">Atendimento em grupo</p>
                         <Users className="h-3.5 w-3.5 text-emerald-600" />
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
@@ -763,12 +763,12 @@ export function ModalHorarioRecorrente({
                     </div>
                   </label>
 
-                  {sessoEmGrupo && (
+                  {atendimentoEmGrupo && (
                     <div className="mt-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 flex items-start gap-2">
                       <Sparkles className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
                       <p className="text-[11px] text-emerald-700 leading-relaxed">
                         Com esta opção ativa, o sistema <strong>não bloqueia</strong> agendamentos
-                        em cima de outros grupos, mas emite um aviso. Conflitos com sessões individuais
+                        em cima de outros grupos, mas emite um aviso. Conflitos com atendimentos individuais
                         continuam bloqueados.
                       </p>
                     </div>
@@ -844,7 +844,7 @@ export function ModalHorarioRecorrente({
             <button
               type="button"
               disabled={temBloqueante || semAlteracao}
-              onClick={() => onConfirmar(slots, sessoEmGrupo)}
+              onClick={() => onConfirmar(slots, atendimentoEmGrupo)}
               className={cn(
                 'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
                 (temBloqueante || semAlteracao) ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',

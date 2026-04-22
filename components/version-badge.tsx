@@ -24,8 +24,10 @@ const CHANGELOG: VersionEntry[] = [
     version: 'v0.3.2',
     date: '22 de abril de 2026',
     changes: [
+      { category: 'Changed', description: 'Todos os nomes, titulos Sessão foram trocados para Atendimento'},
       { category: 'Fixed', description: 'Resolvido bug onde um registro aparecia pendente mas o atendimento não ocorreu ainda.'},
       { category: 'Fixed', description: 'Acontecia um erro quando algumas páginas eram acessadas e precisava recarregar a página.'},
+      { category: 'Fixed', description: 'Resolvido um problema onde aparecia que não tinha sessão mas estava apenas carregando, agora aparece o loading da Clinitra.'},
       { category: 'Added', description: 'Adicionado uma forma de dizer qual tipo de atendimento deve ser contabilizado.'},
     ],
   },

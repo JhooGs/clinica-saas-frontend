@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useGoogleCalendar } from '@/hooks/use-google-calendar'
-import { useTiposSessao, useAtualizarContaComoSessaoLote } from '@/hooks/use-planos'
+import { useTiposAtendimento, useAtualizarContaComoAtendimentoLote } from '@/hooks/use-planos'
 import { Switch } from '@/components/ui/switch'
 import { ImportWizard } from '@/components/onboarding/import-wizard'
 import type { ImportModulo } from '@/components/onboarding/import-wizard'
@@ -686,9 +686,9 @@ const MODULOS: Record<ImportModulo, {
     corBorda: 'border-emerald-400',
   },
   registros: {
-    label: 'Registros de Sessão',
+    label: 'Registros de Atendimento',
     icon: BookOpen,
-    descricao: 'Importe anotações e registros de sessões anteriores vinculadas aos seus pacientes.',
+    descricao: 'Importe anotações e registros de atendimentos anteriores vinculados aos seus pacientes.',
     exemplo: 'Paciente, data, presença, anotações...',
     cor: 'text-violet-600',
     corBg: 'bg-violet-50',
@@ -764,8 +764,8 @@ function AbaDados({ moduloQuery }: { moduloQuery: string | null }) {
 // ─── Aba Atendimentos ─────────────────────────────────────────────────────────
 
 function AbaAtendimentos() {
-  const { data, isLoading } = useTiposSessao()
-  const salvarLote = useAtualizarContaComoSessaoLote()
+  const { data, isLoading } = useTiposAtendimento()
+  const salvarLote = useAtualizarContaComoAtendimentoLote()
 
   // Estado local: map de id → valor pendente (só ids alterados pelo usuário)
   const [pendentes, setPendentes] = useState<Record<string, boolean>>({})
@@ -782,7 +782,7 @@ function AbaAtendimentos() {
     setPendentes(prev => {
       const next = { ...prev }
       // Se voltou ao valor original da API, remove das pendências
-      const original = data?.items.find(t => t.id === id)?.conta_como_sessao
+      const original = data?.items.find(t => t.id === id)?.conta_como_atendimento
       if (novoValor === original) {
         delete next[id]
       } else {
@@ -793,15 +793,15 @@ function AbaAtendimentos() {
   }
 
   function handleSalvar() {
-    const items = Object.entries(pendentes).map(([id, conta_como_sessao]) => ({
+    const items = Object.entries(pendentes).map(([id, conta_como_atendimento]) => ({
       id,
-      conta_como_sessao,
+      conta_como_atendimento,
     }))
     salvarLote.mutate(items, {
       onSuccess: () => {
         setPendentes({})
         toast.success('Configurações salvas', {
-          description: 'Numeração de sessões recalculada para os pacientes afetados.',
+          description: 'Numeração de atendimentos recalculada para os pacientes afetados.',
         })
       },
       onError: () =>
@@ -817,8 +817,8 @@ function AbaAtendimentos() {
           Contagem de atendimentos
         </h2>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          Defina quais tipos de atendimento entram na numeração sequencial de sessões.
-          Tipos desativados ainda aparecem nos registros, mas não recebem número de sessão.
+          Defina quais tipos de atendimento entram na numeração sequencial.
+          Tipos desativados ainda aparecem nos registros, mas não recebem número de atendimento.
         </p>
       </div>
 
@@ -840,7 +840,7 @@ function AbaAtendimentos() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {data.items.map((tipo) => {
-                const atual = valorAtual(tipo.id, tipo.conta_como_sessao)
+                const atual = valorAtual(tipo.id, tipo.conta_como_atendimento)
                 const alterado = tipo.id in pendentes
                 return (
                   <li key={tipo.id} className="flex items-center justify-between gap-4 px-6 py-3 min-h-[52px]">
@@ -877,7 +877,7 @@ function AbaAtendimentos() {
       <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 flex items-start gap-3">
         <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
         <p className="text-xs text-blue-700 leading-relaxed">
-          Ao salvar, os números de sessão de todos os pacientes com registros dos tipos
+          Ao salvar, os números de atendimento de todos os pacientes com registros dos tipos
           alterados são recalculados de uma vez.
         </p>
       </div>
@@ -1038,7 +1038,7 @@ function AbaConexoes() {
                 <h3 className="text-sm font-semibold text-slate-800">WhatsApp Business</h3>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Em breve</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Envie lembretes de sessão e confirmações de agendamento via WhatsApp.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Envie lembretes de atendimento e confirmações de agendamento via WhatsApp.</p>
             </div>
           </div>
         </div>

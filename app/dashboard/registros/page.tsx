@@ -31,7 +31,7 @@ function formatDataBRSimples(iso: string) {
   return `${d}/${m}/${y}`
 }
 
-type SortKey = 'paciente_nome' | 'data_sessao' | 'titulo' | 'presenca' | 'numero_sessao'
+type SortKey = 'paciente_nome' | 'data_atendimento' | 'titulo' | 'presenca' | 'numero_atendimento'
 type SortDir = 'asc' | 'desc'
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -77,23 +77,23 @@ export default function RegistrosPage() {
   const [busca, setBusca] = useState('')
   const inputBuscaRef = useRef<HTMLInputElement>(null)
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>('data_sessao')
+  const [sortKey, setSortKey] = useState<SortKey>('data_atendimento')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
   const [registroModal, setRegistroModal] = useState<import('@/types').Registro | null>(null)
 
-  type ColReg = 'numero_sessao' | 'data_sessao' | 'tipo_sessao' | 'status' | 'presenca' | 'material' | 'valor' | 'notas'
+  type ColReg = 'numero_atendimento' | 'data_atendimento' | 'tipo_atendimento' | 'status' | 'presenca' | 'material' | 'valor' | 'notas'
   const COLUNAS_REG_OCULTAVEIS: { key: ColReg; label: string }[] = [
-    { key: 'numero_sessao', label: 'Nº da sessão' },
-    { key: 'data_sessao',   label: 'Data' },
-    { key: 'tipo_sessao',   label: 'Tipo' },
+    { key: 'numero_atendimento', label: 'Nº do atendimento' },
+    { key: 'data_atendimento',   label: 'Data' },
+    { key: 'tipo_atendimento',   label: 'Tipo' },
     { key: 'status',        label: 'Status' },
     { key: 'presenca',      label: 'Presença' },
     { key: 'material',      label: 'Material' },
     { key: 'valor',         label: 'Valor' },
     { key: 'notas',         label: 'Notas' },
   ]
-  const COLUNAS_REG_PADRAO: ColReg[] = ['data_sessao', 'tipo_sessao', 'presenca', 'valor', 'notas']
+  const COLUNAS_REG_PADRAO: ColReg[] = ['data_atendimento', 'tipo_atendimento', 'presenca', 'valor', 'notas']
   const COLUNAS_REG_LS_KEY = 'clinitra_reg_colunas'
 
   const [colunasVisiveis, setColunasVisiveis] = useState<ColReg[]>(() => {
@@ -155,8 +155,8 @@ export default function RegistrosPage() {
         case 'paciente_nome':
           cmp = (a.paciente_nome ?? '').localeCompare(b.paciente_nome ?? '', 'pt-BR')
           break
-        case 'data_sessao':
-          cmp = (a.data_sessao ?? a.criado_em).localeCompare(b.data_sessao ?? b.criado_em)
+        case 'data_atendimento':
+          cmp = (a.data_atendimento ?? a.criado_em).localeCompare(b.data_atendimento ?? b.criado_em)
           break
         case 'titulo':
           cmp = (a.titulo ?? '').localeCompare(b.titulo ?? '', 'pt-BR')
@@ -164,8 +164,8 @@ export default function RegistrosPage() {
         case 'presenca':
           cmp = (a.presenca === b.presenca) ? 0 : a.presenca ? -1 : 1
           break
-        case 'numero_sessao':
-          cmp = (a.numero_sessao ?? -1) - (b.numero_sessao ?? -1)
+        case 'numero_atendimento':
+          cmp = (a.numero_atendimento ?? -1) - (b.numero_atendimento ?? -1)
           break
       }
       return sortDir === 'asc' ? cmp : -cmp
@@ -185,7 +185,7 @@ export default function RegistrosPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Registros</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Sessões e atendimentos realizados</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Atendimentos realizados</p>
         </div>
         <p className="text-xs text-muted-foreground mt-1 hidden sm:block">
           Registros são criados a partir dos agendamentos
@@ -199,7 +199,7 @@ export default function RegistrosPage() {
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total de Registros</p>
               <p className="mt-2 text-2xl font-bold tracking-tight">{registros.length}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">sessões registradas</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">atendimentos registrados</p>
             </div>
             <div className="rounded-lg p-2.5 bg-violet-500/10">
               <ClipboardList className="h-4 w-4 text-violet-500" />
@@ -218,7 +218,7 @@ export default function RegistrosPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold leading-none">Aguardando registro</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Atendimentos ocorridos sem registro de sessão</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Atendimentos ocorridos sem registro</p>
               </div>
             </div>
             <span className="flex items-center justify-center h-6 min-w-6 rounded-full bg-amber-500 text-white text-[11px] font-bold px-1.5">
@@ -247,7 +247,7 @@ export default function RegistrosPage() {
                     </p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-medium text-[#04c2fb]">
-                        {ag.tipo_sessao}
+                        {ag.tipo_atendimento}
                       </span>
                       <span className={cn('text-[11px] font-medium', cor.text)}>{label}</span>
                     </div>
@@ -386,17 +386,17 @@ export default function RegistrosPage() {
                 <th onClick={() => handleSort('paciente_nome')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                   <span className="inline-flex items-center gap-1.5">Paciente <SortIcon col="paciente_nome" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
-                {colunasVisiveis.includes('numero_sessao') && (
-                  <th onClick={() => handleSort('numero_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-12">
+                {colunasVisiveis.includes('numero_atendimento') && (
+                  <th onClick={() => handleSort('numero_atendimento')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-12">
                     <span className="inline-flex items-center gap-1.5">Nº <SortIcon col="numero_sessao" sortKey={sortKey} sortDir={sortDir} /></span>
                   </th>
                 )}
-                {colunasVisiveis.includes('data_sessao') && (
-                  <th onClick={() => handleSort('data_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                {colunasVisiveis.includes('data_atendimento') && (
+                  <th onClick={() => handleSort('data_atendimento')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                     <span className="inline-flex items-center gap-1.5">Data <SortIcon col="data_sessao" sortKey={sortKey} sortDir={sortDir} /></span>
                   </th>
                 )}
-                {colunasVisiveis.includes('tipo_sessao') && (
+                {colunasVisiveis.includes('tipo_atendimento') && (
                   <th onClick={() => handleSort('titulo')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                     <span className="inline-flex items-center gap-1.5">Tipo <SortIcon col="titulo" sortKey={sortKey} sortDir={sortDir} /></span>
                   </th>
@@ -460,10 +460,10 @@ export default function RegistrosPage() {
                         </button>
                         {/* Mobile: info extra */}
                         <div className="flex flex-wrap items-center gap-2 mt-1 md:hidden">
-                          <span className="text-[11px] text-muted-foreground">{formatDataBR(r.data_sessao ?? r.criado_em.slice(0, 10))}</span>
-                          {r.tipo_sessao && (
+                          <span className="text-[11px] text-muted-foreground">{formatDataBR(r.data_atendimento ?? r.criado_em.slice(0, 10))}</span>
+                          {r.tipo_atendimento && (
                             <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
-                              {r.tipo_sessao}
+                              {r.tipo_atendimento}
                             </span>
                           )}
                           <span className={cn(
@@ -473,8 +473,8 @@ export default function RegistrosPage() {
                             <span className={cn('h-1.5 w-1.5 rounded-full', r.presenca ? 'bg-green-500' : 'bg-red-500')} />
                             {r.presenca ? 'Presente' : 'Falta'}
                           </span>
-                          {r.valor_sessao != null && (
-                            <span className="text-[11px] font-medium text-gray-600">{formatBRL(r.valor_sessao)}</span>
+                          {r.valor_atendimento != null && (
+                            <span className="text-[11px] font-medium text-gray-600">{formatBRL(r.valor_atendimento)}</span>
                           )}
                         </div>
                         {/* Preview de notas — mobile */}
@@ -487,22 +487,22 @@ export default function RegistrosPage() {
                       </td>
 
                       {/* Desktop: colunas */}
-                      {colunasVisiveis.includes('numero_sessao') && (
+                      {colunasVisiveis.includes('numero_atendimento') && (
                         <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                          {r.numero_sessao != null
-                            ? <span className="font-semibold text-foreground">#{r.numero_sessao}</span>
+                          {r.numero_atendimento != null
+                            ? <span className="font-semibold text-foreground">#{r.numero_atendimento}</span>
                             : <span className="text-muted-foreground/40">—</span>
                           }
                         </td>
                       )}
-                      {colunasVisiveis.includes('data_sessao') && (
-                        <td className="px-4 py-3 text-muted-foreground">{formatDataBR(r.data_sessao ?? r.criado_em.slice(0, 10))}</td>
+                      {colunasVisiveis.includes('data_atendimento') && (
+                        <td className="px-4 py-3 text-muted-foreground">{formatDataBR(r.data_atendimento ?? r.criado_em.slice(0, 10))}</td>
                       )}
-                      {colunasVisiveis.includes('tipo_sessao') && (
+                      {colunasVisiveis.includes('tipo_atendimento') && (
                         <td className="px-4 py-3">
-                          {r.tipo_sessao ? (
+                          {r.tipo_atendimento ? (
                             <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb]">
-                              {r.tipo_sessao}
+                              {r.tipo_atendimento}
                             </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
@@ -541,8 +541,8 @@ export default function RegistrosPage() {
                       )}
                       {colunasVisiveis.includes('valor') && (
                         <td className="px-4 py-3 text-right">
-                          {r.valor_sessao != null ? (
-                            <span className="text-sm font-medium text-gray-700">{formatBRL(r.valor_sessao)}</span>
+                          {r.valor_atendimento != null ? (
+                            <span className="text-sm font-medium text-gray-700">{formatBRL(r.valor_atendimento)}</span>
                           ) : (
                             <span className="text-xs text-muted-foreground">sem cobrança</span>
                           )}
@@ -554,7 +554,7 @@ export default function RegistrosPage() {
                           {temNotas && (
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleExpansao(r.id) }}
-                              title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
+                              title={aberto ? 'Fechar notas' : 'Ver notas do atendimento'}
                               className={cn(
                                 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
                                 aberto
@@ -595,7 +595,7 @@ export default function RegistrosPage() {
                                     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/12">
                                       <BookOpen className="h-3.5 w-3.5 text-[#04c2fb]" />
                                     </div>
-                                    <span className="text-xs font-semibold text-[#04c2fb]">Notas da sessão</span>
+                                    <span className="text-xs font-semibold text-[#04c2fb]">Notas do atendimento</span>
                                   </div>
                                   <div className="flex items-center gap-3">
                                     {imagens.length > 0 && (

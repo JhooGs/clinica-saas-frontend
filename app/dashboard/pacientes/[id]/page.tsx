@@ -15,7 +15,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
 import { createClient } from '@/lib/supabase'
-import { usePacotes, useTiposSessao, useSalvarPlanoAtendimento } from '@/hooks/use-planos'
+import { usePacotes, useTiposAtendimento, useSalvarPlanoAtendimento } from '@/hooks/use-planos'
 import { useAgendamentos, useGerarAgendamentosRecorrentes, useCancelarAgendaFuturaPaciente } from '@/hooks/use-agenda'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { ConfirmDiscard } from '@/components/confirm-discard'
@@ -26,7 +26,7 @@ import { ModalHorarioRecorrente } from '@/components/modal-horario-recorrente'
 import { ModalConfirmarAgendaFutura } from '@/components/modal-confirmar-agenda-futura'
 import type { TipoAcaoAgenda } from '@/components/modal-confirmar-agenda-futura'
 import { toast } from 'sonner'
-import type { Pacote, TipoSessao } from '@/lib/types/planos'
+import type { Pacote, TipoAtendimento } from '@/lib/types/planos'
 import { useRegistros } from '@/hooks/use-registros'
 import type { Registro, Agendamento } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
@@ -54,7 +54,7 @@ type PlanoAtendimento = {
   vezesPorSemana: number | null
   cobranca: ModoCobranca | null
   agenda: AgendaRecorrente | null
-  sessoEmGrupo: boolean
+  atendimentoEmGrupo: boolean
   vigenciaInicio?: string | null  // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
   vigenciaFim?: string | null     // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
   terapeutaId?: string | null     // UUID do terapeuta logado no momento do save
@@ -113,7 +113,7 @@ function formatarAgenda(agenda: AgendaRecorrente | null, recorrencia: Recorrenci
 const MODOS_COBRANCA: {
   id: ModoCobranca
   label: string
-  tagPreco: (valor: string) => string   // ex: "R$ 1.800 / sessão"
+  tagPreco: (valor: string) => string   // ex: "R$ 1.800 / atendimento"
   descInclusos: string                  // o que acontece com tipos do plano
   descForaDoPlan: string                // o que acontece com tipos fora do plano
   icon: typeof Receipt
@@ -125,9 +125,9 @@ const MODOS_COBRANCA: {
 }[] = [
   {
     id: 'por_atendimento',
-    label: 'Por sessão realizada',
-    tagPreco: v => `R$ ${v} / sessão`,
-    descInclusos: 'Cada sessão do plano é cobrada por este valor, independente do tipo.',
+    label: 'Por atendimento realizado',
+    tagPreco: v => `R$ ${v} / atendimento`,
+    descInclusos: 'Cada atendimento do plano é cobrado por este valor, independente do tipo.',
     descForaDoPlan: 'Tipos fora do plano são cobrados pelo valor individual definido em Tipos de Atendimento.',
     icon: Receipt,
     cor: 'text-emerald-600',
@@ -140,7 +140,7 @@ const MODOS_COBRANCA: {
     id: 'mensal',
     label: 'Mensalidade',
     tagPreco: v => `R$ ${v} / mês`,
-    descInclusos: 'Todos os tipos do plano estão inclusos. Cobrado 1× por mês, independente de quantas sessões ocorreram.',
+    descInclusos: 'Todos os tipos do plano estão inclusos. Cobrado 1× por mês, independente de quantos atendimentos ocorreram.',
     descForaDoPlan: 'Tipos fora do plano são cobrados separadamente pelo valor individual.',
     icon: Repeat2,
     cor: 'text-violet-600',
@@ -213,7 +213,7 @@ const _PLANO_VAZIO: PlanoAtendimento = {
   vezesPorSemana: null,
   cobranca: null,
   agenda: null,
-  sessoEmGrupo: false,
+  atendimentoEmGrupo: false,
 }
 
 function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
@@ -240,7 +240,7 @@ function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
 
 /* ── Info Item (view mode) ────────────────────────── */
 
-type SortKeyHist = 'data' | 'tipo_sessao' | 'status' | 'numero_sessao' | 'valor'
+type SortKeyHist = 'data' | 'tipo_atendimento' | 'status' | 'numero_atendimento' | 'valor'
 type SortDirHist = 'asc' | 'desc'
 
 function SortIconHist({ col, sk, sd }: { col: SortKeyHist; sk: SortKeyHist; sd: SortDirHist }) {
@@ -276,7 +276,7 @@ function CardPlano({
   pacienteNome: string
   pacienteAtivo: boolean
   pacotesDisponiveis: Pacote[]
-  tiposDisponiveis: TipoSessao[]
+  tiposDisponiveis: TipoAtendimento[]
 }) {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
@@ -307,7 +307,7 @@ function CardPlano({
       ? ag.pacientes_nomes
       : (ag.paciente_nome ? [ag.paciente_nome] : undefined),
     pacientes_ids: ag.pacientes_ids?.map(String),
-    tipo: ag.tipo_sessao,
+    tipo: ag.tipo_atendimento,
     data: ag.data,
     horario: ag.horario,
     horarioFim: ag.horario_fim,
@@ -331,8 +331,8 @@ function CardPlano({
   const cobrancaSelecionada = MODOS_COBRANCA.find(c => c.id === planoInicial.cobranca) ?? null
   const descRec = descRecorrencia(planoInicial.recorrencia, planoInicial.vezesPorSemana)
 
-  function nomeTipo(tipoSessaoId: string): string {
-    return tiposDisponiveis.find(t => t.id === tipoSessaoId)?.nome ?? tipoSessaoId
+  function nomeTipo(tipoAtendimentoId: string): string {
+    return tiposDisponiveis.find(t => t.id === tipoAtendimentoId)?.nome ?? tipoAtendimentoId
   }
 
   // Detecta conflito de horário entre slots do mesmo plano.
@@ -402,15 +402,15 @@ function CardPlano({
       return
     }
 
-    // Gerar sessões recorrentes no backend (também cancela as antigas internamente)
+    // Gerar atendimentos recorrentes no backend (também cancela os antigos internamente)
     try {
       const result = await gerarRecorrentes.mutateAsync({
         paciente_id: pacienteId,
         recorrencia: formComTerapeuta.recorrencia!,
         vezes_por_semana: formComTerapeuta.vezesPorSemana,
-        sessao_em_grupo: formComTerapeuta.sessoEmGrupo,
-        tipo_sessao: formComTerapeuta.sessoEmGrupo ? 'Sessão em grupo' : 'Sessão',
-        pacientes_ids: formComTerapeuta.sessoEmGrupo ? [pacienteId] : undefined,
+        atendimento_em_grupo: formComTerapeuta.atendimentoEmGrupo,
+        tipo_atendimento: formComTerapeuta.atendimentoEmGrupo ? 'Atendimento em grupo' : 'Atendimento',
+        pacientes_ids: formComTerapeuta.atendimentoEmGrupo ? [pacienteId] : undefined,
         slots: formComTerapeuta.agenda!.slots.map(s => ({
           dia_semana: s.diaSemana,
           dia_mes: s.diaMes,
@@ -420,18 +420,18 @@ function CardPlano({
       const bloqueantes = result.conflitos.filter(c => c.motivo.startsWith('Conflito'))
       if (result.criados > 0 && bloqueantes.length === 0) {
         toast.success('Plano salvo', {
-          description: `${result.criados} sessão(ões) agendada(s) para as próximas 8 semanas.`,
+          description: `${result.criados} atendimento(s) agendada(s) para as próximas 8 semanas.`,
         })
       } else if (result.criados > 0) {
         toast.success('Plano salvo', {
-          description: `${result.criados} sessão(ões) agendada(s). ${bloqueantes.length} conflito(s) ignorado(s).`,
+          description: `${result.criados} atendimento(s) agendada(s). ${bloqueantes.length} conflito(s) ignorado(s).`,
         })
       } else {
-        toast.success('Plano salvo', { description: 'Nenhuma sessão gerada — todos os horários conflitam.' })
+        toast.success('Plano salvo', { description: 'Nenhum atendimento gerado — todos os horários conflitam.' })
       }
     } catch {
       toast.error('Erro ao gerar agenda', {
-        description: 'O plano foi salvo, mas não foi possível gerar as sessões. Tente novamente.',
+        description: 'O plano foi salvo, mas não foi possível gerar os atendimentos. Tente novamente.',
       })
     }
   }
@@ -559,7 +559,7 @@ function CardPlano({
               {/* Opção: Nenhum plano */}
               <button
                 type="button"
-                onClick={() => setForm({ pacoteId: null, recorrencia: null, vezesPorSemana: null, cobranca: null, agenda: null, sessoEmGrupo: false })}
+                onClick={() => setForm({ pacoteId: null, recorrencia: null, vezesPorSemana: null, cobranca: null, agenda: null, atendimentoEmGrupo: false })}
                 className={cn(
                   'w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all',
                   form.pacoteId === null
@@ -631,9 +631,9 @@ function CardPlano({
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {pacote.tipos.filter(t => t.incluido).map(t => (
-                          <span key={t.tipo_sessao_id} className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                          <span key={t.tipo_atendimento_id} className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
                             <span className="h-1 w-1 rounded-full bg-[#04c2fb] shrink-0" />
-                            {nomeTipo(t.tipo_sessao_id)}
+                            {nomeTipo(t.tipo_atendimento_id)}
                           </span>
                         ))}
                       </div>
@@ -786,7 +786,7 @@ function CardPlano({
                       <span className="flex-1 text-xs font-medium text-gray-800 truncate">
                         {formatarAgenda(form.agenda, form.recorrencia)}
                       </span>
-                      {form.sessoEmGrupo && (
+                      {form.atendimentoEmGrupo && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 shrink-0">
                           <Sparkles className="h-2.5 w-2.5" /> Em grupo
                         </span>
@@ -939,9 +939,9 @@ function CardPlano({
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {pacoteSelecionado.tipos.filter(t => t.incluido).map(t => (
-                      <span key={t.tipo_sessao_id} className="inline-flex items-center gap-1 rounded-md bg-white border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                      <span key={t.tipo_atendimento_id} className="inline-flex items-center gap-1 rounded-md bg-white border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-slate-600">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
-                        {nomeTipo(t.tipo_sessao_id)}
+                        {nomeTipo(t.tipo_atendimento_id)}
                       </span>
                     ))}
                   </div>
@@ -987,7 +987,7 @@ function CardPlano({
                             {formatarAgenda(planoInicial.agenda, planoInicial.recorrencia)}
                           </p>
                         )}
-                        {planoInicial.sessoEmGrupo && (
+                        {planoInicial.atendimentoEmGrupo && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 mt-1.5">
                             <Sparkles className="h-2.5 w-2.5" /> Em grupo
                           </span>
@@ -1079,8 +1079,8 @@ function CardPlano({
         <ModalHorarioRecorrente
           open={modalHorarioAberto}
           onClose={() => setModalHorarioAberto(false)}
-          onConfirmar={(slots, sessoEmGrupo) => {
-            setForm(prev => ({ ...prev, agenda: { slots }, sessoEmGrupo }))
+          onConfirmar={(slots, atendimentoEmGrupo) => {
+            setForm(prev => ({ ...prev, agenda: { slots }, atendimentoEmGrupo }))
             setModalHorarioAberto(false)
           }}
           pacienteId={pacienteId}
@@ -1104,7 +1104,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const [plano, setPlano] = useState<PlanoAtendimento>(pacienteInicial.plano)
   const salvarPlanoMutation = useSalvarPlanoAtendimento(pacienteInicial.id)
   const { data: pacotesData } = usePacotes()
-  const { data: tiposData } = useTiposSessao()
+  const { data: tiposData } = useTiposAtendimento()
   const pacotesDisponiveis = pacotesData?.items ?? []
   const tiposDisponiveis = tiposData?.items ?? []
   const cancelarAgendaFuturaPaciente = useCancelarAgendaFuturaPaciente()
@@ -1121,7 +1121,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     ativo: paciente.ativo,
   })
 
-  const { data: registrosData } = useRegistros({ paciente_id: paciente.id, page_size: 200 })
+  const { data: registrosData, isLoading: registrosCarregando } = useRegistros({ paciente_id: paciente.id, page_size: 200 })
   const registros: Registro[] = useMemo(() => registrosData?.items ?? [], [registrosData])
 
   // Histórico completo de agendamentos do paciente (passado + futuro)
@@ -1130,7 +1130,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const dataInicioHistorico = (paciente.dataInicio && brToIso(paciente.dataInicio)) || _cincoAnosAtras
   const dataFimFuturo = new Date(_hoje.getFullYear() + 1, 11, 31).toISOString().slice(0, 10)
 
-  const { data: agendamentosHistData } = useAgendamentos({
+  const { data: agendamentosHistData, isLoading: agendamentosCarregando } = useAgendamentos({
     data_inicio: dataInicioHistorico,
     data_fim: dataFimFuturo,
     paciente_id: paciente.id,
@@ -1150,7 +1150,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const registroByData = useMemo(() => {
     const map = new Map<string, Registro>()
     for (const r of registros) {
-      if (!r.agendamento_id && r.data_sessao) map.set(r.data_sessao, r)
+      if (!r.agendamento_id && r.data_atendimento) map.set(r.data_atendimento, r)
     }
     return map
   }, [registros])
@@ -1161,12 +1161,12 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const presencas = registros.filter(r => r.presenca).length
   const faltas = registros.filter(r => !r.presenca).length
 
-  const [expandidoSessaoId, setExpandidoSessaoId] = useState<string | null>(null)
+  const [expandidoAtendimentoId, setExpandidoSessaoId] = useState<string | null>(null)
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
   const [registroModal, setRegistroModal] = useState<Registro | null>(null)
   const [horarioModal, setHorarioModal] = useState<string | null>(null)
 
-  function toggleSessao(id: string) {
+  function toggleAtendimento(id: string) {
     setExpandidoSessaoId(prev => (prev === id ? null : id))
   }
 
@@ -1176,17 +1176,17 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const FILTRO_PADRAO: StatusHist[] = ['Realizado', 'Falta', 'Pendente']
   const FILTRO_LS_KEY = `clinitra_hist_filtros_${pacienteInicial.id}`
 
-  type ColHist = 'numero_sessao' | 'status' | 'presenca' | 'tipo_sessao' | 'material' | 'valor' | 'notas'
+  type ColHist = 'numero_atendimento' | 'status' | 'presenca' | 'tipo_atendimento' | 'material' | 'valor' | 'notas'
   const COLUNAS_OCULTAVEIS: { key: ColHist; label: string }[] = [
-    { key: 'numero_sessao', label: 'Nº da sessão' },
+    { key: 'numero_atendimento', label: 'Nº do atendimento' },
     { key: 'status',        label: 'Status' },
     { key: 'presenca',      label: 'Presença' },
-    { key: 'tipo_sessao',   label: 'Tipo' },
+    { key: 'tipo_atendimento',   label: 'Tipo' },
     { key: 'material',      label: 'Material' },
     { key: 'valor',         label: 'Valor' },
     { key: 'notas',         label: 'Notas' },
   ]
-  const COLUNAS_HIST_PADRAO: ColHist[] = ['numero_sessao', 'status', 'tipo_sessao', 'valor', 'notas']
+  const COLUNAS_HIST_PADRAO: ColHist[] = ['numero_atendimento', 'status', 'tipo_atendimento', 'valor', 'notas']
   const COLUNAS_LS_KEY = 'clinitra_hist_colunas'
 
   const [colunasVisiveis, setColunasVisiveis] = useState<ColHist[]>(() => {
@@ -1479,7 +1479,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       {/* ── Cards de resumo ──────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {[
-          { label: 'Total Sessões', valor: totalSessoes, cor: 'text-gray-800',  bg: 'bg-blue-500/10',     icon: <Hash className="h-4 w-4 text-blue-500" /> },
+          { label: 'Total Atendimentos', valor: totalSessoes, cor: 'text-gray-800',  bg: 'bg-blue-500/10',     icon: <Hash className="h-4 w-4 text-blue-500" /> },
           { label: 'Presenças',     valor: presencas,    cor: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> },
           { label: 'Faltas',        valor: faltas,       cor: 'text-red-500',     bg: 'bg-red-500/10',     icon: <XCircle className="h-4 w-4 text-red-500" /> },
           { label: 'Taxa Presença', valor: `${taxaPresenca}%`,    cor: 'text-[#04c2fb]',   bg: 'bg-[#04c2fb]/10',   icon: <Activity className="h-4 w-4 text-[#04c2fb]" /> },
@@ -1584,13 +1584,13 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         tiposDisponiveis={tiposDisponiveis}
       />
 
-      {/* ── Histórico de sessões ────────────────────── */}
+      {/* ── Histórico de atendimentos ───────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="p-4 sm:p-5 border-b flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">Histórico de Sessões</p>
+            <p className="text-sm font-semibold">Histórico de Atendimentos</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {totalSessoes} {totalSessoes === 1 ? 'sessão' : 'sessões'} realizadas
+              {totalSessoes} {totalSessoes === 1 ? 'atendimento' : 'atendimentos'} realizados
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1731,9 +1731,9 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                {colunasVisiveis.includes('numero_sessao') && (
-                  <th onClick={() => handleSortHist('numero_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-10">
-                    <span className="inline-flex items-center gap-1.5">Nº <SortIconHist col="numero_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
+                {colunasVisiveis.includes('numero_atendimento') && (
+                  <th onClick={() => handleSortHist('numero_atendimento')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors w-10">
+                    <span className="inline-flex items-center gap-1.5">Nº <SortIconHist col="numero_atendimento" sk={sortKeyHist} sd={sortDirHist} /></span>
                   </th>
                 )}
                 <th onClick={() => handleSortHist('data')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
@@ -1749,9 +1749,9 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                     Presença
                   </th>
                 )}
-                {colunasVisiveis.includes('tipo_sessao') && (
-                  <th onClick={() => handleSortHist('tipo_sessao')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
-                    <span className="inline-flex items-center gap-1.5">Tipo <SortIconHist col="tipo_sessao" sk={sortKeyHist} sd={sortDirHist} /></span>
+                {colunasVisiveis.includes('tipo_atendimento') && (
+                  <th onClick={() => handleSortHist('tipo_atendimento')} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                    <span className="inline-flex items-center gap-1.5">Tipo <SortIconHist col="tipo_atendimento" sk={sortKeyHist} sd={sortDirHist} /></span>
                   </th>
                 )}
                 {colunasVisiveis.includes('material') && (
@@ -1777,22 +1777,22 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   let cmp = 0
                   switch (sortKeyHist) {
                     case 'data': {
-                      const dateA = regA?.data_sessao ?? a.data
-                      const dateB = regB?.data_sessao ?? b.data
+                      const dateA = regA?.data_atendimento ?? a.data
+                      const dateB = regB?.data_atendimento ?? b.data
                       cmp = dateA.localeCompare(dateB) || a.horario.localeCompare(b.horario)
                       break
                     }
-                    case 'tipo_sessao':
-                      cmp = (a.tipo_sessao ?? '').localeCompare(b.tipo_sessao ?? '', 'pt-BR')
+                    case 'tipo_atendimento':
+                      cmp = (a.tipo_atendimento ?? '').localeCompare(b.tipo_atendimento ?? '', 'pt-BR')
                       break
                     case 'status':
                       cmp = resolverStatusHist(a).localeCompare(resolverStatusHist(b), 'pt-BR')
                       break
-                    case 'numero_sessao':
-                      cmp = (regA?.numero_sessao ?? -1) - (regB?.numero_sessao ?? -1)
+                    case 'numero_atendimento':
+                      cmp = (regA?.numero_atendimento ?? -1) - (regB?.numero_atendimento ?? -1)
                       break
                     case 'valor':
-                      cmp = (Number(regA?.valor_sessao) || -1) - (Number(regB?.valor_sessao) || -1)
+                      cmp = (Number(regA?.valor_atendimento) || -1) - (Number(regB?.valor_atendimento) || -1)
                       break
                   }
                   return sortDirHist === 'asc' ? cmp : -cmp
@@ -1801,7 +1801,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   const reg = registroByAgendamentoId.get(ag.id) ?? registroByData.get(ag.data)
                   const textoPreview = reg ? extractTiptapText(reg.conteudo_json, 70) : ''
                   const tiptapHtml = reg ? tiptapToHtml(reg.conteudo_json) : ''
-                  const aberto = expandidoSessaoId === ag.id
+                  const aberto = expandidoAtendimentoId === ag.id
                   const links = reg?.link_youtube ? [reg.link_youtube] : []
                   const imagens = (reg?.arquivos ?? []).filter(f => f.tipo.startsWith('image/'))
                   const outrosArquivos = (reg?.arquivos ?? []).filter(f => !f.tipo.startsWith('image/'))
@@ -1838,16 +1838,16 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                         )}
                         onClick={reg ? () => { setRegistroModal(reg); setHorarioModal(ag.horario ?? null) } : (destinoNovo ? () => router.push(destinoNovo) : undefined)}
                       >
-                        {colunasVisiveis.includes('numero_sessao') && (
+                        {colunasVisiveis.includes('numero_atendimento') && (
                           <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                            {reg?.numero_sessao != null
-                              ? <span className="font-semibold text-foreground">#{reg.numero_sessao}</span>
+                            {reg?.numero_atendimento != null
+                              ? <span className="font-semibold text-foreground">#{reg.numero_atendimento}</span>
                               : <span className="text-muted-foreground/40">—</span>
                             }
                           </td>
                         )}
                         <td className="px-4 py-3 text-muted-foreground">
-                          <span>{isoToBR(reg?.data_sessao ?? ag.data)}</span>
+                          <span>{isoToBR(reg?.data_atendimento ?? ag.data)}</span>
                           {temNotas && (
                             <div className="flex items-start gap-1 mt-1 md:hidden">
                               <FileText className="h-3 w-3 text-[#04c2fb] shrink-0 mt-0.5" />
@@ -1876,10 +1876,10 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                             }
                           </td>
                         )}
-                        {colunasVisiveis.includes('tipo_sessao') && (
+                        {colunasVisiveis.includes('tipo_atendimento') && (
                           <td className="px-4 py-3 max-w-[130px]">
                             <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-[#04c2fb] truncate max-w-full">
-                              {ag.tipo_sessao ?? '—'}
+                              {ag.tipo_atendimento ?? '—'}
                             </span>
                           </td>
                         )}
@@ -1893,8 +1893,8 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                         )}
                         {colunasVisiveis.includes('valor') && (
                           <td className="px-4 py-3 text-right">
-                            {reg?.valor_sessao != null
-                              ? <span className="text-sm font-medium text-gray-700">R$ {reg.valor_sessao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            {reg?.valor_atendimento != null
+                              ? <span className="text-sm font-medium text-gray-700">R$ {reg.valor_atendimento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                               : <span className="text-muted-foreground text-xs">—</span>
                             }
                           </td>
@@ -1903,8 +1903,8 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                           <td className="px-3 py-3 text-right">
                             {temNotas && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); toggleSessao(ag.id) }}
-                                title={aberto ? 'Fechar notas' : 'Ver notas da sessão'}
+                                onClick={(e) => { e.stopPropagation(); toggleAtendimento(ag.id) }}
+                                title={aberto ? 'Fechar notas' : 'Ver notas do atendimento'}
                                 className={cn(
                                   'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150',
                                   aberto
@@ -1945,7 +1945,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                                       <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/12">
                                         <BookOpen className="h-3.5 w-3.5 text-[#04c2fb]" />
                                       </div>
-                                      <span className="text-xs font-semibold text-[#04c2fb]">Notas da sessão</span>
+                                      <span className="text-xs font-semibold text-[#04c2fb]">Notas do atendimento</span>
                                     </div>
                                     <div className="flex items-center gap-3">
                                       {imagens.length > 0 && (
@@ -2050,17 +2050,27 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                     </Fragment>
                   )
                 })}
-              {agendamentosHist.length === 0 && (
+              {(agendamentosCarregando || registrosCarregando) && agendamentosHist.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center">
+                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#04c2fb] border-t-transparent" />
+                      Carregando atendimentos...
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!agendamentosCarregando && !registrosCarregando && agendamentosHist.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                    Nenhuma sessão encontrada.
+                    Nenhum atendimento encontrado.
                   </td>
                 </tr>
               )}
               {agendamentosHist.length > 0 && agendamentosFiltrados.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center">
-                    <p className="text-sm text-muted-foreground">Nenhuma sessão com os filtros selecionados.</p>
+                    <p className="text-sm text-muted-foreground">Nenhum atendimento com os filtros selecionados.</p>
                     <button
                       onClick={() => {
                         setFiltrosStatus(FILTRO_PADRAO)

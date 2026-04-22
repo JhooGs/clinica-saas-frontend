@@ -12,17 +12,17 @@ import { useRegistroDraft } from '@/hooks/use-registro-draft'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ConfirmDelete } from '@/components/confirm-delete'
 import { chavePauta } from '@/components/modal-pauta'
-import { TIPOS_SESSAO } from '@/lib/tipos-sessao'
+import { TIPOS_ATENDIMENTO } from '@/lib/tipos-atendimento'
 import { useRegistro, useAtualizarRegistro, useCriarRegistro, useCriarRegistroGrupo, useExcluirRegistro } from '@/hooks/use-registros'
 import { useAgendamento } from '@/hooks/use-agenda'
 import type { Registro } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
 
 // ---------------------------------------------------------------------------
-// Dropdown elegante de tipo de sessão
+// Dropdown elegante de tipo de atendimento
 // ---------------------------------------------------------------------------
 
-function TipoSessaoSelect({
+function TipoAtendimentoSelect({
   value,
   onChange,
 }: {
@@ -44,7 +44,7 @@ function TipoSessaoSelect({
   }, [])
 
   useEffect(() => {
-    const idx = (TIPOS_SESSAO as readonly string[]).indexOf(value)
+    const idx = (TIPOS_ATENDIMENTO as readonly string[]).indexOf(value)
     startTransition(() => setIndiceAtivo(Math.max(0, idx)))
   }, [value])
 
@@ -62,13 +62,13 @@ function TipoSessaoSelect({
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setIndiceAtivo(i => (i + 1) % TIPOS_SESSAO.length)
+      setIndiceAtivo(i => (i + 1) % TIPOS_ATENDIMENTO.length)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setIndiceAtivo(i => (i - 1 + TIPOS_SESSAO.length) % TIPOS_SESSAO.length)
+      setIndiceAtivo(i => (i - 1 + TIPOS_ATENDIMENTO.length) % TIPOS_ATENDIMENTO.length)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      selecionar(TIPOS_SESSAO[indiceAtivo])
+      selecionar(TIPOS_ATENDIMENTO[indiceAtivo])
     }
   }
 
@@ -100,7 +100,7 @@ function TipoSessaoSelect({
           style={{ backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
         >
           <div className="py-1">
-            {TIPOS_SESSAO.map((tipo, i) => {
+            {TIPOS_ATENDIMENTO.map((tipo, i) => {
               const ativo = tipo === value
               return (
                 <button
@@ -184,11 +184,11 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-semibold tracking-tight truncate">
-            {registro.paciente_nome ?? 'Registro de Sessão'}
+            {registro.paciente_nome ?? 'Registro de Atendimento'}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {formatDataBR(registro.data_sessao ?? registro.criado_em.slice(0, 10))}
-            {registro.tipo_sessao && <> · {registro.tipo_sessao}</>}
+            {formatDataBR(registro.data_atendimento ?? registro.criado_em.slice(0, 10))}
+            {registro.tipo_atendimento && <> · {registro.tipo_atendimento}</>}
           </p>
         </div>
         <span className={cn(
@@ -226,24 +226,24 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
             <Calendar className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Data</p>
-              <p className="text-sm font-medium text-gray-800 mt-0.5">{formatDataBR(registro.data_sessao ?? registro.criado_em.slice(0, 10))}</p>
+              <p className="text-sm font-medium text-gray-800 mt-0.5">{formatDataBR(registro.data_atendimento ?? registro.criado_em.slice(0, 10))}</p>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Tag className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[11px] text-muted-foreground">Tipo de sessão</p>
+              <p className="text-[11px] text-muted-foreground">Tipo de atendimento</p>
               <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-xs font-medium text-[#04c2fb] mt-0.5">
-                {registro.tipo_sessao ?? '—'}
+                {registro.tipo_atendimento ?? '—'}
               </span>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Clock className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[11px] text-muted-foreground">Sessão nº</p>
+              <p className="text-[11px] text-muted-foreground">Atendimento nº</p>
               <p className="text-sm font-medium text-gray-800 mt-0.5">
-                {registro.numero_sessao ?? <span className="text-muted-foreground">—</span>}
+                {registro.numero_atendimento ?? <span className="text-muted-foreground">—</span>}
               </p>
             </div>
           </div>
@@ -266,9 +266,9 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
           </div>
           <div>
             <p className="text-[11px] text-muted-foreground mb-1">Valor</p>
-            {registro.valor_sessao != null ? (
+            {registro.valor_atendimento != null ? (
               <p className="text-sm font-semibold text-gray-800">
-                {Number(registro.valor_sessao).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {Number(registro.valor_atendimento).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
             ) : (
               <span className="inline-flex items-center rounded-full bg-gray-50 border border-gray-200 px-2 py-0.5 text-[11px] text-muted-foreground">
@@ -357,12 +357,12 @@ function RegistroViewMode({ registro }: { registro: Registro }) {
         )}
       </div>
 
-      {/* Notas da sessão */}
+      {/* Notas do atendimento */}
       {notasHtml && (
         <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5 space-y-3">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-[#04c2fb]" />
-            <span className="text-xs font-semibold text-[#04c2fb] uppercase tracking-wide">Notas da Sessão</span>
+            <span className="text-xs font-semibold text-[#04c2fb] uppercase tracking-wide">Notas do Atendimento</span>
           </div>
           <div
             className={richTextClasses}
@@ -384,19 +384,19 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
   const excluirRegistro = useExcluirRegistro()
 
   const [form, setForm] = useState({
-    data: registro.data_sessao ?? hoje(),
-    tipoSessao: registro.tipo_sessao ?? 'Sessão',
-    numeroSessao: registro.numero_sessao?.toString() ?? '',
+    data: registro.data_atendimento ?? hoje(),
+    tipoAtendimento: registro.tipo_atendimento ?? 'Atendimento',
+    numeroAtendimento: registro.numero_atendimento?.toString() ?? '',
     presenca: registro.presenca,
-    valorSessao: registro.valor_sessao?.toString() ?? '',
+    valorAtendimento: registro.valor_atendimento?.toString() ?? '',
     material: registro.material === '-' ? '' : (registro.material ?? ''),
     links: registro.link_youtube ? [registro.link_youtube] : [],
     notasSessaoJson: registro.conteudo_json,
   })
   function handleNumeroSessaoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/[^\d]/g, '')
-    f('numeroSessao', raw)
-    setNumeroSessaoAlterado(raw !== (registro.numero_sessao?.toString() ?? ''))
+    f('numeroAtendimento', raw)
+    setNumeroSessaoAlterado(raw !== (registro.numero_atendimento?.toString() ?? ''))
   }
 
   const [linkInput, setLinkInput] = useState('')
@@ -405,7 +405,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
   const [temAlteracoes, setTemAlteracoes] = useState(false)
   const [confirmarDescartar, setConfirmarDescartar] = useState(false)
   const [confirmarDeletar, setConfirmarDeletar] = useState(false)
-  const [numeroSessaoAlterado, setNumeroSessaoAlterado] = useState(false)
+  const [numeroAtendimentoAlterado, setNumeroSessaoAlterado] = useState(false)
 
   function f(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -446,28 +446,28 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
 
   async function salvar() {
     if (!form.data) {
-      toast.error('Data obrigatória', { description: 'Informe a data da sessão antes de salvar.' })
+      toast.error('Data obrigatória', { description: 'Informe a data do atendimento antes de salvar.' })
       return
     }
     setSalvando(true)
-    const numeroSessaoParsed = parseInt(form.numeroSessao, 10)
-    const numeroSessaoPayload =
-      numeroSessaoAlterado && !isNaN(numeroSessaoParsed) && form.presenca
-        ? { numero_sessao: numeroSessaoParsed }
+    const numeroAtendimentoParsed = parseInt(form.numeroAtendimento, 10)
+    const numeroAtendimentoPayload =
+      numeroAtendimentoAlterado && !isNaN(numeroAtendimentoParsed) && form.presenca
+        ? { numero_atendimento: numeroAtendimentoParsed }
         : {}
     atualizarRegistro.mutate(
       {
         id,
         payload: {
-          tipo_sessao: form.tipoSessao || undefined,
+          tipo_atendimento: form.tipoAtendimento || undefined,
           presenca: form.presenca,
           conteudo_json: form.notasSessaoJson,
           material: form.material || undefined,
           link_youtube: form.links[0] || undefined,
           observacao: undefined,
-          data_sessao: form.data,
+          data_atendimento: form.data,
           arquivos: arquivos,
-          ...numeroSessaoPayload,
+          ...numeroAtendimentoPayload,
         },
       },
       {
@@ -506,17 +506,17 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Data da sessão</label>
+                <label className="text-xs font-medium text-muted-foreground">Data do atendimento</label>
                 <div className="flex items-center gap-2 py-1.5 select-none">
                   <Calendar className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />
                   <span className="text-sm font-semibold text-gray-800">{formatDataBR(form.data)}</span>
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Tipo de sessão</label>
+                <label className="text-xs font-medium text-muted-foreground">Tipo de atendimento</label>
                 <div className="flex items-center gap-2 py-1.5 select-none">
                   <Tag className="h-3.5 w-3.5 text-[#04c2fb] shrink-0" />
-                  <span className="text-sm font-semibold text-gray-800">{form.tipoSessao}</span>
+                  <span className="text-sm font-semibold text-gray-800">{form.tipoAtendimento}</span>
                 </div>
               </div>
             </div>
@@ -524,24 +524,24 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
             {form.presenca && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
-                Nº Sessão
+                Nº Atendimento
                 <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-normal">
-                  {numeroSessaoAlterado ? '(âncora manual)' : '(automático)'}
+                  {numeroAtendimentoAlterado ? '(âncora manual)' : '(automático)'}
                 </span>
               </label>
               <div className="space-y-1.5">
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={form.numeroSessao}
+                  value={form.numeroAtendimento}
                   onChange={handleNumeroSessaoChange}
-                  placeholder={registro.numero_sessao?.toString() ?? '—'}
+                  placeholder={registro.numero_atendimento?.toString() ?? '—'}
                   className={cn(
                     'w-28 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40',
-                    numeroSessaoAlterado && 'border-amber-400 ring-1 ring-amber-400/30'
+                    numeroAtendimentoAlterado && 'border-amber-400 ring-1 ring-amber-400/30'
                   )}
                 />
-                {numeroSessaoAlterado && (
+                {numeroAtendimentoAlterado && (
                   <p className="text-[11px] text-amber-600 leading-snug max-w-xs">
                     Ao salvar, os números de todas as sessões deste paciente serão
                     recalculados com este valor como referência.
@@ -572,11 +572,11 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Valor da sessão</label>
+              <label className="text-xs font-medium text-muted-foreground">Valor do atendimento</label>
               <div className="flex items-center gap-2 py-1.5 select-none">
-                {registro.valor_sessao != null ? (
+                {registro.valor_atendimento != null ? (
                   <span className="text-sm font-semibold text-gray-800">
-                    {Number(registro.valor_sessao).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    {Number(registro.valor_atendimento).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </span>
                 ) : (
                   <span className="text-xs italic text-muted-foreground">sem cobrança</span>
@@ -677,7 +677,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Notas da sessão</label>
+              <label className="text-xs font-medium text-muted-foreground">Notas do atendimento</label>
               <RichEditor
                 key={`edit-${id}`}
                 value={form.notasSessaoJson}
@@ -739,7 +739,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
           descricao="Esta ação não pode ser desfeita. O registro será removido permanentemente junto com todos os dados vinculados."
           consequencias={[
             'A transação financeira gerada por este registro será excluída',
-            'Os números de sessão dos registros seguintes serão recalculados',
+            'Os números de atendimento dos registros seguintes serão recalculados',
             'O agendamento será marcado como cancelado',
             'Documentos e imagens anexados serão removidos permanentemente do storage',
           ]}
@@ -756,9 +756,9 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
 // Modo formulário — agendamento pendente
 // ---------------------------------------------------------------------------
 
-function FormularioSessao({ id }: { id: string }) {
+function FormularioAtendimento({ id }: { id: string }) {
   const router = useRouter()
-  const { data: agendamento } = useAgendamento(id)
+  const { data: agendamento, isLoading: agendamentoCarregando } = useAgendamento(id)
   const criarRegistro = useCriarRegistro()
   const criarRegistroGrupo = useCriarRegistroGrupo()
   const [pacienteId, setPacienteId] = useState<string>('')
@@ -766,10 +766,10 @@ function FormularioSessao({ id }: { id: string }) {
   const [valorFaltaGrupoMap, setValorFaltaGrupoMap] = useState<Record<string, string>>({})
   const [form, setForm] = useState({
     data: hoje(),
-    tipoSessao: 'Sessão',
-    numeroSessao: '',
+    tipoAtendimento: 'Atendimento',
+    numeroAtendimento: '',
     presenca: true,
-    valorSessao: '',
+    valorAtendimento: '',
     material: '',
     links: [] as string[],
     notasSessaoJson: null as Record<string, unknown> | null,
@@ -793,7 +793,7 @@ function FormularioSessao({ id }: { id: string }) {
       setForm(prev => ({
         ...prev,
         data: agendamento.data ?? prev.data,
-        tipoSessao: agendamento.tipo_sessao ?? prev.tipoSessao,
+        tipoAtendimento: agendamento.tipo_atendimento ?? prev.tipoAtendimento,
       }))
       // Inicializa presença como "presente" para todos os participantes do grupo
       // pacientes_ids já inclui o paciente principal — não duplicar
@@ -809,14 +809,14 @@ function FormularioSessao({ id }: { id: string }) {
     startTransition(() => {
       setForm({
         ...draft.form,
-        tipoSessao: draft.form.tipoSessao ?? agendamento?.tipo_sessao ?? 'Sessão',
-        valorSessao: (draft.form as Record<string, unknown>).valorSessao as string ?? '',
+        tipoAtendimento: draft.form.tipoAtendimento ?? agendamento?.tipo_atendimento ?? 'Atendimento',
+        valorAtendimento: (draft.form as Record<string, unknown>).valorAtendimento as string ?? '',
         links: draft.form.links ?? [],
       })
       setArquivos(draft.arquivos ?? [])
       setRascunhoRestaurado(true)
     })
-  }, [carregarRascunho, agendamento?.tipo_sessao])
+  }, [carregarRascunho, agendamento?.tipo_atendimento])
 
   useEffect(() => {
     const texto = localStorage.getItem(chavePauta(id))
@@ -869,7 +869,7 @@ function FormularioSessao({ id }: { id: string }) {
 
   function salvar() {
     if (!form.data) {
-      toast.error('Data obrigatória', { description: 'Informe a data da sessão antes de salvar.' })
+      toast.error('Data obrigatória', { description: 'Informe a data do atendimento antes de salvar.' })
       return
     }
     setSalvando(true)
@@ -887,12 +887,12 @@ function FormularioSessao({ id }: { id: string }) {
               paciente_id: pid,
               presenca: presente,
               ...((!presente && valorFalta !== undefined)
-                ? { valor_sessao: parseFloat(valorFalta) || 0 }
+                ? { valor_atendimento: parseFloat(valorFalta) || 0 }
                 : {}),
             }
           }),
-          tipo_sessao: form.tipoSessao || undefined,
-          data_sessao: form.data,
+          tipo_atendimento: form.tipoAtendimento || undefined,
+          data_atendimento: form.data,
           conteudo_json: form.notasSessaoJson,
           material: form.material || undefined,
           link_youtube: form.links[0] || undefined,
@@ -923,10 +923,10 @@ function FormularioSessao({ id }: { id: string }) {
       {
         paciente_id: pacienteId,
         agendamento_id: id,
-        tipo_sessao: form.tipoSessao || undefined,
+        tipo_atendimento: form.tipoAtendimento || undefined,
         presenca: form.presenca,
-        valor_sessao: form.valorSessao ? parseFloat(form.valorSessao) : undefined,
-        data_sessao: form.data,
+        valor_atendimento: form.valorAtendimento ? parseFloat(form.valorAtendimento) : undefined,
+        data_atendimento: form.data,
         conteudo_json: form.notasSessaoJson,
         material: form.material || undefined,
         link_youtube: form.links[0] || undefined,
@@ -936,7 +936,7 @@ function FormularioSessao({ id }: { id: string }) {
         onSuccess: () => {
           descartarRascunho()
           localStorage.removeItem(chavePauta(id))
-          toast.success('Registro salvo', { description: 'A sessão foi registrada com sucesso.' })
+          toast.success('Registro salvo', { description: 'O atendimento foi registrado com sucesso.' })
           router.push('/dashboard/registros')
         },
         onError: () => {
@@ -946,6 +946,8 @@ function FormularioSessao({ id }: { id: string }) {
       }
     )
   }
+
+  if (agendamentoCarregando) return <PageLoader />
 
   if (!agendamento) {
     return (
@@ -977,7 +979,7 @@ function FormularioSessao({ id }: { id: string }) {
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-tight">Registrar Sessão</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Registrar Atendimento</h1>
             {isGrupo && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                 <Users className="h-3 w-3" />
@@ -988,7 +990,7 @@ function FormularioSessao({ id }: { id: string }) {
           <p className="text-sm text-muted-foreground mt-0.5 truncate">
             {isGrupo && agendamento.pacientes_nomes?.length
               ? agendamento.pacientes_nomes.join(', ')
-              : (agendamento.paciente_nome ?? 'Documente a sessão realizada')}
+              : (agendamento.paciente_nome ?? 'Documente o atendimento realizado')}
           </p>
         </div>
         {rascunhoRestaurado && (
@@ -1028,7 +1030,7 @@ function FormularioSessao({ id }: { id: string }) {
             <Clock className="h-4 w-4 text-[#04c2fb] mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] text-muted-foreground">Horário · Tipo</p>
-              <p className="text-sm font-medium text-gray-800">{agendamento.horario} · {agendamento.tipo_sessao}</p>
+              <p className="text-sm font-medium text-gray-800">{agendamento.horario} · {agendamento.tipo_atendimento}</p>
             </div>
           </div>
         </div>
@@ -1040,7 +1042,7 @@ function FormularioSessao({ id }: { id: string }) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Data da sessão *</label>
+                <label className="text-xs font-medium text-muted-foreground">Data do atendimento *</label>
                 <DatePicker
                   value={form.data}
                   onChange={v => f('data', v)}
@@ -1048,10 +1050,10 @@ function FormularioSessao({ id }: { id: string }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Tipo de sessão</label>
-                <TipoSessaoSelect
-                  value={form.tipoSessao}
-                  onChange={v => f('tipoSessao', v)}
+                <label className="text-xs font-medium text-muted-foreground">Tipo de atendimento</label>
+                <TipoAtendimentoSelect
+                  value={form.tipoAtendimento}
+                  onChange={v => f('tipoAtendimento', v)}
                 />
               </div>
             </div>
@@ -1133,7 +1135,7 @@ function FormularioSessao({ id }: { id: string }) {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => { f('presenca', true); f('valorSessao', '') }}
+                    onClick={() => { f('presenca', true); f('valorAtendimento', '') }}
                     className={cn(
                       'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
                       form.presenca
@@ -1146,7 +1148,7 @@ function FormularioSessao({ id }: { id: string }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { f('presenca', false); if (form.presenca) f('valorSessao', '0') }}
+                    onClick={() => { f('presenca', false); if (form.presenca) f('valorAtendimento', '0') }}
                     className={cn(
                       'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
                       !form.presenca
@@ -1169,8 +1171,8 @@ function FormularioSessao({ id }: { id: string }) {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={form.valorSessao}
-                          onChange={e => f('valorSessao', e.target.value)}
+                          value={form.valorAtendimento}
+                          onChange={e => f('valorAtendimento', e.target.value)}
                           className="w-36 rounded-lg border bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
                         />
                       </div>
@@ -1285,7 +1287,7 @@ function FormularioSessao({ id }: { id: string }) {
               </p>
             </div>
 
-            {/* Pauta pré-sessão */}
+            {/* Pauta pré-atendimento */}
             {pauta && (
               <div className={cn(
                 'rounded-xl border border-[#04c2fb]/25 bg-gradient-to-b from-[#04c2fb]/[0.06] to-[#04c2fb]/[0.02] overflow-hidden',
@@ -1298,9 +1300,9 @@ function FormularioSessao({ id }: { id: string }) {
                 >
                   <div className="flex items-center gap-2">
                     <NotebookPen className="h-4 w-4 text-[#04c2fb] shrink-0" />
-                    <span className="text-sm font-semibold text-[#0094c8]">Pauta desta sessão</span>
+                    <span className="text-sm font-semibold text-[#0094c8]">Pauta deste atendimento</span>
                     <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-semibold text-[#04c2fb]">
-                      pré-sessão
+                      pré-atendimento
                     </span>
                   </div>
                   <ChevronDown className={cn('h-4 w-4 text-[#04c2fb] transition-transform shrink-0', pautaVisivel ? 'rotate-180' : '')} />
@@ -1330,7 +1332,7 @@ function FormularioSessao({ id }: { id: string }) {
 
             <div className="space-y-1.5">
               <label className={cn('text-xs font-medium', (!isGrupo && !form.presenca) ? 'text-muted-foreground/50' : 'text-muted-foreground')}>
-                Notas da sessão
+                Notas do atendimento
               </label>
               <RichEditor
                 key={rascunhoRestaurado ? `draft-${id}` : `new-${id}`}
@@ -1389,7 +1391,7 @@ function FormularioSessao({ id }: { id: string }) {
           onConfirmar={executarDelete}
           onCancelar={() => setConfirmarDeletar(false)}
           titulo="Excluir este registro?"
-          descricao="Esta ação é permanente e causa dois efeitos: (1) a transação financeira vinculada será excluída; (2) os números de sessão dos registros seguintes serão recalculados."
+          descricao="Esta ação é permanente e causa dois efeitos: (1) a transação financeira vinculada será excluída; (2) os números de atendimento dos registros seguintes serão recalculados."
           textoBotaoConfirmar="Excluir registro"
         />
       )}
@@ -1402,7 +1404,7 @@ function FormularioSessao({ id }: { id: string }) {
 // Página principal — roteador
 // ---------------------------------------------------------------------------
 
-function RegistrarSessaoContent() {
+function RegistrarAtendimentoContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const id = params.id as string
@@ -1420,18 +1422,18 @@ function RegistrarSessaoContent() {
     return <RegistroViewMode registro={registro} />
   }
 
-  // 404 ou ID não-UUID (agendamento pendente do mock) → formulário de nova sessão
+  // 404 ou ID não-UUID (agendamento pendente do mock) → formulário de novo atendimento
   if (isError || !registro) {
-    return <FormularioSessao id={id} />
+    return <FormularioAtendimento id={id} />
   }
 
   return null
 }
 
-export default function RegistrarSessaoPage() {
+export default function RegistrarAtendimentoPage() {
   return (
     <Suspense>
-      <RegistrarSessaoContent />
+      <RegistrarAtendimentoContent />
     </Suspense>
   )
 }

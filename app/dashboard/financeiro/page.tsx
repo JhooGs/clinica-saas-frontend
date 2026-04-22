@@ -49,7 +49,7 @@ function BadgeOrigem({ origem, size = 'sm' }: { origem?: string; size?: 'sm' | '
   )
 }
 
-function extractTipoSessao(descricao: string): string | null {
+function extractTipoAtendimento(descricao: string): string | null {
   const idx = descricao.indexOf(' | ')
   if (idx === -1) return null
   const tipo = descricao.slice(idx + 3).trim()
@@ -323,7 +323,7 @@ function ModalDetalheTransacao({
               </span>
               {transacao.registro_id && (
                 <span className="inline-flex items-center rounded-full bg-violet-50 text-violet-700 px-2.5 py-1 text-xs font-medium">
-                  {extractTipoSessao(transacao.descricao) ?? 'Sessão'}
+                  {extractTipoAtendimento(transacao.descricao) ?? 'Atendimento'}
                 </span>
               )}
             </div>
@@ -337,16 +337,16 @@ function ModalDetalheTransacao({
                 <span className="text-sm font-medium text-gray-800">{transacao.paciente_nome}</span>
               </div>
             )}
-            {transacao.tipo_sessao && (
+            {transacao.tipo_atendimento && (
               <div className="flex items-center justify-between py-2.5">
                 <span className="text-xs text-muted-foreground flex items-center gap-2"><Banknote className="h-3.5 w-3.5" /> Tipo de atendimento</span>
-                <span className="text-sm font-medium text-gray-800">{transacao.tipo_sessao}</span>
+                <span className="text-sm font-medium text-gray-800">{transacao.tipo_atendimento}</span>
               </div>
             )}
-            {transacao.data_sessao && (
+            {transacao.data_atendimento && (
               <div className="flex items-center justify-between py-2.5">
-                <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Data da sessão</span>
-                <span className="text-sm text-gray-700">{formatData(transacao.data_sessao)}</span>
+                <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Data do atendimento</span>
+                <span className="text-sm text-gray-700">{formatData(transacao.data_atendimento)}</span>
               </div>
             )}
             <div className="flex items-center justify-between py-2.5">

@@ -47,7 +47,7 @@ export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistr
       <Dialog open={!!registro && !imagemLightboxUrl} onOpenChange={(open) => { if (!open) onClose() }}>
         <DialogContent className="sm:!max-w-3xl w-full max-h-[90vh] overflow-y-auto p-0">
           <VisuallyHidden>
-            <DialogTitle>Registro de Sessão</DialogTitle>
+            <DialogTitle>Registro de Atendimento</DialogTitle>
           </VisuallyHidden>
 
           {registro && (
@@ -59,7 +59,7 @@ export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistr
                     <p className="text-xs font-medium text-muted-foreground mb-1">{registro.paciente_nome}</p>
                   )}
                   <h2 className="text-base font-semibold text-gray-900 leading-tight">
-                    Sessão de {formatDataBR(registro.data_sessao)}
+                    Atendimento de {formatDataBR(registro.data_atendimento)}
                     {horario && (
                       <span className="ml-1.5 text-sm font-normal text-muted-foreground">às {horario}</span>
                     )}
@@ -68,9 +68,9 @@ export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistr
 
                 {/* Badges */}
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  {registro.tipo_sessao && (
+                  {registro.tipo_atendimento && (
                     <span className="inline-flex items-center rounded-full bg-[#04c2fb]/8 border border-[#04c2fb]/20 px-2.5 py-0.5 text-[11px] font-medium text-[#04c2fb]">
-                      {registro.tipo_sessao}
+                      {registro.tipo_atendimento}
                     </span>
                   )}
                   <span className={cn(
@@ -83,14 +83,14 @@ export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistr
                     }
                     {registro.presenca ? 'Presente' : 'Falta'}
                   </span>
-                  {registro.numero_sessao != null && (
+                  {registro.numero_atendimento != null && (
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] text-gray-500">
-                      Sessão #{registro.numero_sessao}
+                      Atendimento #{registro.numero_atendimento}
                     </span>
                   )}
-                  {registro.valor_sessao != null && (
+                  {registro.valor_atendimento != null && (
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] text-gray-500">
-                      {formatBRL(registro.valor_sessao)}
+                      {formatBRL(registro.valor_atendimento)}
                     </span>
                   )}
                 </div>
@@ -104,7 +104,7 @@ export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistr
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <FileText className="h-3.5 w-3.5 text-[#04c2fb]" />
-                      <span className="text-xs font-semibold text-[#04c2fb]">Notas da Sessão</span>
+                      <span className="text-xs font-semibold text-[#04c2fb]">Notas do Atendimento</span>
                     </div>
                     <div
                       className={cn(

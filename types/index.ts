@@ -14,7 +14,7 @@ export interface Paciente {
   plano_atendimento?: Record<string, unknown> | null
   // Campos financeiros próprios
   gratuito: boolean
-  valor_sessao?: number | null
+  valor_atendimento?: number | null
   dia_vencimento: number
   gratuito_inicio?: string | null  // YYYY-MM-DD
   gratuito_fim?: string | null     // YYYY-MM-DD
@@ -29,13 +29,13 @@ export interface Registro {
   clinica_id: string
   agendamento_id?: string  // UUID do agendamento de origem (nullable)
   titulo?: string
-  tipo_sessao?: string
+  tipo_atendimento?: string
   conteudo_json: Record<string, unknown> | null  // JSON do Tiptap
-  numero_sessao?: number
-  numero_sessao_manual?: boolean
+  numero_atendimento?: number
+  numero_atendimento_manual?: boolean
   presenca: boolean
-  valor_sessao?: number
-  data_sessao?: string  // YYYY-MM-DD
+  valor_atendimento?: number
+  data_atendimento?: string  // YYYY-MM-DD
   material?: string
   link_youtube?: string
   observacao?: string
@@ -60,8 +60,8 @@ export interface Financeiro {
   data_referencia: string  // YYYY-MM — mês/ano de referência da transação
   data_vencimento?: string
   data_pagamento?: string
-  data_sessao?: string
-  tipo_sessao?: string
+  data_atendimento?: string
+  tipo_atendimento?: string
   forma_pagamento?: FormaPagamento
   criado_em: string
   paciente_nome?: string
@@ -99,7 +99,7 @@ export interface Agendamento {
   clinica_id: string
   paciente_id: string
   terapeuta_id: string
-  tipo_sessao: string
+  tipo_atendimento: string
   data: string           // YYYY-MM-DD
   horario: string        // HH:MM
   horario_fim?: string   // HH:MM
@@ -121,7 +121,7 @@ export interface AgendamentoListResponse {
 
 export interface AgendamentoCreatePayload {
   paciente_id: string
-  tipo_sessao: string
+  tipo_atendimento: string
   data: string           // YYYY-MM-DD
   horario: string        // HH:MM
   horario_fim?: string
@@ -131,7 +131,7 @@ export interface AgendamentoCreatePayload {
 
 export interface AgendamentoUpdatePayload {
   paciente_id?: string
-  tipo_sessao?: string
+  tipo_atendimento?: string
   data?: string
   horario?: string
   horario_fim?: string
@@ -143,14 +143,14 @@ export interface AgendamentoUpdatePayload {
 export interface RegistroGrupoParticipante {
   paciente_id: string
   presenca: boolean
-  valor_sessao?: number
+  valor_atendimento?: number
 }
 
 export interface RegistroGrupoCreatePayload {
   agendamento_id: string
   participantes: RegistroGrupoParticipante[]
-  tipo_sessao?: string
-  data_sessao?: string
+  tipo_atendimento?: string
+  data_atendimento?: string
   conteudo_json?: Record<string, unknown> | null
   material?: string
   link_youtube?: string

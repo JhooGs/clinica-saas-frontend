@@ -32,7 +32,7 @@ export function ProximaSessaoPill() {
   return (
     <div
       className="hidden lg:inline-flex items-center gap-1.5 rounded-full border border-[#04c2fb]/25 bg-[#04c2fb]/8 px-3 py-1 text-xs font-medium text-[#04c2fb] mr-1"
-      title={`Próxima sessão: ${proximo.horario} — ${nomeCompleto} (${proximo.tipo_sessao})`}
+      title={`Próximo atendimento: ${proximo.horario} — ${nomeCompleto} (${proximo.tipo_atendimento})`}
     >
       <Clock className="h-3 w-3 shrink-0" />
       <span className="tabular-nums font-semibold">{proximo.horario}</span>

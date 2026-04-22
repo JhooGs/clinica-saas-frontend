@@ -79,7 +79,7 @@ function agendamentoToComSource(a: Agendamento): AgendamentoComSource {
       ? a.pacientes_nomes
       : (a.paciente_nome ? [a.paciente_nome] : undefined),
     pacientes_ids: a.pacientes_ids,
-    tipo: a.tipo_sessao,
+    tipo: a.tipo_atendimento,
     data: a.data,
     horario: a.horario,
     horarioFim: a.horario_fim,
@@ -111,7 +111,7 @@ function nomeAbreviado(nome: string): string {
 
 function badgeTipo(tipo: string, source?: string) {
   if (source === 'google') return 'bg-blue-50 text-blue-700 border-blue-200'
-  if (tipo === 'Sessão em grupo') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (tipo === 'Atendimento em grupo') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
   if (tipo.includes('família')) return 'bg-purple-50 text-purple-700 border-purple-200'
   if (tipo.includes('avaliação')) return 'bg-amber-50 text-amber-700 border-amber-200'
   return 'bg-[#04c2fb]/8 text-[#04c2fb] border-[#04c2fb]/20'
@@ -365,7 +365,7 @@ export default function AgendaPage() {
         </span>
         <div className="flex-1 h-px bg-border" />
         <span className={cn('text-[11px]', data < HOJE ? 'text-gray-400' : 'text-muted-foreground')}>
-          {agendamentos.length} {agendamentos.length !== 1 ? 'sessões' : 'sessão'}
+          {agendamentos.length} {agendamentos.length !== 1 ? 'atendimentos' : 'atendimento'}
         </span>
       </div>
 

@@ -8,7 +8,7 @@ import { ModalPortal } from '@/components/modal-portal'
 import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useCriarAgendamento, useAtualizarAgendamento } from '@/hooks/use-agenda'
-import { useTiposSessao } from '@/hooks/use-planos'
+import { useTiposAtendimento } from '@/hooks/use-planos'
 import { toast } from 'sonner'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,8 +68,8 @@ function detectarConflitos(
     if (!haOverlap) return false
 
     // Grupo + grupo → não é conflito bloqueante
-    const novoEhGrupo = form.tipo === 'Sessão em grupo'
-    const existenteEhGrupo = ag.tipo === 'Sessão em grupo'
+    const novoEhGrupo = form.tipo === 'Atendimento em grupo'
+    const existenteEhGrupo = ag.tipo === 'Atendimento em grupo'
     if (novoEhGrupo && existenteEhGrupo) return false
 
     return true
@@ -309,12 +309,12 @@ function PacienteMultiSelect({
         )}
       </div>
 
-      {/* Hint para sessão em grupo */}
+      {/* Hint para atendimento em grupo */}
       {mostraHintGrupo && (
         <div className="flex items-center gap-1.5" style={{ animation: 'slideDown 0.15s ease-out' }}>
           <Users className="h-3 w-3 text-amber-500" />
           <p className="text-xs text-amber-600">
-            Sessão em grupo requer ao menos 2 pacientes
+            Atendimento em grupo requer ao menos 2 pacientes
           </p>
         </div>
       )}
@@ -322,9 +322,9 @@ function PacienteMultiSelect({
   )
 }
 
-// ─── Sub-componente: select de tipo de sessão ─────────────────────────────────
+// ─── Sub-componente: select de tipo de atendimento ────────────────────────────
 
-function TipoSessaoSelect({
+function TipoAtendimentoSelect({
   value,
   onChange,
   opcoes,
@@ -621,8 +621,8 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
   const [form, setForm] = useState<FormAgendamento>(() => formDe(agendamento))
   const criarAgendamento = useCriarAgendamento()
   const atualizarAgendamento = useAtualizarAgendamento()
-  const { data: tiposSessaoData } = useTiposSessao()
-  const tiposSessao = tiposSessaoData?.items?.map(t => t.nome) ?? []
+  const { data: tiposAtendimentoData } = useTiposAtendimento()
+  const tiposAtendimento = tiposAtendimentoData?.items?.map(t => t.nome) ?? []
   const { data: pacientesData } = usePacientes({ ativo: true, page_size: 500 })
   const pacientesDisponiveis: PacienteOpcao[] = (pacientesData?.items ?? []).map(p => ({
     id: p.id,
@@ -655,7 +655,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
 
   if (!open) return null
 
-  const isGrupo = form.tipo === 'Sessão em grupo'
+  const isGrupo = form.tipo === 'Atendimento em grupo'
 
   function f(field: keyof FormAgendamento, value: string) {
     setForm(prev => {
@@ -696,7 +696,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
         form.pacientes.length < minPacientes
           ? (isGrupo ? 'Pacientes (mínimo 2 para grupo)' : 'Paciente')
           : null,
-        form.tipo.trim() === '' ? 'Tipo de sessão' : null,
+        form.tipo.trim() === '' ? 'Tipo de atendimento' : null,
         form.tipo === 'Outros' && form.tipoCustom.trim() === '' ? 'Tipo personalizado' : null,
         form.data.trim() === '' ? 'Data' : null,
         form.horarioInicio.trim() === '' ? 'Horário de início' : null,
@@ -733,7 +733,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
           id: String(agendamento.id),
           payload: {
             paciente_id: pacienteIdPrincipal,
-            tipo_sessao: tipoFinal,
+            tipo_atendimento: tipoFinal,
             data: form.data,
             horario: form.horarioInicio,
             horario_fim: form.horarioFim,
@@ -754,7 +754,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
               paciente_id: updated.paciente_id,
               pacientes: form.pacientes.map(p => p.nome),
               pacientes_ids: pacientesIds,
-              tipo: updated.tipo_sessao,
+              tipo: updated.tipo_atendimento,
               data: updated.data,
               horario: updated.horario,
               horarioFim: updated.horario_fim,
@@ -774,7 +774,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
       criarAgendamento.mutate(
         {
           paciente_id: pacienteIdPrincipal,
-          tipo_sessao: tipoFinal,
+          tipo_atendimento: tipoFinal,
           data: form.data,
           horario: form.horarioInicio,
           horario_fim: form.horarioFim,
@@ -793,7 +793,7 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
               paciente_id: created.paciente_id,
               pacientes: form.pacientes.map(p => p.nome),
               pacientes_ids: pacientesIds,
-              tipo: created.tipo_sessao,
+              tipo: created.tipo_atendimento,
               data: created.data,
               horario: created.horario,
               horarioFim: created.horario_fim,
@@ -930,15 +930,15 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
                 />
               </div>
 
-              {/* Tipo de sessão — coluna completa */}
+              {/* Tipo de atendimento — coluna completa */}
               <div className="space-y-1 sm:col-span-2">
                 <label className={cn('text-xs font-medium', erroVisivel('tipo') ? 'text-red-500' : 'text-muted-foreground')}>
-                  Tipo de sessão <span className="text-red-400">*</span>
+                  Tipo de atendimento <span className="text-red-400">*</span>
                 </label>
-                <TipoSessaoSelect
+                <TipoAtendimentoSelect
                   value={form.tipo}
                   onChange={v => f('tipo', v)}
-                  opcoes={tiposSessao}
+                  opcoes={tiposAtendimento}
                   hasError={erroVisivel('tipo')}
                 />
               </div>

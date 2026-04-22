@@ -7,70 +7,70 @@ import type {
   PacoteListResponse,
   PacoteTipoInput,
   PlanoAtendimentoPayload,
-  TipoSessao,
-  TipoSessaoListResponse,
+  TipoAtendimento,
+  TipoAtendimentoListResponse,
   VigenciasListResponse,
 } from '@/lib/types/planos'
 
-// ── Tipos de Sessão ───────────────────────────────────────────────────────────
+// ── Tipos de Atendimento ──────────────────────────────────────────────────────
 
-export function useTiposSessao() {
-  return useQuery<TipoSessaoListResponse>({
-    queryKey: ['planos', 'tipos-sessao'],
-    queryFn: () => apiFetch<TipoSessaoListResponse>('/api/v1/planos/tipos-sessao'),
+export function useTiposAtendimento() {
+  return useQuery<TipoAtendimentoListResponse>({
+    queryKey: ['planos', 'tipos-atendimento'],
+    queryFn: () => apiFetch<TipoAtendimentoListResponse>('/api/v1/planos/tipos-atendimento'),
     staleTime: 2 * 60 * 1000,
   })
 }
 
-export function useCriarTipoSessao() {
+export function useCriarTipoAtendimento() {
   const queryClient = useQueryClient()
-  return useMutation<TipoSessao, Error, { nome: string; valor_padrao?: string | null }>({
+  return useMutation<TipoAtendimento, Error, { nome: string; valor_padrao?: string | null }>({
     mutationFn: ({ nome, valor_padrao }) =>
-      apiFetch<TipoSessao>('/api/v1/planos/tipos-sessao', {
+      apiFetch<TipoAtendimento>('/api/v1/planos/tipos-atendimento', {
         method: 'POST',
         body: JSON.stringify({ nome, valor_padrao }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-sessao'] })
+      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-atendimento'] })
     },
   })
 }
 
-export function useAtualizarTipoSessao() {
+export function useAtualizarTipoAtendimento() {
   const queryClient = useQueryClient()
-  return useMutation<TipoSessao, Error, { id: string; payload: { nome?: string | null; valor_padrao?: string | null; conta_como_sessao?: boolean } }>({
+  return useMutation<TipoAtendimento, Error, { id: string; payload: { nome?: string | null; valor_padrao?: string | null; conta_como_atendimento?: boolean } }>({
     mutationFn: ({ id, payload }) =>
-      apiFetch<TipoSessao>(`/api/v1/planos/tipos-sessao/${id}`, {
+      apiFetch<TipoAtendimento>(`/api/v1/planos/tipos-atendimento/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-sessao'] })
+      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-atendimento'] })
     },
   })
 }
 
-export function useAtualizarContaComoSessaoLote() {
+export function useAtualizarContaComoAtendimentoLote() {
   const queryClient = useQueryClient()
-  return useMutation<void, Error, { id: string; conta_como_sessao: boolean }[]>({
+  return useMutation<void, Error, { id: string; conta_como_atendimento: boolean }[]>({
     mutationFn: (items) =>
-      apiFetch<void>('/api/v1/planos/tipos-sessao/conta-como-sessao-lote', {
+      apiFetch<void>('/api/v1/planos/tipos-atendimento/conta-como-atendimento-lote', {
         method: 'PATCH',
         body: JSON.stringify({ items }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-sessao'] })
+      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-atendimento'] })
     },
   })
 }
 
-export function useExcluirTipoSessao() {
+export function useExcluirTipoAtendimento() {
   const queryClient = useQueryClient()
   return useMutation<void, Error, string>({
     mutationFn: (id) =>
-      apiFetch<void>(`/api/v1/planos/tipos-sessao/${id}`, { method: 'DELETE' }),
+      apiFetch<void>(`/api/v1/planos/tipos-atendimento/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-sessao'] })
+      queryClient.invalidateQueries({ queryKey: ['planos', 'tipos-atendimento'] })
     },
   })
 }

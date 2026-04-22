@@ -572,7 +572,7 @@ export default function OnboardingPage() {
       return (
         <ImportScreen
           modulo="registros"
-          title="Importe registros de sessão"
+          title="Importe registros de atendimento"
           subtitle="Traga anotações e histórico de atendimentos anteriores."
           iconColor="linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)"
           icon={<BookOpen className="h-7 w-7" />}
@@ -590,7 +590,7 @@ export default function OnboardingPage() {
         <StepCard
           icon={<Package className="h-7 w-7" />}
           title="Que tipos de atendimento você oferece?"
-          subtitle="Selecione ou adicione os tipos de sessão da sua clínica. Você pode alterar isso depois na aba Planos."
+          subtitle="Selecione ou adicione os tipos de atendimento da sua clínica. Você pode alterar isso depois na aba Planos."
         >
           <TiposAtendimentoStep onSuccess={handleTiposSuccess} />
         </StepCard>

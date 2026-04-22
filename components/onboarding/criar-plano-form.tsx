@@ -34,7 +34,7 @@ export function CriarPlanoForm({ onSuccess, tiposSelecionados }: CriarPlanoFormP
     }
 
     const tipos = tiposSelecionados.map((t) => ({
-      tipo_sessao_id: t.id,
+      tipo_atendimento_id: t.id,
       incluido: true,
       valor: t.valor_padrao ?? null,
     }))

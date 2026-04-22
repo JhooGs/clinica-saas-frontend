@@ -7,8 +7,8 @@ import type { UploadedFile } from '@/components/editor/rich-editor'
 type DraftData = {
   form: {
     data: string
-    tipoSessao: string
-    numeroSessao: string
+    tipoAtendimento: string
+    numeroAtendimento: string
     presenca: boolean
     material: string
     links: string[]

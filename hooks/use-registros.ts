@@ -20,10 +20,10 @@ export interface RegistroCreatePayload {
   paciente_id: string
   agendamento_id?: string  // UUID do agendamento de origem — garante vínculo 1:1
   titulo?: string
-  tipo_sessao?: string
+  tipo_atendimento?: string
   presenca?: boolean
-  valor_sessao?: number
-  data_sessao?: string // YYYY-MM-DD
+  valor_atendimento?: number
+  data_atendimento?: string // YYYY-MM-DD
   conteudo_json?: Record<string, unknown> | null
   material?: string
   link_youtube?: string
@@ -33,15 +33,15 @@ export interface RegistroCreatePayload {
 
 export interface RegistroUpdatePayload {
   titulo?: string
-  tipo_sessao?: string
+  tipo_atendimento?: string
   presenca?: boolean
   conteudo_json?: Record<string, unknown> | null
   material?: string
   link_youtube?: string
   observacao?: string
   arquivos?: { nome: string; url: string; tipo: string; tamanho: number }[]
-  data_sessao?: string
-  numero_sessao?: number  // quando presente, ancora o recálculo no backend
+  data_atendimento?: string
+  numero_atendimento?: number  // quando presente, ancora o recálculo no backend
 }
 
 export function useRegistros(filtros?: RegistrosFilter) {

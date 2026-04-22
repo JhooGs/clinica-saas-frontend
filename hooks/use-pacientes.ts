@@ -27,7 +27,7 @@ export interface PacienteCreatePayload {
   data_inicio?: string     // YYYY-MM-DD
   // Campos financeiros próprios
   gratuito?: boolean
-  valor_sessao?: number | null
+  valor_atendimento?: number | null
   dia_vencimento?: number
   gratuito_inicio?: string | null  // YYYY-MM-DD
   gratuito_fim?: string | null     // YYYY-MM-DD
@@ -47,7 +47,7 @@ export interface PacienteUpdatePayload {
   ativo?: boolean
   // Campos financeiros próprios
   gratuito?: boolean
-  valor_sessao?: number | null
+  valor_atendimento?: number | null
   dia_vencimento?: number
   gratuito_inicio?: string | null  // YYYY-MM-DD
   gratuito_fim?: string | null     // YYYY-MM-DD
