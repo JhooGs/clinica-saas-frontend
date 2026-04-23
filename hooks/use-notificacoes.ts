@@ -55,9 +55,11 @@ export function useMarcarTodasLidas() {
   })
 }
 
+type DispensarCtx = { anterior?: NotificacoesListResponse }
+
 export function useDispensarNotificacao() {
   const qc = useQueryClient()
-  return useMutation<void, Error, string>({
+  return useMutation<void, Error, string, DispensarCtx>({
     mutationFn: (id) => apiFetch(`/api/v1/notificacoes/${id}/dispensar`, { method: 'PATCH' }),
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: QK })
@@ -68,7 +70,7 @@ export function useDispensarNotificacao() {
       )
       return { anterior }
     },
-    onError: (_err, _id, ctx: { anterior?: NotificacoesListResponse } | undefined) => {
+    onError: (_err, _id, ctx) => {
       if (ctx?.anterior) qc.setQueryData(QK, ctx.anterior)
     },
     onSettled: () => qc.invalidateQueries({ queryKey: QK }),
