@@ -27,6 +27,7 @@ const CHANGELOG: VersionEntry[] = [
       { category: 'Added', description: 'Filtro do financeiro foi melhorado.'},
       { category: 'Changed', description: 'Todos os nomes, titulos Sessão foram trocados para Atendimento'},
       { category: 'Changed', description: 'Atendimentos padrão podem ser editados e deletados agora.'},
+      { category: 'Changed', description: 'As notificações aparecem com uma frequencia menor.'},
       { category: 'Fixed', description: 'Resolvido bug onde um registro aparecia pendente mas o atendimento não ocorreu ainda.'},
       { category: 'Fixed', description: 'Acontecia um erro quando algumas páginas eram acessadas e precisava recarregar a página.'},
       { category: 'Fixed', description: 'Resolvido um problema onde aparecia que não tinha sessão mas estava apenas carregando, agora aparece o loading da Clinitra.'},

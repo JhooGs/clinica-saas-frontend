@@ -30,6 +30,7 @@ import { ModalNovoAgendamento } from '@/components/modal-novo-agendamento'
 import { ModalPortal } from '@/components/modal-portal'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
 import { useAgendamentos, useCancelarAgendamento } from '@/hooks/use-agenda'
+import { useConfiguracoes } from '@/hooks/use-configuracoes'
 import type { Agendamento } from '@/types'
 
 const LS_EXPORTED_KEY = 'clinitra_gcal_exported_ids'
@@ -132,9 +133,12 @@ const NOMES_DIA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const NOMES_DIA_CURTO = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
 export default function AgendaPage() {
+  const { data: config } = useConfiguracoes()
+  const temGoogleCalendar = config?.plano === 'pro' || config?.plano === 'clinica'
+
   const {
     connected,
-    events: googleEvents,
+    events: googleEventsRaw,
     loading: gcalLoading,
     refreshing,
     lastSynced,
@@ -142,6 +146,11 @@ export default function AgendaPage() {
     deleteEventFromGoogle,
     refresh,
   } = useGoogleCalendar()
+
+  const googleEvents = useMemo(
+    () => (temGoogleCalendar ? googleEventsRaw : []),
+    [temGoogleCalendar, googleEventsRaw],
+  )
 
   const [semanaOffset, setSemanaOffset] = useState(0)
   const [pastExpanded, setPastExpanded] = useState(false)
@@ -566,7 +575,7 @@ export default function AgendaPage() {
             <span className="hidden sm:inline">Agendamento</span>
           </button>
 
-          {connected && (
+          {connected && temGoogleCalendar && (
             <button
               onClick={refresh}
               disabled={refreshing || gcalLoading}
@@ -689,28 +698,49 @@ export default function AgendaPage() {
       </div>
 
       {/* Banners */}
-      {!connected && !gcalLoading && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+      {!temGoogleCalendar ? (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
           <div className="flex items-center gap-2 flex-1">
-            <Info className="h-4 w-4 text-blue-500 shrink-0" />
-            <p className="text-sm text-blue-700">
-              Conecte seu Google Calendar para ver todos os eventos na agenda.
+            <Info className="h-4 w-4 text-amber-500 shrink-0" />
+            <p className="text-sm text-amber-800">
+              A integração com Google Calendar está disponível no plano{' '}
+              <span className="font-semibold">Pro</span> e superiores.
             </p>
           </div>
           <Link
             href="/dashboard/configuracoes?aba=conexoes"
-            className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 shrink-0"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-200 transition-colors shrink-0"
           >
-            Conectar
+            Saiba mais
             <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
-      )}
-      {gcalLoading && (
-        <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-500 shrink-0" />
-          <p className="text-sm text-blue-700">Sincronizando com Google Calendar…</p>
-        </div>
+      ) : (
+        <>
+          {!connected && !gcalLoading && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <div className="flex items-center gap-2 flex-1">
+                <Info className="h-4 w-4 text-blue-500 shrink-0" />
+                <p className="text-sm text-blue-700">
+                  Conecte seu Google Calendar para ver todos os eventos na agenda.
+                </p>
+              </div>
+              <Link
+                href="/dashboard/configuracoes?aba=conexoes"
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 shrink-0"
+              >
+                Conectar
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
+          )}
+          {gcalLoading && (
+            <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500 shrink-0" />
+              <p className="text-sm text-blue-700">Sincronizando com Google Calendar…</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* Cards resumo */}
@@ -727,7 +757,7 @@ export default function AgendaPage() {
           <p className="mt-1.5 text-2xl font-bold tracking-tight">{total}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">na semana</p>
         </div>
-        {connected && (
+        {connected && temGoogleCalendar && (
           <div className="rounded-xl border bg-blue-50 border-blue-100 p-4 shadow-sm">
             <div className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 text-blue-600" />
