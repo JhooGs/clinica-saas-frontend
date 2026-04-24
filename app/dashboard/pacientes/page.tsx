@@ -42,6 +42,8 @@ type FormState = {
   dataAnamnese: string
   dataInicio: string
   cpf: string
+  telefone: string
+  email: string
   cep: string
   logradouro: string
   numero: string
@@ -55,7 +57,7 @@ function formInicial(): FormState {
   const h = hoje()
   return {
     nome: '', responsavel: '', dataNascimento: h, dataAnamnese: h,
-    dataInicio: h, cpf: '', cep: '', logradouro: '', numero: '',
+    dataInicio: h, cpf: '', telefone: '', email: '', cep: '', logradouro: '', numero: '',
     complemento: '', bairro: '', cidade: '', estado: '',
   }
 }
@@ -83,6 +85,14 @@ function maskCEP(v: string): string {
   return `${d.slice(0, 5)}-${d.slice(5)}`
 }
 
+function maskTelefone(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
 function ModalNovoPaciente({
   onSalvar,
   onFechar,
@@ -107,7 +117,7 @@ function ModalNovoPaciente({
     return idade >= 18
   }, [form.dataNascimento])
 
-  // Limpa campos do modo anterior ao alternar menor/adulto
+  // Ao alternar menor↔adulto: limpa apenas o campo exclusivo do modo anterior
   useEffect(() => {
     if (ehAdultoAnteriorRef.current === null) {
       ehAdultoAnteriorRef.current = ehAdulto
@@ -118,7 +128,7 @@ function ModalNovoPaciente({
     if (ehAdulto) {
       setForm(prev => ({ ...prev, responsavel: '' }))
     } else {
-      setForm(prev => ({ ...prev, cpf: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '' }))
+      setForm(prev => ({ ...prev, cpf: '' }))
     }
   }, [ehAdulto])
 
@@ -159,19 +169,18 @@ function ModalNovoPaciente({
 
   const camposObrigatorios: { key: keyof FormState; label: string }[] = ehAdulto
     ? [
-        { key: 'nome',           label: 'Nome completo'   },
+        { key: 'nome',           label: 'Nome completo'     },
         { key: 'dataNascimento', label: 'Data de Nascimento' },
-        { key: 'dataAnamnese',   label: 'Data da Anamnese' },
-        { key: 'dataInicio',     label: 'Data de Início'  },
-        { key: 'cpf',            label: 'CPF'             },
-        { key: 'cep',            label: 'CEP'             },
+        { key: 'dataAnamnese',   label: 'Data da Anamnese'  },
+        { key: 'dataInicio',     label: 'Data de Início'    },
+        { key: 'cpf',            label: 'CPF'               },
       ]
     : [
-        { key: 'nome',           label: 'Nome completo'   },
-        { key: 'responsavel',    label: 'Responsável'     },
+        { key: 'nome',           label: 'Nome completo'     },
+        { key: 'responsavel',    label: 'Responsável'       },
         { key: 'dataNascimento', label: 'Data de Nascimento' },
-        { key: 'dataAnamnese',   label: 'Data da Anamnese' },
-        { key: 'dataInicio',     label: 'Data de Início'  },
+        { key: 'dataAnamnese',   label: 'Data da Anamnese'  },
+        { key: 'dataInicio',     label: 'Data de Início'    },
       ]
 
   function campoVazio(key: keyof FormState): boolean {
@@ -324,104 +333,125 @@ function ModalNovoPaciente({
               </div>
             </div>
 
-            {/* Seção de endereço — apenas adulto */}
-            {ehAdulto && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 pt-1">
-                  <div className="h-px flex-1 bg-gray-200" />
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Endereço</span>
-                  <div className="h-px flex-1 bg-gray-200" />
+            {/* Contato — sempre visível */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 pt-1">
+                <div className="h-px flex-1 bg-gray-200" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Contato</span>
+                <div className="h-px flex-1 bg-gray-200" />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Telefone</label>
+                  <input
+                    value={form.telefone}
+                    onChange={e => f('telefone', maskTelefone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    inputMode="numeric"
+                    className={cn(inputBase, inputOk)}
+                  />
                 </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {/* CEP */}
-                  <div className="space-y-1">
-                    <label className={cn('text-xs font-medium', erroVisivel('cep') ? 'text-red-500' : 'text-muted-foreground')}>
-                      CEP <span className="text-red-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        value={form.cep}
-                        onChange={e => handleCEP(e.target.value)}
-                        placeholder="00000-000"
-                        inputMode="numeric"
-                        className={cn(inputBase, erroVisivel('cep') ? inputErro : inputOk, buscandoCEP && 'pr-9')}
-                      />
-                      {buscandoCEP && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#04c2fb] animate-spin" />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Número */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Número</label>
-                    <input
-                      value={form.numero}
-                      onChange={e => f('numero', e.target.value)}
-                      placeholder="Ex: 123"
-                      className={cn(inputBase, inputOk)}
-                    />
-                  </div>
-
-                  {/* Logradouro */}
-                  <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground">Logradouro</label>
-                    <input
-                      value={form.logradouro}
-                      onChange={e => f('logradouro', e.target.value)}
-                      placeholder="Rua, Avenida..."
-                      className={cn(inputBase, inputOk)}
-                    />
-                  </div>
-
-                  {/* Bairro */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Bairro</label>
-                    <input
-                      value={form.bairro}
-                      onChange={e => f('bairro', e.target.value)}
-                      placeholder="Bairro"
-                      className={cn(inputBase, inputOk)}
-                    />
-                  </div>
-
-                  {/* Cidade + UF */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="space-y-1 col-span-2">
-                      <label className="text-xs font-medium text-muted-foreground">Cidade</label>
-                      <input
-                        value={form.cidade}
-                        onChange={e => f('cidade', e.target.value)}
-                        placeholder="Cidade"
-                        className={cn(inputBase, inputOk)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">UF</label>
-                      <input
-                        value={form.estado}
-                        onChange={e => f('estado', e.target.value.toUpperCase().slice(0, 2))}
-                        placeholder="PR"
-                        maxLength={2}
-                        className={cn(inputBase, inputOk, 'uppercase')}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Complemento */}
-                  <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground">Complemento</label>
-                    <input
-                      value={form.complemento}
-                      onChange={e => f('complemento', e.target.value)}
-                      placeholder="Apto, sala, bloco..."
-                      className={cn(inputBase, inputOk)}
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">E-mail</label>
+                  <input
+                    value={form.email}
+                    onChange={e => f('email', e.target.value)}
+                    placeholder="email@exemplo.com"
+                    type="email"
+                    className={cn(inputBase, inputOk)}
+                  />
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* Endereço */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 pt-1">
+                <div className="h-px flex-1 bg-gray-200" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Endereço</span>
+                <div className="h-px flex-1 bg-gray-200" />
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">CEP</label>
+                  <div className="relative">
+                    <input
+                      value={form.cep}
+                      onChange={e => handleCEP(e.target.value)}
+                      placeholder="00000-000"
+                      inputMode="numeric"
+                      className={cn(inputBase, inputOk, buscandoCEP && 'pr-9')}
+                    />
+                    {buscandoCEP && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#04c2fb] animate-spin" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Número</label>
+                  <input
+                    value={form.numero}
+                    onChange={e => f('numero', e.target.value)}
+                    placeholder="Ex: 123"
+                    className={cn(inputBase, inputOk)}
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground">Logradouro</label>
+                  <input
+                    value={form.logradouro}
+                    onChange={e => f('logradouro', e.target.value)}
+                    placeholder="Rua, Avenida..."
+                    className={cn(inputBase, inputOk)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Bairro</label>
+                  <input
+                    value={form.bairro}
+                    onChange={e => f('bairro', e.target.value)}
+                    placeholder="Bairro"
+                    className={cn(inputBase, inputOk)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-xs font-medium text-muted-foreground">Cidade</label>
+                    <input
+                      value={form.cidade}
+                      onChange={e => f('cidade', e.target.value)}
+                      placeholder="Cidade"
+                      className={cn(inputBase, inputOk)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">UF</label>
+                    <input
+                      value={form.estado}
+                      onChange={e => f('estado', e.target.value.toUpperCase().slice(0, 2))}
+                      placeholder="PR"
+                      maxLength={2}
+                      className={cn(inputBase, inputOk, 'uppercase')}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground">Complemento</label>
+                  <input
+                    value={form.complemento}
+                    onChange={e => f('complemento', e.target.value)}
+                    placeholder="Apto, sala, bloco..."
+                    className={cn(inputBase, inputOk)}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Mensagem de erro */}
@@ -623,6 +653,8 @@ function PacientesContent() {
         ...(form.responsavel && { responsavel: form.responsavel }),
         ...(form.dataAnamnese && { data_anamnese: form.dataAnamnese }),
         ...(form.dataInicio && { data_inicio: form.dataInicio }),
+        ...(form.email && { email: form.email }),
+        ...(form.telefone && { telefone: form.telefone }),
         ...(temEndereco && {
           endereco: {
             ...(form.cep && { cep: form.cep }),

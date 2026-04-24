@@ -262,6 +262,7 @@ export function ModalHorarioRecorrente({
 
     // Agendamentos da API real (passados como prop pelo parent)
     for (const ag of agendamentosBase) {
+      if (ag.status === 'cancelado') continue
       const ehGrupo = ag.tipo === 'Atendimento em grupo'
       todos.push({
         data: ag.data,

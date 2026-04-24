@@ -17,6 +17,7 @@ export type ConfiguracaoGeral = {
   nome_responsavel: string
   email_responsavel: string
   logo_url: string | null
+  whatsapp_template: string | null
   plano: string
 }
 
@@ -59,6 +60,20 @@ export function useUploadLogo() {
         body: JSON.stringify({ logo_url: url }),
       })
     },
+    onSuccess: (updated) => {
+      qc.setQueryData(QUERY_KEY, updated)
+    },
+  })
+}
+
+export function useSalvarWhatsAppTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (template: string | null) =>
+      apiFetch<ConfiguracaoGeral>('/api/v1/clinicas/config', {
+        method: 'PATCH',
+        body: JSON.stringify({ whatsapp_template: template }),
+      }),
     onSuccess: (updated) => {
       qc.setQueryData(QUERY_KEY, updated)
     },

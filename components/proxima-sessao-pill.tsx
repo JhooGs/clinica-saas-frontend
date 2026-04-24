@@ -15,7 +15,7 @@ export function ProximaSessaoPill() {
   }, [])
 
   const proximo = (data?.items ?? [])
-    .filter(a => a.status !== 'falta')
+    .filter(a => a.status !== 'falta' && a.status !== 'cancelado')
     .filter(a => {
       const [h, m] = a.horario.split(':').map(Number)
       const t = new Date(now)

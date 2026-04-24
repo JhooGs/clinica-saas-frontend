@@ -29,7 +29,7 @@ import type { AgendamentoComSource } from '@/lib/google-calendar'
 import { ModalNovoAgendamento } from '@/components/modal-novo-agendamento'
 import { ModalPortal } from '@/components/modal-portal'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
-import { useAgendamentos, useCancelarAgendamento } from '@/hooks/use-agenda'
+import { useAgendamentos, useCancelarAgendamento, useGerarConfirmacaoWhatsApp } from '@/hooks/use-agenda'
 import { useConfiguracoes } from '@/hooks/use-configuracoes'
 import type { Agendamento } from '@/types'
 
@@ -86,6 +86,8 @@ function agendamentoToComSource(a: Agendamento): AgendamentoComSource {
     horarioFim: a.horario_fim,
     status: a.status,
     source: 'clinitra',
+    confirmacao_status: a.confirmacao_status ?? null,
+    confirmacao_pendente: a.confirmacao_pendente ?? false,
   }
 }
 
@@ -131,6 +133,57 @@ function isPast(data: string, horario: string, hoje: string): boolean {
 
 const NOMES_DIA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const NOMES_DIA_CURTO = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
+
+const CONF_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  pendente:     { bg: 'bg-amber-50 border-amber-300',    text: 'text-amber-600',   label: 'Pendente' },
+  confirmado:   { bg: 'bg-emerald-50 border-emerald-300', text: 'text-emerald-600', label: 'Confirmado' },
+  reagendamento:{ bg: 'bg-[#04c2fb]/5 border-[#04c2fb]/30', text: 'text-[#04c2fb]', label: 'Reagendar' },
+  cancelado:    { bg: 'bg-red-50 border-red-300',         text: 'text-red-500',    label: 'Cancelado' },
+}
+
+function WhatsAppButton({ ag }: { ag: AgendamentoComSource }) {
+  const gerarConfirmacao = useGerarConfirmacaoWhatsApp()
+  const confStatus = ag.confirmacao_status
+
+  function handleClick() {
+    gerarConfirmacao.mutate(String(ag.id), {
+      onSuccess: (data) => {
+        window.open(data.whatsapp_url, '_blank', 'noopener,noreferrer')
+        toast.success('Link gerado', { description: 'WhatsApp aberto com a mensagem pronta.' })
+      },
+      onError: (err) => {
+        const msg = err.message?.includes('telefone') ? 'Cadastre o telefone do paciente primeiro.' : 'Erro ao gerar link de confirmação.'
+        toast.error('Não foi possível gerar o link', { description: msg })
+      },
+    })
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={gerarConfirmacao.isPending}
+      title="Enviar confirmação via WhatsApp"
+      className={cn(
+        'relative flex items-center gap-1 rounded-lg border p-1.5 transition-all duration-200',
+        confStatus
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+          : 'border-gray-200 bg-white text-muted-foreground hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600',
+      )}
+    >
+        {gerarConfirmacao.isPending
+          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          : (
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+            </svg>
+          )
+        }
+        {confStatus === 'pendente' && (
+          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white animate-pulse" />
+        )}
+      </button>
+  )
+}
 
 export default function AgendaPage() {
   const { data: config } = useConfiguracoes()
@@ -381,7 +434,8 @@ export default function AgendaPage() {
       {/* Agendamentos do dia */}
       <div className="space-y-2">
         {agendamentos.map(ag => {
-          const passado = isPast(ag.data, ag.horario, HOJE)
+          const cancelado = ag.status === 'cancelado'
+          const passado = cancelado || isPast(ag.data, ag.horario, HOJE)
           return (
             <div
               key={ag.id}
@@ -428,17 +482,30 @@ export default function AgendaPage() {
                     </>
                   )}
                 </div>
-                <span className={cn(
-                  'mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
-                  passado ? 'bg-gray-100 text-gray-400 border-gray-200' : badgeTipo(ag.tipo, ag.source)
-                )}>
-                  {ag.tipo}
-                </span>
-                {ag.status === 'reagendamento' && !passado && (
-                  <span className="mt-1 ml-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                    Reagendado
+                <div className="mt-1 flex items-center flex-wrap gap-1">
+                  <span className={cn(
+                    'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                    passado ? 'bg-gray-100 text-gray-400 border-gray-200' : badgeTipo(ag.tipo, ag.source)
+                  )}>
+                    {ag.tipo}
                   </span>
-                )}
+                  {ag.status === 'reagendamento' && !passado && (
+                    <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                      Reagendado
+                    </span>
+                  )}
+                  {!passado && ag.source !== 'google' && (() => {
+                    const b = ag.confirmacao_status ? CONF_BADGE[ag.confirmacao_status] : null
+                    return (
+                      <span className={cn(
+                        'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                        b ? cn(b.bg, b.text) : 'bg-gray-100 border-gray-200 text-gray-400',
+                      )}>
+                        {b ? b.label : 'Não enviado'}
+                      </span>
+                    )
+                  })()}
+                </div>
               </div>
 
               {/* Ações */}
@@ -446,11 +513,15 @@ export default function AgendaPage() {
                 <div className="shrink-0">
                   <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100/80 px-2.5 py-1 text-[10px] font-medium text-gray-400">
                     <Clock className="h-3 w-3" />
-                    Passado
+                    {cancelado ? 'Cancelado' : 'Passado'}
                   </span>
                 </div>
               ) : (
                 <div className="shrink-0 flex items-center gap-1.5">
+                  {ag.source !== 'google' && (
+                    <WhatsAppButton ag={ag} />
+                  )}
+
                   {ag.source !== 'google' && (
                     <button
                       onClick={() => setPautaAberta(ag)}

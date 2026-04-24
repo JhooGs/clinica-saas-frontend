@@ -54,6 +54,16 @@ const securityHeaders = [
 const nextConfig = {
   productionBrowserSourceMaps: false,
 
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
+  },
+
   // Silencia o aviso de "webpack config sem turbopack config" no dev.
   // next-pwa usa webpack internamente mas fica desativado em dev.
   // O build de produção usa --webpack explicitamente (ver package.json).

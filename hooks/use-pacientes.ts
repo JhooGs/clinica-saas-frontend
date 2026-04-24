@@ -37,8 +37,8 @@ export interface PacienteUpdatePayload {
   nome?: string
   cpf?: string
   data_nascimento?: string // YYYY-MM-DD
-  telefone?: string
-  email?: string
+  telefone?: string | null
+  email?: string | null
   endereco?: Record<string, string>
   dados_extras?: Record<string, unknown>
   responsavel?: string

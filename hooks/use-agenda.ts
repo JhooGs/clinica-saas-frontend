@@ -127,6 +127,36 @@ export function useGerarAgendamentosRecorrentes() {
   })
 }
 
+export interface GerarConfirmacaoResponse {
+  token: string
+  whatsapp_url: string
+  confirmacao: {
+    id: string
+    token: string
+    agendamento_id: string
+    status: string
+    paciente_nome: string
+    tipo_atendimento: string
+    data_agendamento: string
+    horario: string
+    expires_at: string | null
+    criado_em: string
+  }
+}
+
+export function useGerarConfirmacaoWhatsApp() {
+  const queryClient = useQueryClient()
+  return useMutation<GerarConfirmacaoResponse, Error, string>({
+    mutationFn: (agendamentoId) =>
+      apiFetch<GerarConfirmacaoResponse>(`/api/v1/agendamentos/${agendamentoId}/gerar-confirmacao`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agenda'] })
+    },
+  })
+}
+
 export interface CancelarAgendaFuturaResult {
   cancelados: number
 }

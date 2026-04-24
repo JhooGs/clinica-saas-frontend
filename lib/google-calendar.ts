@@ -29,6 +29,8 @@ export type AgendamentoComSource = {
   status?: string              // StatusAgendamento — presente para agendamentos Clinitra
   source?: 'google' | 'clinitra' | 'recorrente'
   googleEventId?: string
+  confirmacao_status?: 'pendente' | 'confirmado' | 'reagendamento' | 'cancelado' | null
+  confirmacao_pendente?: boolean
 }
 
 declare global {

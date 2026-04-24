@@ -10,7 +10,7 @@ import {
   Package, CalendarDays, Check, Ban, Receipt, Repeat2,
   Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
   Paperclip, BookOpen, Image as ImageIcon,
-  ArrowUpDown, ArrowUp, ArrowDown, Columns3,
+  ArrowUpDown, ArrowUp, ArrowDown, Columns3, Loader2,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
@@ -173,6 +173,16 @@ type PacienteCompleto = {
   presencas: number
   faltas: number
   plano: PlanoAtendimento
+  email: string
+  telefone: string
+  cpf: string
+  cep: string
+  logradouro: string
+  numero: string
+  complemento: string
+  bairro: string
+  cidade: string
+  estado: string
 }
 
 /* ── Helpers ───────────────────────────────────────── */
@@ -217,6 +227,7 @@ const _PLANO_VAZIO: PlanoAtendimento = {
 }
 
 function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
+  const end = (p.endereco ?? {}) as Record<string, string>
   return {
     id: String(p.id),
     ativo: p.ativo,
@@ -226,10 +237,20 @@ function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
     dataAnamnese: _isoToBrFmt(p.data_anamnese),
     dataInicio: _isoToBrFmt(p.data_inicio),
     dataFim: null,
-    totalSessoes: 0,  // será preenchido via API de registros
+    totalSessoes: 0,
     presencas: 0,
     faltas: 0,
     plano: (p.plano_atendimento as PlanoAtendimento | null) ?? _PLANO_VAZIO,
+    email: p.email ?? '',
+    telefone: p.telefone ?? '',
+    cpf: p.cpf ?? '',
+    cep: end.cep ?? '',
+    logradouro: end.logradouro ?? '',
+    numero: end.numero ?? '',
+    complemento: end.complemento ?? '',
+    bairro: end.bairro ?? '',
+    cidade: end.cidade ?? '',
+    estado: end.estado ?? '',
   }
 }
 
@@ -1094,6 +1115,30 @@ function CardPlano({
   )
 }
 
+/* ── Helpers de máscara ────────────────────────────── */
+
+function maskCPF(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+}
+
+function maskCEP(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 8)
+  if (d.length <= 5) return d
+  return `${d.slice(0, 5)}-${d.slice(5)}`
+}
+
+function maskTelefone(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
 /* ── Conteúdo principal (separado para evitar hooks condicionais) ── */
 
 function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: PacienteCompleto }) {
@@ -1111,15 +1156,37 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const [editando, setEditando] = useState(false)
   const [confirmarDescartar, setConfirmarDescartar] = useState<'cancelar' | 'voltar' | null>(null)
   const [confirmarInativar, setConfirmarInativar] = useState(false)
+  const [buscandoCEP, setBuscandoCEP] = useState(false)
   const [form, setForm] = useState({
     nome: paciente.nome,
-    responsavel: paciente.responsavel,
+    responsavel: paciente.responsavel === '-' ? '' : paciente.responsavel,
     dataNascimento: brToIso(paciente.dataNascimento),
     dataAnamnese: brToIso(paciente.dataAnamnese),
     dataInicio: brToIso(paciente.dataInicio),
     dataFim: paciente.dataFim ? brToIso(paciente.dataFim) : '',
     ativo: paciente.ativo,
+    email: paciente.email,
+    telefone: paciente.telefone,
+    cpf: paciente.cpf,
+    cep: paciente.cep,
+    logradouro: paciente.logradouro,
+    numero: paciente.numero,
+    complemento: paciente.complemento,
+    bairro: paciente.bairro,
+    cidade: paciente.cidade,
+    estado: paciente.estado,
   })
+
+  const ehAdulto = useMemo(() => {
+    const iso = form.dataNascimento
+    if (!iso) return false
+    const [ny, nm, nd] = iso.split('-').map(Number)
+    const nasc = new Date(ny, nm - 1, nd)
+    if (isNaN(nasc.getTime())) return false
+    const agora = new Date()
+    const aniversarioEsteAno = new Date(agora.getFullYear(), nasc.getMonth(), nasc.getDate())
+    return agora.getFullYear() - nasc.getFullYear() - (agora < aniversarioEsteAno ? 1 : 0) >= 18
+  }, [form.dataNascimento])
 
   const { data: registrosData, isLoading: registrosCarregando } = useRegistros({ paciente_id: paciente.id, page_size: 200 })
   const registros: Registro[] = useMemo(() => registrosData?.items ?? [], [registrosData])
@@ -1269,12 +1336,22 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   function formOriginal() {
     return {
       nome: paciente.nome,
-      responsavel: paciente.responsavel,
+      responsavel: paciente.responsavel === '-' ? '' : paciente.responsavel,
       dataNascimento: brToIso(paciente.dataNascimento),
       dataAnamnese: brToIso(paciente.dataAnamnese),
       dataInicio: brToIso(paciente.dataInicio),
       dataFim: paciente.dataFim ? brToIso(paciente.dataFim) : '',
       ativo: paciente.ativo,
+      email: paciente.email,
+      telefone: paciente.telefone,
+      cpf: paciente.cpf,
+      cep: paciente.cep,
+      logradouro: paciente.logradouro,
+      numero: paciente.numero,
+      complemento: paciente.complemento,
+      bairro: paciente.bairro,
+      cidade: paciente.cidade,
+      estado: paciente.estado,
     }
   }
 
@@ -1291,16 +1368,59 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
     })
   }
 
+  async function handleCEP(v: string) {
+    const masked = maskCEP(v)
+    f('cep', masked)
+    const digits = masked.replace(/\D/g, '')
+    if (digits.length !== 8) return
+    setBuscandoCEP(true)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
+      const data = await res.json()
+      if (data.erro) {
+        toast.error('CEP não encontrado')
+      } else {
+        setForm(prev => ({
+          ...prev,
+          logradouro: data.logradouro ?? prev.logradouro,
+          bairro:     data.bairro     ?? prev.bairro,
+          cidade:     data.localidade ?? prev.cidade,
+          estado:     data.uf         ?? prev.estado,
+        }))
+      }
+    } catch {
+      toast.error('Erro ao buscar CEP')
+    } finally {
+      setBuscandoCEP(false)
+    }
+  }
+
   function salvarEdicao() {
+    const temEndereco = [form.logradouro, form.bairro, form.cidade].some(Boolean)
     atualizarPaciente.mutate(
       {
         id: paciente.id,
         payload: {
           nome: form.nome,
           ativo: form.ativo,
+          ...(form.dataNascimento && { data_nascimento: form.dataNascimento }),
           ...(form.responsavel && { responsavel: form.responsavel }),
           ...(form.dataAnamnese && { data_anamnese: form.dataAnamnese }),
           ...(form.dataInicio && { data_inicio: form.dataInicio }),
+          email: form.email || null,
+          telefone: form.telefone || null,
+          ...(form.cpf && !form.cpf.includes('*') && { cpf: form.cpf }),
+          ...(temEndereco && {
+            endereco: {
+              ...(form.cep && { cep: form.cep }),
+              ...(form.logradouro && { logradouro: form.logradouro }),
+              ...(form.numero && { numero: form.numero }),
+              ...(form.complemento && { complemento: form.complemento }),
+              ...(form.bairro && { bairro: form.bairro }),
+              ...(form.cidade && { cidade: form.cidade }),
+              ...(form.estado && { estado: form.estado }),
+            },
+          }),
         },
       },
       {
@@ -1308,12 +1428,21 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           setPaciente(prev => ({
             ...prev,
             nome: form.nome,
-            responsavel: form.responsavel,
+            responsavel: form.responsavel || '-',
             dataNascimento: form.dataNascimento ? isoToBr(form.dataNascimento) : prev.dataNascimento,
             dataAnamnese: form.dataAnamnese ? isoToBr(form.dataAnamnese) : prev.dataAnamnese,
             dataInicio: form.dataInicio ? isoToBr(form.dataInicio) : prev.dataInicio,
             dataFim: !form.ativo && form.dataFim ? isoToBr(form.dataFim) : null,
             ativo: form.ativo,
+            email: form.email,
+            telefone: form.telefone,
+            cep: form.cep,
+            logradouro: form.logradouro,
+            numero: form.numero,
+            complemento: form.complemento,
+            bairro: form.bairro,
+            cidade: form.cidade,
+            estado: form.estado,
           }))
           setEditando(false)
           toast.success('Alterações salvas', { description: 'Os dados do paciente foram atualizados.' })
@@ -1530,20 +1659,34 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           </div>
 
           {editando ? (
-            <div className="p-5 space-y-3">
+            <div className="p-5 space-y-4">
+              {/* Dados básicos */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-medium text-muted-foreground">Nome completo</label>
                   <input value={form.nome} onChange={e => f('nome', e.target.value)} className={inputCls} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Responsável</label>
-                  <input value={form.responsavel} onChange={e => f('responsavel', e.target.value)} className={inputCls} />
-                </div>
-                <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Data de Nascimento</label>
                   <DatePicker value={form.dataNascimento} onChange={v => f('dataNascimento', v)} placeholder="Selecionar data" variant="birthdate" />
                 </div>
+                {!ehAdulto ? (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Responsável</label>
+                    <input value={form.responsavel} onChange={e => f('responsavel', e.target.value)} className={inputCls} />
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">CPF</label>
+                    <input
+                      value={form.cpf}
+                      onChange={e => f('cpf', maskCPF(e.target.value))}
+                      placeholder="000.000.000-00"
+                      inputMode="numeric"
+                      className={inputCls}
+                    />
+                  </div>
+                )}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Data da Anamnese</label>
                   <DatePicker value={form.dataAnamnese} onChange={v => f('dataAnamnese', v)} placeholder="Selecionar data" />
@@ -1553,16 +1696,167 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                   <DatePicker value={form.dataInicio} onChange={v => f('dataInicio', v)} placeholder="Selecionar data" />
                 </div>
               </div>
+
+              {/* Contato */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Contato</span>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Telefone</label>
+                    <input
+                      value={form.telefone}
+                      onChange={e => f('telefone', maskTelefone(e.target.value))}
+                      placeholder="(00) 00000-0000"
+                      inputMode="numeric"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">E-mail</label>
+                    <input
+                      value={form.email}
+                      onChange={e => f('email', e.target.value)}
+                      placeholder="email@exemplo.com"
+                      type="email"
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Endereço */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Endereço</span>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">CEP</label>
+                    <div className="relative">
+                      <input
+                        value={form.cep}
+                        onChange={e => handleCEP(e.target.value)}
+                        placeholder="00000-000"
+                        inputMode="numeric"
+                        className={cn(inputCls, buscandoCEP && 'pr-9')}
+                      />
+                      {buscandoCEP && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#04c2fb] animate-spin" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Número</label>
+                    <input
+                      value={form.numero}
+                      onChange={e => f('numero', e.target.value)}
+                      placeholder="Ex: 123"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-medium text-muted-foreground">Logradouro</label>
+                    <input
+                      value={form.logradouro}
+                      onChange={e => f('logradouro', e.target.value)}
+                      placeholder="Rua, Avenida..."
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Bairro</label>
+                    <input
+                      value={form.bairro}
+                      onChange={e => f('bairro', e.target.value)}
+                      placeholder="Bairro"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1 col-span-2">
+                      <label className="text-xs font-medium text-muted-foreground">Cidade</label>
+                      <input
+                        value={form.cidade}
+                        onChange={e => f('cidade', e.target.value)}
+                        placeholder="Cidade"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">UF</label>
+                      <input
+                        value={form.estado}
+                        onChange={e => f('estado', e.target.value.toUpperCase().slice(0, 2))}
+                        placeholder="PR"
+                        maxLength={2}
+                        className={cn(inputCls, 'uppercase')}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-medium text-muted-foreground">Complemento</label>
+                    <input
+                      value={form.complemento}
+                      onChange={e => f('complemento', e.target.value)}
+                      placeholder="Apto, sala, bloco..."
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="p-5">
+            <div className="p-5 space-y-5">
+              {/* Dados básicos */}
               <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-y-5 sm:gap-x-6">
-                <InfoItem label="Responsável" value={paciente.responsavel} />
-                <InfoItem label="Data de Nascimento" value={`${paciente.dataNascimento} (${idade} anos)`} />
+                {!ehAdulto
+                  ? <InfoItem label="Responsável" value={paciente.responsavel} />
+                  : <InfoItem label="CPF" value={paciente.cpf || '-'} />
+                }
+                <InfoItem label="Data de Nascimento" value={paciente.dataNascimento !== '-' ? `${paciente.dataNascimento} (${idade} anos)` : '-'} />
                 <InfoItem label="Data da Anamnese" value={paciente.dataAnamnese} />
                 <InfoItem label="Data de Início" value={paciente.dataInicio} />
                 {paciente.dataFim && <InfoItem label="Data de Fim" value={paciente.dataFim} />}
               </div>
+
+              {/* Contato */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-gray-100" />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Contato</span>
+                  <div className="h-px flex-1 bg-gray-100" />
+                </div>
+                <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-y-5 sm:gap-x-6">
+                  <InfoItem label="Telefone" value={paciente.telefone || '-'} />
+                  <InfoItem label="E-mail" value={paciente.email || '-'} />
+                </div>
+              </div>
+
+              {/* Endereço — adulto apenas */}
+              {ehAdulto && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-px flex-1 bg-gray-100" />
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Endereço</span>
+                    <div className="h-px flex-1 bg-gray-100" />
+                  </div>
+                  <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-y-5 sm:gap-x-6">
+                    <InfoItem label="CEP" value={paciente.cep || '-'} />
+                    <InfoItem label="Número" value={paciente.numero || '-'} />
+                    <InfoItem label="Logradouro" value={paciente.logradouro || '-'} />
+                    <InfoItem label="Bairro" value={paciente.bairro || '-'} />
+                    <InfoItem label="Cidade" value={paciente.cidade || '-'} />
+                    <InfoItem label="UF" value={paciente.estado || '-'} />
+                    {paciente.complemento && <InfoItem label="Complemento" value={paciente.complemento} />}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -24,6 +24,7 @@ type AtendimentoUI = {
   horario: string
   tipo: string
   falta?: boolean
+  confirmacao_status?: string | null
 }
 
 type RelatorioPendente = {
@@ -50,6 +51,7 @@ function toAtendimentoUI(a: Agendamento): AtendimentoUI {
     horario: a.horario,
     tipo: a.tipo_atendimento,
     falta: a.status === 'falta',
+    confirmacao_status: a.confirmacao_status ?? null,
   }
 }
 
@@ -107,10 +109,17 @@ function data90DiasAtras(): string {
 // ---------------------------------------------------------------------------
 
 const statusStyle: Record<AtendStatus, { border: string; badge: string; badgeText: string; label: string }> = {
-  falta:   { border: 'border-l-red-400',   badge: 'bg-red-50 text-red-600',    badgeText: 'Falta',         label: 'text-red-400'   },
-  passado: { border: 'border-l-gray-300',  badge: 'bg-gray-100 text-gray-500', badgeText: 'Realizado',     label: 'text-gray-400'  },
-  agora:   { border: 'border-l-amber-400', badge: 'bg-amber-50 text-amber-600',badgeText: 'Em andamento',  label: 'text-amber-600' },
-  futuro:  { border: 'border-l-green-500', badge: 'bg-green-50 text-green-600',badgeText: 'Agendado',      label: 'text-green-600' },
+  falta:   { border: 'border-l-red-400',   badge: 'bg-red-50 text-red-600',    badgeText: 'Falta',        label: 'text-red-400'   },
+  passado: { border: 'border-l-gray-300',  badge: 'bg-gray-100 text-gray-500', badgeText: 'Realizado',    label: 'text-gray-400'  },
+  agora:   { border: 'border-l-amber-400', badge: 'bg-amber-50 text-amber-600',badgeText: 'Em andamento', label: 'text-amber-600' },
+  futuro:  { border: 'border-l-green-500', badge: '',                          badgeText: '',             label: 'text-green-600' },
+}
+
+const confBadge: Record<string, { cls: string; label: string }> = {
+  pendente:      { cls: 'bg-amber-50 text-amber-600',    label: 'Pendente'    },
+  confirmado:    { cls: 'bg-emerald-50 text-emerald-600',label: 'Confirmado'  },
+  reagendamento: { cls: 'bg-[#04c2fb]/5 text-[#04c2fb]', label: 'Reagendar'  },
+  cancelado:     { cls: 'bg-red-50 text-red-500',         label: 'Cancelado'  },
 }
 
 function urgenciaCor(dias: number) {
@@ -157,9 +166,21 @@ function AtendimentoCard({
 
       <div className="flex flex-col items-end gap-1 shrink-0">
         <span className={cn('text-xs font-bold', style.label)}>{at.horario}</span>
-        <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', style.badge)}>
-          {style.badgeText}
-        </span>
+        {status === 'futuro' ? (() => {
+          const b = at.confirmacao_status ? confBadge[at.confirmacao_status] : null
+          return (
+            <span className={cn(
+              'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
+              b ? b.cls : 'bg-gray-100 text-gray-400',
+            )}>
+              {b ? b.label : 'Não enviado'}
+            </span>
+          )
+        })() : (
+          <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', style.badge)}>
+            {style.badgeText}
+          </span>
+        )}
       </div>
 
       {/* Botão Pauta — só disponível antes da sessão começar */}
@@ -377,7 +398,7 @@ export default function DashboardPage() {
   // Dados reais: agendamentos de hoje
   const { data: agendaHoje, isLoading: loadingHoje } = useAgendamentosHoje()
   const atendimentosHoje = useMemo<AtendimentoUI[]>(
-    () => (agendaHoje?.items ?? []).map(toAtendimentoUI),
+    () => (agendaHoje?.items ?? []).filter(a => a.status !== 'cancelado').map(toAtendimentoUI),
     [agendaHoje]
   )
 

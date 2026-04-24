@@ -56,6 +56,7 @@ function detectarConflitos(
   return existentes.filter(ag => {
     // Não conflitar consigo mesmo em modo edição
     if (editandoId !== undefined && String(ag.id) === String(editandoId)) return false
+    if (ag.status === 'cancelado') return false
     if (ag.data !== form.data) return false
 
     const inicioNovo = form.horarioInicio

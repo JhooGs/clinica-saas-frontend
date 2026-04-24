@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import {
   useConfiguracoes,
   useSalvarConfiguracoes,
+  useSalvarWhatsAppTemplate,
   useUploadLogo,
   useRemoverLogo,
 } from '@/hooks/use-configuracoes'
@@ -672,7 +673,7 @@ const MODULOS: Record<ImportModulo, {
     label: 'Pacientes',
     icon: Users,
     descricao: 'Importe o cadastro completo dos seus pacientes com dados de contato e informações pessoais.',
-    exemplo: 'Nome, CPF, telefone, e-mail...',
+    exemplo: 'Nome, CPF, telefone, e-mail, CEP...',
     cor: 'text-[#04c2fb]',
     corBg: 'bg-[#04c2fb]/10',
     corBorda: 'border-[#04c2fb]',
@@ -901,9 +902,45 @@ function AbaAtendimentos() {
 
 // ─── Aba Conexões ─────────────────────────────────────────────────────────────
 
+const DEFAULT_WHATSAPP_TEMPLATE =
+  'Olá, {nome}! Sua consulta de {tipo} está agendada para {data} às {horario}.\n\nConfirme sua presença pelo link: {link_confirmacao}'
+
+const VARIAVEIS_WA = [
+  { key: '{nome}',             label: 'Nome do paciente' },
+  { key: '{data}',             label: 'Data' },
+  { key: '{horario}',          label: 'Horário' },
+  { key: '{tipo}',             label: 'Tipo de atendimento' },
+  { key: '{link_confirmacao}', label: 'Link de confirmação' },
+]
+
 function AbaConexoes() {
   const { data: config } = useConfiguracoes()
   const temGoogleCalendar = config?.plano === 'pro' || config?.plano === 'clinica'
+  const salvarTemplate = useSalvarWhatsAppTemplate()
+  // Rastreia apenas edições do usuário (null = não editou ainda)
+  const [waTemplateEdited, setWaTemplateEdited] = useState<string | null>(null)
+  const waTemplate = waTemplateEdited ?? config?.whatsapp_template ?? DEFAULT_WHATSAPP_TEMPLATE
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  function inserirVariavel(variavel: string) {
+    const ta = textareaRef.current
+    if (!ta) { setWaTemplateEdited(waTemplate + variavel); return }
+    const ini = ta.selectionStart
+    const fim = ta.selectionEnd
+    const novo = waTemplate.slice(0, ini) + variavel + waTemplate.slice(fim)
+    setWaTemplateEdited(novo)
+    requestAnimationFrame(() => {
+      ta.focus()
+      ta.setSelectionRange(ini + variavel.length, ini + variavel.length)
+    })
+  }
+
+  const previewMensagem = waTemplate
+    .replace('{nome}', 'Maria Silva')
+    .replace('{data}', '25/04/2026')
+    .replace('{horario}', '14:30')
+    .replace('{tipo}', 'Atendimento')
+    .replace('{link_confirmacao}', 'https://app.clinitra.com.br/confirmar-agendamento/...')
 
   const { connected, googleEmail, loading, error, connect, disconnect } = useGoogleCalendar()
 
@@ -1059,18 +1096,74 @@ function AbaConexoes() {
           </div>
         </div>
 
-        <div className="rounded-xl border bg-card/50 shadow-sm p-4 sm:p-5 opacity-60">
-          <div className="flex items-center gap-4">
+        <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
+          {/* Cabeçalho */}
+          <div className="flex items-center gap-3 mb-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border shadow-sm">
               <MessageSquare className="h-5 w-5 text-green-500" />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-slate-800">WhatsApp Business</h3>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Em breve</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Envie lembretes de atendimento e confirmações de agendamento via WhatsApp.</p>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800">Confirmação via WhatsApp</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Personalize a mensagem enviada ao paciente para confirmar o agendamento.
+              </p>
             </div>
+          </div>
+
+          {/* Chips de variáveis */}
+          <p className="text-xs font-medium text-slate-500 mb-2">Variáveis disponíveis — clique para inserir:</p>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {VARIAVEIS_WA.map((v) => (
+              <button
+                key={v.key}
+                type="button"
+                onClick={() => inserirVariavel(v.key)}
+                title={v.label}
+                className="inline-flex items-center rounded-full border border-[#04c2fb]/30 bg-[#04c2fb]/5 px-2.5 py-1 text-[11px] font-medium text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors"
+              >
+                {v.key}
+              </button>
+            ))}
+          </div>
+
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            value={waTemplate}
+            onChange={(e) => setWaTemplateEdited(e.target.value)}
+            rows={6}
+            className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/30 focus:border-[#04c2fb]/50 transition-colors"
+            placeholder="Digite o template da mensagem..."
+          />
+
+          {/* Preview */}
+          <details className="mt-3 group">
+            <summary className="text-xs font-medium text-slate-500 cursor-pointer hover:text-slate-700 select-none list-none flex items-center gap-1">
+              <span className="transition-transform group-open:rotate-90">▶</span>
+              Preview da mensagem
+            </summary>
+            <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap font-mono">
+              {previewMensagem}
+            </div>
+          </details>
+
+          {/* Salvar */}
+          <div className="flex justify-end mt-4">
+            <button
+              type="button"
+              onClick={() =>
+                salvarTemplate.mutate(waTemplate, {
+                  onSuccess: () => toast.success('Template salvo'),
+                  onError: () => toast.error('Erro ao salvar template'),
+                })
+              }
+              disabled={salvarTemplate.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-60"
+              style={{ background: GRADIENT }}
+            >
+              {salvarTemplate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar template
+            </button>
           </div>
         </div>
       </div>

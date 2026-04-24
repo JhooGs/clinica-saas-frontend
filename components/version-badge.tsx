@@ -21,6 +21,14 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.4.0',
+    date: '23 de abril de 2026',
+    changes: [
+      { category: 'Added', description: 'Agora é possível confirmar atendimento pelo whatsapp para os clientes.'},
+      { category: 'Added', description: 'Novo campo endereço no perfil do paciente.'},
+    ],
+  },
+  {
     version: 'v0.3.2',
     date: '22 de abril de 2026',
     changes: [
