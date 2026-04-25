@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 
-export type NotificacaoUrgencia = 'alta' | 'media' | 'baixa'
+export type NotificacaoUrgencia = 'alta' | 'media' | 'baixa' | 'informacao'
 
 export type Notificacao = {
   id: string

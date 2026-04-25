@@ -160,6 +160,33 @@ export interface RegistroGrupoCreatePayload {
   arquivos?: { nome: string; url: string; tipo: string; tamanho: number }[]
 }
 
+export interface WhatsAppTemplate {
+  id: string
+  clinica_id: string
+  nome: string
+  conteudo: string
+  padrao: boolean
+  criado_em: string
+  atualizado_em: string
+}
+
+export interface WhatsAppTemplateListResponse {
+  items: WhatsAppTemplate[]
+  total: number
+}
+
+export interface WhatsAppTemplateCreatePayload {
+  nome: string
+  conteudo: string
+  padrao?: boolean
+}
+
+export interface WhatsAppTemplateUpdatePayload {
+  nome?: string
+  conteudo?: string
+  padrao?: boolean
+}
+
 export type Role = 'super_admin' | 'admin' | 'usuario'
 
 export interface Permissoes {

@@ -47,11 +47,30 @@ const URGENCIA_META: Record<NotificacaoUrgencia, {
     icon: 'text-sky-500',
     dot: 'bg-sky-400',
   },
+  informacao: {
+    label: 'Informação',
+    cor: 'text-slate-500',
+    bg: 'bg-slate-50',
+    border: 'border-slate-100',
+    icon: 'text-slate-400',
+    dot: 'bg-slate-400',
+  },
 }
 
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
 
+function formatarMensagemConfirmacao(n: Notificacao): string {
+  const { data_agendamento, horario, resposta } = n.payload
+  const sufixo = data_agendamento ? ` para ${data_agendamento}${horario ? ` às ${horario}` : ''}` : ''
+  if (resposta === 'confirmado') return `Confirmou a presença no atendimento${sufixo}.`
+  if (resposta === 'cancelado') return `Cancelou o atendimento${sufixo}.`
+  if (resposta === 'reagendamento') return `Pediu reagendamento para o atendimento${sufixo}.`
+  return `Respondeu à confirmação de agendamento${sufixo}.`
+}
+
 function formatarMensagem(n: Notificacao): string {
+  if (n.tipo === 'confirmacao_agendamento') return formatarMensagemConfirmacao(n)
+
   const { vigencia_fim, dias_restantes } = n.payload
   if (!vigencia_fim) return 'Verifique o plano do paciente.'
   const [y, m, d] = vigencia_fim.split('-')
@@ -111,7 +130,7 @@ export function NotificationsBell() {
       arr.push(n)
       map.set(n.urgencia, arr)
     }
-    const ordem: NotificacaoUrgencia[] = ['alta', 'media', 'baixa']
+    const ordem: NotificacaoUrgencia[] = ['alta', 'media', 'baixa', 'informacao']
     return ordem.filter((u) => map.has(u)).map((u) => ({ urgencia: u, items: map.get(u)! }))
   }, [notificacoes])
 
@@ -147,12 +166,15 @@ export function NotificationsBell() {
       {aberto && (
         <div
           className={cn(
-            'absolute right-0 top-full mt-2 z-50',
-            'w-[360px] max-w-[calc(100vw-24px)]',
+            'z-50',
             'rounded-2xl border border-gray-200/80 bg-white shadow-xl shadow-black/8',
             'animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200',
-            'origin-top-right',
-            'flex flex-col max-h-[480px]',
+            'flex flex-col',
+            // Mobile: painel fixo abaixo do header, ocupa quase toda a largura
+            'fixed left-3 right-3 top-[61px] max-h-[calc(100dvh-76px)]',
+            // Desktop: dropdown ancorado ao botão
+            'md:absolute md:left-auto md:right-0 md:top-full md:mt-2',
+            'md:w-[360px] md:max-w-[calc(100vw-24px)] md:max-h-[480px] md:origin-top-right',
           )}
         >
           {/* Header */}
@@ -279,17 +301,31 @@ function NotificacaoItem({
 
         <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{mensagem}</p>
 
-        <Link
-          href={`/dashboard/pacientes/${n.referencia_id}`}
-          onClick={onFecharPainel}
-          className={cn(
-            'inline-flex items-center gap-1 mt-2 text-[11px] font-semibold transition-colors',
-            'text-[#04c2fb] hover:text-[#0094c8]',
-          )}
-        >
-          Ver paciente
-          <ChevronRight className="h-3 w-3" />
-        </Link>
+        {n.tipo === 'confirmacao_agendamento' ? (
+          <Link
+            href={`/dashboard/agenda`}
+            onClick={onFecharPainel}
+            className={cn(
+              'inline-flex items-center gap-1 mt-2 text-[11px] font-semibold transition-colors',
+              'text-[#04c2fb] hover:text-[#0094c8]',
+            )}
+          >
+            Ver agenda
+            <ChevronRight className="h-3 w-3" />
+          </Link>
+        ) : (
+          <Link
+            href={`/dashboard/pacientes/${n.referencia_id}`}
+            onClick={onFecharPainel}
+            className={cn(
+              'inline-flex items-center gap-1 mt-2 text-[11px] font-semibold transition-colors',
+              'text-[#04c2fb] hover:text-[#0094c8]',
+            )}
+          >
+            Ver paciente
+            <ChevronRight className="h-3 w-3" />
+          </Link>
+        )}
       </div>
     </div>
   )

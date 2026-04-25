@@ -21,6 +21,15 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v0.4.1',
+    date: '24 de abril de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Ajustado problema das notificações no mobile.'},
+      { category: 'Changed', description: 'Agendamentos cancelados agora tem um destaque diferente na agenda.'},
+      { category: 'Added', description: 'Criado sistema de templates para mensagens pelo Whatsapp'},
+    ],
+  },
+  {
     version: 'v0.4.0',
     date: '23 de abril de 2026',
     changes: [
