@@ -7,6 +7,7 @@ export interface AuditLogEntry {
   acao: string
   entidade: string
   entidade_id: string
+  descricao: string | null
   ip: string | null
   criado_em: string
 }
@@ -29,19 +30,46 @@ export interface FiltrosAuditLog {
 }
 
 export const LABELS_ACAO: Record<string, string> = {
-  PACIENTE_CRIADO:       'Paciente criado',
-  PACIENTE_ATUALIZADO:   'Dados atualizados',
-  PACIENTE_DESATIVADO:   'Paciente desativado',
-  PACIENTE_REATIVADO:    'Paciente reativado',
-  PACIENTE_ANONIMIZADO:  'Dados anonimizados (LGPD)',
-  REGISTRO_CRIADO:       'Registro criado',
-  REGISTRO_VISUALIZADO:  'Registro acessado',
-  REGISTRO_ATUALIZADO:   'Registro atualizado',
+  // Pacientes
+  PACIENTE_CRIADO:              'Paciente criado',
+  PACIENTE_ATUALIZADO:          'Dados atualizados',
+  PACIENTE_DESATIVADO:          'Paciente desativado',
+  PACIENTE_REATIVADO:           'Paciente reativado',
+  PACIENTE_ANONIMIZADO:         'Dados anonimizados (LGPD)',
+  PACIENTE_EXPORTADO:           'Dados exportados (LGPD)',
+  PLANO_ATENDIMENTO_ALTERADO:   'Plano de atendimento alterado',
+  // Registros
+  REGISTRO_CRIADO:              'Registro criado',
+  REGISTRO_VISUALIZADO:         'Registro acessado',
+  REGISTRO_ATUALIZADO:          'Registro atualizado',
+  // Financeiro
+  FINANCEIRO_CRIADO:            'Lançamento financeiro',
+  FINANCEIRO_ATUALIZADO:        'Financeiro atualizado',
+  FINANCEIRO_EXCLUIDO:          'Financeiro excluído',
+  // Agenda
+  AGENDAMENTO_CRIADO:           'Agendamento criado',
+  AGENDAMENTO_RECORRENTE_GERADO:'Agenda recorrente gerada',
+  AGENDAMENTO_CANCELADO:        'Agendamento cancelado',
+  NOTIFICACAO_ENVIADA:          'Notificação enviada',
+  // Usuários
+  USUARIO_CONVIDADO:            'Usuário convidado',
+  // Planos
+  TIPO_ATENDIMENTO_CRIADO:      'Tipo de atendimento criado',
+  TIPO_ATENDIMENTO_ATUALIZADO:  'Tipo de atendimento atualizado',
+  TIPO_ATENDIMENTO_EXCLUIDO:    'Tipo de atendimento excluído',
+  PACOTE_CRIADO:                'Pacote criado',
+  PACOTE_ATUALIZADO:            'Pacote atualizado',
+  PACOTE_EXCLUIDO:              'Pacote excluído',
 }
 
 export const LABELS_ENTIDADE: Record<string, string> = {
-  paciente: 'Paciente',
-  registro: 'Registro',
+  paciente:        'Paciente',
+  registro:        'Registro',
+  financeiro:      'Financeiro',
+  agendamento:     'Agenda',
+  usuario:         'Usuário',
+  tipo_atendimento:'Tipo de atendimento',
+  pacote:          'Pacote',
 }
 
 export function useAuditLog(filtros: FiltrosAuditLog = {}) {

@@ -21,6 +21,14 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v1.0.1',
+    date: '26 de abril de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Ajuste de bugs gerais na criptografia.'},
+      { category: 'Added', description: 'A auditoria complementa muitos mais tópicos agora.'},
+    ],
+  },
+  {
     version: 'v1.0.0',
     date: '26 de abril de 2026',
     changes: [

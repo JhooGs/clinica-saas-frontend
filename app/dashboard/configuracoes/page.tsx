@@ -1123,9 +1123,14 @@ function AbaAuditoria() {
           {/* Filtro por tipo */}
           <div className="flex flex-wrap gap-2">
             {[
-              { value: '',         label: 'Todos' },
-              { value: 'paciente', label: 'Pacientes' },
-              { value: 'registro', label: 'Registros' },
+              { value: '',                label: 'Todos' },
+              { value: 'paciente',        label: 'Pacientes' },
+              { value: 'registro',        label: 'Registros' },
+              { value: 'financeiro',      label: 'Financeiro' },
+              { value: 'agendamento',     label: 'Agenda' },
+              { value: 'usuario',         label: 'Usuários' },
+              { value: 'tipo_atendimento',label: 'Tipos' },
+              { value: 'pacote',          label: 'Pacotes' },
             ].map(opt => (
               <button
                 key={opt.value}
@@ -1183,6 +1188,9 @@ function AbaAuditoria() {
                       <span className="text-xs font-medium text-slate-700">
                         {LABELS_ACAO[entry.acao] ?? entry.acao}
                       </span>
+                      {entry.descricao && (
+                        <p className="text-xs text-slate-400 mt-0.5 leading-snug">{entry.descricao}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 hidden sm:table-cell">
                       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600">
