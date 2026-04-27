@@ -103,3 +103,16 @@ export function useAtualizarPaciente() {
     },
   })
 }
+
+export function useAnonimizarPaciente() {
+  const queryClient = useQueryClient()
+  return useMutation<{ message: string }, Error, string>({
+    mutationFn: (id: string) =>
+      apiFetch<{ message: string }>(`/api/v1/pacientes/${id}/anonimizar`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pacientes'] })
+    },
+  })
+}

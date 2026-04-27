@@ -2,8 +2,10 @@
 
 import { useState, Fragment, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { usePaciente, useAtualizarPaciente } from '@/hooks/use-pacientes'
+import { usePaciente, useAtualizarPaciente, useAnonimizarPaciente } from '@/hooks/use-pacientes'
+import { usePermissions } from '@/hooks/use-permissions'
 import {
+  AlertTriangle,
   ArrowLeft, User, CheckCircle2, XCircle,
   Pencil, Save, Hash, Activity,
   FileText, ExternalLink, CreditCard,
@@ -11,6 +13,7 @@ import {
   Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
   Paperclip, BookOpen, Image as ImageIcon,
   ArrowUpDown, ArrowUp, ArrowDown, Columns3, Loader2,
+  Trash2,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
@@ -1144,8 +1147,12 @@ function maskTelefone(v: string): string {
 function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: PacienteCompleto }) {
   const router = useRouter()
   const atualizarPaciente = useAtualizarPaciente()
+  const { mutateAsync: anonimizar, isPending: anonimizando } = useAnonimizarPaciente()
+  const { isAdmin } = usePermissions()
 
   const [paciente, setPaciente] = useState(pacienteInicial)
+  const [modalExclusaoAberto, setModalExclusaoAberto] = useState(false)
+  const [textoExclusao, setTextoExclusao] = useState('')
   const [plano, setPlano] = useState<PlanoAtendimento>(pacienteInicial.plano)
   const salvarPlanoMutation = useSalvarPlanoAtendimento(pacienteInicial.id)
   const { data: pacotesData } = usePacotes()
@@ -2381,6 +2388,115 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           </table>
         </div>
       </div>
+
+      {/* Zona de risco — exclusão de dados (LGPD) */}
+      {isAdmin && (
+        <div className="mt-8 rounded-xl border border-red-100 bg-red-50/40 p-4 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-red-700">Zona de risco</p>
+              <p className="mt-1 text-xs text-red-600/80">
+                A exclusão remove permanentemente todos os dados pessoais identificadores deste paciente
+                (nome, CPF, e-mail, telefone, endereço). Os registros clínicos são preservados conforme
+                exigência da CFP Resolução 06/2019 (retenção mínima de 5 anos). Esta ação é irreversível.
+              </p>
+              <button
+                onClick={() => { setModalExclusaoAberto(true); setTextoExclusao('') }}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:border-red-300"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Excluir dados do paciente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmação de exclusão (LGPD) */}
+      <Dialog open={modalExclusaoAberto} onOpenChange={open => { if (!anonimizando) { setModalExclusaoAberto(open); setTextoExclusao('') } }}>
+        <DialogContent className="max-w-md">
+          <VisuallyHidden>
+            <DialogTitle>Excluir dados do paciente</DialogTitle>
+          </VisuallyHidden>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800">Excluir dados do paciente</p>
+                <p className="text-xs text-muted-foreground">Esta ação é irreversível</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 space-y-1">
+              <p className="font-medium">O que será excluído:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                <li>Nome, CPF, e-mail e telefone</li>
+                <li>Data de nascimento e endereço</li>
+                <li>Plano de atendimento</li>
+              </ul>
+              <p className="font-medium mt-2">O que será preservado (obrigação legal):</p>
+              <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                <li>Registros clínicos por no mínimo 5 anos (CFP 06/2019)</li>
+                <li>Histórico financeiro</li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs text-slate-600">
+                Para confirmar, digite o nome do paciente seguido de{' '}
+                <span className="font-mono font-semibold">deletar tudo</span>:
+              </p>
+              <p className="text-xs font-mono font-semibold text-slate-500 bg-slate-50 rounded px-2 py-1 border">
+                {paciente.nome} deletar tudo
+              </p>
+              <input
+                type="text"
+                value={textoExclusao}
+                onChange={e => setTextoExclusao(e.target.value)}
+                placeholder="Digite aqui para confirmar"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
+                autoComplete="off"
+                disabled={anonimizando}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { setModalExclusaoAberto(false); setTextoExclusao('') }}
+                disabled={anonimizando}
+                className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={
+                  textoExclusao.trim().toLowerCase() !== `${paciente.nome.toLowerCase()} deletar tudo`
+                  || anonimizando
+                }
+                onClick={async () => {
+                  try {
+                    await anonimizar(paciente.id)
+                    setModalExclusaoAberto(false)
+                    toast.success('Dados excluídos', { description: 'Os dados pessoais foram anonimizados conforme a LGPD.' })
+                    router.push('/dashboard/pacientes')
+                  } catch {
+                    toast.error('Erro ao excluir dados', { description: 'Tente novamente ou contate o suporte.' })
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {anonimizando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Confirmar exclusão
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Lightbox de imagem (painéis expandidos inline) */}
       <Dialog open={!!imagemLightboxUrl} onOpenChange={() => setImagemLightboxUrl(null)}>

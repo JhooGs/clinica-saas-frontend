@@ -15,6 +15,8 @@ import {
   CalendarClock,
   Camera,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Database,
   DollarSign,
   Info,
@@ -23,6 +25,7 @@ import {
   MapPin,
   Plug,
   Save,
+  Shield,
   SlidersHorizontal,
   Stethoscope,
   Trash2,
@@ -50,6 +53,8 @@ import { WhatsAppTemplateEditor } from '@/components/whatsapp-template-editor'
 import { Switch } from '@/components/ui/switch'
 import { ImportWizard } from '@/components/onboarding/import-wizard'
 import type { ImportModulo } from '@/components/onboarding/import-wizard'
+import { usePermissions } from '@/hooks/use-permissions'
+import { useAuditLog, LABELS_ACAO, LABELS_ENTIDADE } from '@/hooks/use-audit-log'
 
 // ─── Constantes e helpers compartilhados ──────────────────────────────────────
 
@@ -86,14 +91,15 @@ function Campo({
 
 // ─── Navegação ────────────────────────────────────────────────────────────────
 
-type AbaConfig = 'geral' | 'financeiro' | 'atendimentos' | 'dados' | 'conexoes'
+type AbaConfig = 'geral' | 'financeiro' | 'atendimentos' | 'dados' | 'conexoes' | 'auditoria'
 
-const configNav: { id: AbaConfig; title: string; icon: ElementType }[] = [
+const configNavBase: { id: AbaConfig; title: string; icon: ElementType; adminOnly?: boolean }[] = [
   { id: 'geral',          title: 'Geral',          icon: SlidersHorizontal },
   { id: 'financeiro',     title: 'Financeiro',     icon: Banknote },
   { id: 'atendimentos',   title: 'Atendimentos',   icon: Stethoscope },
   { id: 'dados',          title: 'Dados',          icon: Database },
   { id: 'conexoes',       title: 'Conexões',       icon: Plug },
+  { id: 'auditoria',      title: 'Auditoria',      icon: Shield, adminOnly: true },
 ]
 
 // ─── Aba Geral ────────────────────────────────────────────────────────────────
@@ -1065,14 +1071,174 @@ function AbaConexoes() {
   )
 }
 
+// ─── Aba Auditoria ────────────────────────────────────────────────────────────
+
+function formatarDataBR(iso: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(new Date(iso))
+}
+
+function AbaAuditoria() {
+  const [filtroEntidade, setFiltroEntidade] = useState<string>('')
+  const [pagina, setPagina] = useState(1)
+
+  const { data, isLoading, isError } = useAuditLog({
+    entidade: filtroEntidade || undefined,
+    page: pagina,
+    page_size: 50,
+  })
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Lock className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
+          <p className="text-sm font-medium text-slate-700">Acesso restrito</p>
+          <p className="text-xs text-muted-foreground mt-1">Apenas administradores podem visualizar o registro de auditoria.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-4 w-4 text-[#04c2fb]" />
+            Registro de auditoria
+          </CardTitle>
+          <CardDescription>
+            Histórico de acessos e modificações em dados de pacientes e registros clínicos.
+            Retenção de 5 anos conforme CFP Resolução 06/2019.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {/* Filtro por tipo */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: '',         label: 'Todos' },
+              { value: 'paciente', label: 'Pacientes' },
+              { value: 'registro', label: 'Registros' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => { setFiltroEntidade(opt.value); setPagina(1) }}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
+                  filtroEntidade === opt.value
+                    ? 'border-[#04c2fb] bg-[#04c2fb]/10 text-[#04c2fb]'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tabela */}
+          <div className="overflow-x-auto rounded-lg border border-slate-100">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">Data/Hora</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">Usuário</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">Ação</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 whitespace-nowrap hidden sm:table-cell">Tipo</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 hidden lg:table-cell">IP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {isLoading && Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {[1,2,3,4,5].map(j => (
+                      <td key={j} className="px-3 py-2.5">
+                        <div className="h-3.5 bg-slate-100 rounded animate-pulse w-full" />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {!isLoading && data?.items.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                      Nenhum evento registrado.
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && data?.items.map(entry => (
+                  <tr key={entry.id} className="hover:bg-slate-50/50">
+                    <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap">
+                      {formatarDataBR(entry.criado_em)}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-700 max-w-[180px] truncate">
+                      {entry.actor_email}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-xs font-medium text-slate-700">
+                        {LABELS_ACAO[entry.acao] ?? entry.acao}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 hidden sm:table-cell">
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600">
+                        {LABELS_ENTIDADE[entry.entidade] ?? entry.entidade}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-400 font-mono hidden lg:table-cell">
+                      {entry.ip ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Paginação */}
+          {data && data.total_pages > 1 && (
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-muted-foreground">
+                {data.total} evento{data.total !== 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPagina(p => Math.max(1, p - 1))}
+                  disabled={pagina === 1}
+                  className="p-1.5 rounded-md hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4 text-slate-600" />
+                </button>
+                <span className="text-xs text-slate-600 px-2">
+                  {pagina} / {data.total_pages}
+                </span>
+                <button
+                  onClick={() => setPagina(p => Math.min(data.total_pages, p + 1))}
+                  disabled={pagina === data.total_pages}
+                  className="p-1.5 rounded-md hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4 text-slate-600" />
+                </button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // ─── Orquestrador principal ───────────────────────────────────────────────────
 
 function ConfiguracoesPageInner() {
   const searchParams = useSearchParams()
+  const { isAdmin } = usePermissions()
+
+  const configNav = configNavBase.filter(item => !item.adminOnly || isAdmin)
 
   const [abaAtiva, setAbaAtiva] = useState<AbaConfig>(() => {
     const aba = searchParams.get('aba')
-    if (aba === 'financeiro' || aba === 'atendimentos' || aba === 'dados' || aba === 'conexoes') return aba
+    if (aba === 'financeiro' || aba === 'atendimentos' || aba === 'dados' || aba === 'conexoes' || aba === 'auditoria') return aba as AbaConfig
     return 'geral'
   })
 
@@ -1158,6 +1324,7 @@ function ConfiguracoesPageInner() {
         {abaAtiva === 'atendimentos'  && <AbaAtendimentos />}
         {abaAtiva === 'dados'         && <AbaDados moduloQuery={moduloQuery} />}
         {abaAtiva === 'conexoes'      && <AbaConexoes />}
+        {abaAtiva === 'auditoria'     && <AbaAuditoria />}
       </div>
     </div>
   )
