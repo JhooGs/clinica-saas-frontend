@@ -24,7 +24,7 @@ const CHANGELOG: VersionEntry[] = [
     version: 'v1.0.0',
     date: '26 de abril de 2026',
     changes: [
-      { category: 'Added', description: 'Sistema de criptografia completamente atualizado.'},
+      { category: 'Added', description: 'Sistema de criptografia completamente atualizada.'},
       { category: 'Added', description: 'Agora é possível exportar dados históricos do paciente.'},
       { category: 'Added', description: 'Agora é possível deletar todos os dados sensíveis paciente.'},
       { category: 'Added', description: 'Autenticação de dois fatores foi adicionada no sistema.'},

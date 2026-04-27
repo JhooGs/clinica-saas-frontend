@@ -39,6 +39,9 @@ const withPWA = require("next-pwa")({
   ],
 });
 
+// URL do backend em runtime (dev: localhost:8000, prod: Railway/outro)
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -51,27 +54,21 @@ const securityHeaders = [
   {
     key: "Content-Security-Policy",
     value: [
-      // Padrão restritivo — bloqueia tudo que não for explicitamente permitido
       "default-src 'self'",
-      // Next.js App Router requer 'unsafe-inline' para scripts de hidratação.
-      // Nonce-based CSP é o ideal mas exige mudanças no proxy.ts — melhoria futura.
-      "script-src 'self' 'unsafe-inline'",
-      // Tailwind + Radix UI usam atributos style inline para animações/transforms
-      "style-src 'self' 'unsafe-inline'",
-      // Imagens: self, data URIs, blobs (previews), Supabase Storage
-      "img-src 'self' data: blob: https://*.supabase.co",
-      // Fontes: self (Poppins auto-hospedada) + Google Fonts CDN (caso use)
+      // Next.js App Router requer 'unsafe-inline' para hidratação.
+      // accounts.google.com: Supabase OAuth com Google carrega gsi/client.
+      "script-src 'self' 'unsafe-inline' https://accounts.google.com",
+      // Tailwind + Radix UI usam style inline para animações/transforms
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      // Imagens: self, data URIs, blobs (previews), Supabase Storage, Google (avatar OAuth)
+      "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com",
+      // Fontes: self (next/font/google serve localmente) + Google CDN (Google Sign-In UI)
       "font-src 'self' https://fonts.gstatic.com",
-      // Conexões: API backend + Supabase REST/Realtime + ViaCEP (busca de CEP)
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co " +
-        "http://localhost:8000 https://api.clinitra.com " +
-        "https://viacep.com.br",
-      // Bloqueia carregamento em frames (já coberto pelo X-Frame-Options mas reforça)
+      // Conexões: URL do backend (dev e prod via env), Supabase, ViaCEP
+      `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${apiUrl} http://localhost:8000 https://viacep.com.br`,
       "frame-ancestors 'none'",
-      // Restringe base href e actions de formulário
       "base-uri 'self'",
       "form-action 'self'",
-      // PWA: manifesto e service worker
       "manifest-src 'self'",
       "worker-src 'self' blob:",
     ].join("; "),
