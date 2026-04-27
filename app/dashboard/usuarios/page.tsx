@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Loader2, ShieldCheck, User as UserIcon, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, MFARequiredError } from '@/lib/api'
+import { ModalMFARequired } from '@/components/modal-mfa-required'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
@@ -66,6 +67,8 @@ function ModalConvidar({ onFechar }: { onFechar: () => void }) {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'usuario'>('usuario')
   const [permissoes, setPermissoes] = useState<Permissoes>(PERMISSOES_DEFAULT.usuario)
+  const [mfaAberto, setMfaAberto] = useState(false)
+  const [ultimoPayload, setUltimoPayload] = useState<{ nome: string; email: string; role: Role; permissoes: Permissoes } | null>(null)
 
   function handleRoleChange(r: 'admin' | 'usuario') {
     setRole(r)
@@ -84,9 +87,11 @@ function ModalConvidar({ onFechar }: { onFechar: () => void }) {
       onFechar()
     },
     onError: (err: Error) => {
-      if (err.message.startsWith('API error 409')) {
+      if (err instanceof MFARequiredError) {
+        setMfaAberto(true)
+      } else if (err.message.startsWith('API error 409') || err.message.includes('409')) {
         toast.error('Usuário já cadastrado', {
-          description: 'Este e-mail já possui uma conta no Clinitra, verifique o e-mail para mais informações.',
+          description: 'Este e-mail já possui uma conta no Clinitra.',
         })
       } else {
         toast.error('Erro ao enviar convite', { description: 'Tente novamente.' })
@@ -99,10 +104,18 @@ function ModalConvidar({ onFechar }: { onFechar: () => void }) {
       toast.error('Preencha nome e e-mail.')
       return
     }
-    convidar.mutate({ nome: nome.trim(), email: email.trim(), role, permissoes })
+    const payload = { nome: nome.trim(), email: email.trim(), role, permissoes }
+    setUltimoPayload(payload)
+    convidar.mutate(payload)
+  }
+
+  // Após elevar a sessão via MFA, reenvia o convite automaticamente
+  function handleSessaoElevada() {
+    if (ultimoPayload) convidar.mutate(ultimoPayload)
   }
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onFechar()}>
       <DialogContent
         className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-white/20 shadow-2xl"
@@ -177,6 +190,14 @@ function ModalConvidar({ onFechar }: { onFechar: () => void }) {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Modal MFA — exibido quando o backend exige AAL2 para convidar */}
+    <ModalMFARequired
+      open={mfaAberto}
+      onClose={() => setMfaAberto(false)}
+      onSessaoElevada={handleSessaoElevada}
+    />
+    </>
   )
 }
 

@@ -55,6 +55,8 @@ import { ImportWizard } from '@/components/onboarding/import-wizard'
 import type { ImportModulo } from '@/components/onboarding/import-wizard'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useAuditLog, LABELS_ACAO, LABELS_ENTIDADE } from '@/hooks/use-audit-log'
+import { useMFA } from '@/hooks/use-mfa'
+import type { EnrollData } from '@/hooks/use-mfa'
 
 // ─── Constantes e helpers compartilhados ──────────────────────────────────────
 
@@ -91,7 +93,7 @@ function Campo({
 
 // ─── Navegação ────────────────────────────────────────────────────────────────
 
-type AbaConfig = 'geral' | 'financeiro' | 'atendimentos' | 'dados' | 'conexoes' | 'auditoria'
+type AbaConfig = 'geral' | 'financeiro' | 'atendimentos' | 'dados' | 'conexoes' | 'auditoria' | 'seguranca'
 
 const configNavBase: { id: AbaConfig; title: string; icon: ElementType; adminOnly?: boolean }[] = [
   { id: 'geral',          title: 'Geral',          icon: SlidersHorizontal },
@@ -99,7 +101,8 @@ const configNavBase: { id: AbaConfig; title: string; icon: ElementType; adminOnl
   { id: 'atendimentos',   title: 'Atendimentos',   icon: Stethoscope },
   { id: 'dados',          title: 'Dados',          icon: Database },
   { id: 'conexoes',       title: 'Conexões',       icon: Plug },
-  { id: 'auditoria',      title: 'Auditoria',      icon: Shield, adminOnly: true },
+  { id: 'seguranca',      title: 'Segurança',      icon: Lock },               // todos os usuários
+  { id: 'auditoria',      title: 'Auditoria',      icon: Shield, adminOnly: true }, // admin+
 ]
 
 // ─── Aba Geral ────────────────────────────────────────────────────────────────
@@ -1228,17 +1231,226 @@ function AbaAuditoria() {
   )
 }
 
+// ─── Aba Segurança (MFA) ──────────────────────────────────────────────────────
+
+function AbaSeguranca() {
+  const {
+    mfaAtivo, sessaoElevada, fatorAtivo, carregando,
+    iniciarCadastro, verificarCodigo, removerFator,
+  } = useMFA()
+
+  const [modo, setModo] = useState<'idle' | 'cadastrando' | 'confirmando-remocao'>('idle')
+  const [enrollData, setEnrollData] = useState<EnrollData | null>(null)
+  const [codigo, setCodigo] = useState('')
+  const [processando, setProcessando] = useState(false)
+
+  async function handleIniciarCadastro() {
+    setProcessando(true)
+    try {
+      const data = await iniciarCadastro()
+      setEnrollData(data)
+      setModo('cadastrando')
+    } catch {
+      toast.error('Erro ao iniciar configuração', { description: 'Tente novamente.' })
+    } finally {
+      setProcessando(false)
+    }
+  }
+
+  async function handleVerificarCodigo() {
+    if (!enrollData || codigo.length !== 6) return
+    setProcessando(true)
+    try {
+      await verificarCodigo(enrollData.id, codigo)
+      setModo('idle'); setEnrollData(null); setCodigo('')
+      toast.success('MFA ativado', { description: 'Autenticação de dois fatores configurada.' })
+    } catch {
+      toast.error('Código inválido', { description: 'Verifique o código no seu app autenticador.' })
+    } finally {
+      setProcessando(false)
+    }
+  }
+
+  async function handleRemover() {
+    if (!fatorAtivo) return
+    setProcessando(true)
+    try {
+      await removerFator(fatorAtivo.id)
+      setModo('idle')
+      toast.success('MFA removido')
+    } catch {
+      toast.error('Erro ao remover MFA', { description: 'Tente novamente.' })
+    } finally {
+      setProcessando(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Lock className="h-4 w-4 text-[#04c2fb]" />
+            Autenticação de dois fatores (MFA)
+          </CardTitle>
+          <CardDescription>
+            Adiciona uma camada extra de segurança: além da senha, você confirma sua
+            identidade com um código do app autenticador. Obrigatório para operações críticas.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {carregando ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Verificando status...
+            </div>
+          ) : modo === 'cadastrando' && enrollData ? (
+            /* ── Fluxo de cadastro ── */
+            <div className="space-y-4">
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-4 space-y-3">
+                <p className="text-sm font-medium text-slate-700">
+                  1. Abra o Google Authenticator, Authy ou similar e escaneie:
+                </p>
+                {/* QR Code — SVG gerado pelo Supabase, não é input do usuário */}
+                {/* eslint-disable-next-line react/no-danger */}
+                <div
+                  className="flex justify-center"
+                  dangerouslySetInnerHTML={{ __html: enrollData.qrCode }}
+                />
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Ou insira manualmente:</p>
+                  <code className="text-xs font-mono bg-white border rounded px-2 py-1 select-all">
+                    {enrollData.secret}
+                  </code>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700">
+                  2. Digite o código de 6 dígitos exibido no app:
+                </p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={codigo}
+                  onChange={e => setCodigo(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  disabled={processando}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-center text-xl font-mono font-semibold tracking-widest outline-none focus:border-[#04c2fb] focus:ring-1 focus:ring-[#04c2fb]/30 disabled:opacity-50"
+                  onKeyDown={e => { if (e.key === 'Enter') handleVerificarCodigo() }}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setModo('idle'); setEnrollData(null); setCodigo('') }}
+                  disabled={processando}
+                  className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleVerificarCodigo}
+                  disabled={codigo.length !== 6 || processando}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                >
+                  {processando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Verificar e ativar
+                </button>
+              </div>
+            </div>
+          ) : mfaAtivo ? (
+            /* ── MFA ativo ── */
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-emerald-800">MFA ativo</p>
+                  <p className="text-xs text-emerald-600 mt-0.5">
+                    {sessaoElevada
+                      ? 'Sessão verificada (AAL2) — acesso completo às operações críticas.'
+                      : 'MFA configurado. Faça login novamente para elevar a sessão a AAL2.'}
+                  </p>
+                </div>
+              </div>
+
+              {modo === 'confirmando-remocao' ? (
+                <div className="rounded-lg border border-red-100 bg-red-50 p-3 space-y-2">
+                  <p className="text-sm font-medium text-red-700">Remover autenticação de dois fatores?</p>
+                  <p className="text-xs text-red-600">
+                    Você perderá acesso a operações críticas até configurar novamente.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setModo('idle')}
+                      className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleRemover}
+                      disabled={processando}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                    >
+                      {processando ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      Confirmar remoção
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setModo('confirmando-remocao')}
+                  className="text-xs text-red-500 hover:text-red-600 hover:underline transition-colors"
+                >
+                  Remover autenticação de dois fatores
+                </button>
+              )}
+            </div>
+          ) : (
+            /* ── MFA não configurado ── */
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-lg border border-amber-100 bg-amber-50 p-3">
+                <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">MFA não configurado</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    Ative para poder convidar usuários, alterar permissões e excluir dados de pacientes.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleIniciarCadastro}
+                disabled={processando}
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+              >
+                {processando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                Configurar autenticação de dois fatores
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // ─── Orquestrador principal ───────────────────────────────────────────────────
 
 function ConfiguracoesPageInner() {
   const searchParams = useSearchParams()
-  const { isAdmin } = usePermissions()
+  // IMPORTANTE: isSuperAdmin não é coberto por isAdmin — usar sempre a combinação
+  const { isAdmin, isSuperAdmin } = usePermissions()
 
-  const configNav = configNavBase.filter(item => !item.adminOnly || isAdmin)
+  const configNav = configNavBase.filter(item => !item.adminOnly || isAdmin || isSuperAdmin)
 
   const [abaAtiva, setAbaAtiva] = useState<AbaConfig>(() => {
     const aba = searchParams.get('aba')
-    if (aba === 'financeiro' || aba === 'atendimentos' || aba === 'dados' || aba === 'conexoes' || aba === 'auditoria') return aba as AbaConfig
+    const validas: AbaConfig[] = ['financeiro', 'atendimentos', 'dados', 'conexoes', 'auditoria', 'seguranca']
+    if (aba && validas.includes(aba as AbaConfig)) return aba as AbaConfig
     return 'geral'
   })
 
@@ -1324,6 +1536,7 @@ function ConfiguracoesPageInner() {
         {abaAtiva === 'atendimentos'  && <AbaAtendimentos />}
         {abaAtiva === 'dados'         && <AbaDados moduloQuery={moduloQuery} />}
         {abaAtiva === 'conexoes'      && <AbaConexoes />}
+        {abaAtiva === 'seguranca'     && <AbaSeguranca />}
         {abaAtiva === 'auditoria'     && <AbaAuditoria />}
       </div>
     </div>

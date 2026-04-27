@@ -4,6 +4,8 @@ import { useState, Fragment, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePaciente, useAtualizarPaciente, useAnonimizarPaciente } from '@/hooks/use-pacientes'
 import { usePermissions } from '@/hooks/use-permissions'
+import { apiFetch, MFARequiredError } from '@/lib/api'
+import { ModalMFARequired } from '@/components/modal-mfa-required'
 import {
   AlertTriangle,
   ArrowLeft, User, CheckCircle2, XCircle,
@@ -1148,11 +1150,35 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const router = useRouter()
   const atualizarPaciente = useAtualizarPaciente()
   const { mutateAsync: anonimizar, isPending: anonimizando } = useAnonimizarPaciente()
-  const { isAdmin } = usePermissions()
+  // isAdmin cobre role 'admin', isSuperAdmin cobre role 'super_admin' — usar os dois
+  const { isAdmin, isSuperAdmin } = usePermissions()
 
   const [paciente, setPaciente] = useState(pacienteInicial)
   const [modalExclusaoAberto, setModalExclusaoAberto] = useState(false)
   const [textoExclusao, setTextoExclusao] = useState('')
+  const [mfaExclusaoAberto, setMfaExclusaoAberto] = useState(false)
+  const [exportando, setExportando] = useState(false)
+
+  async function handleExportar() {
+    setExportando(true)
+    try {
+      const dados = await apiFetch<object>(`/api/v1/pacientes/${paciente.id}/exportar`)
+      const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dados-${paciente.nome.replace(/[^a-zA-Z0-9]/g, '_')}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('Dados exportados', { description: 'Arquivo JSON salvo.' })
+    } catch {
+      toast.error('Erro ao exportar dados', { description: 'Tente novamente.' })
+    } finally {
+      setExportando(false)
+    }
+  }
   const [plano, setPlano] = useState<PlanoAtendimento>(pacienteInicial.plano)
   const salvarPlanoMutation = useSalvarPlanoAtendimento(pacienteInicial.id)
   const { data: pacotesData } = usePacotes()
@@ -2389,27 +2415,54 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         </div>
       </div>
 
-      {/* Zona de risco — exclusão de dados (LGPD) */}
-      {isAdmin && (
-        <div className="mt-8 rounded-xl border border-red-100 bg-red-50/40 p-4 sm:p-6">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+      {/* Dados do paciente — direitos LGPD */}
+      {(isAdmin || isSuperAdmin) && (
+        <div className="mt-8 space-y-3">
+          {/* Exportação (LGPD Art. 18 II e IV) */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                <FileText className="h-4 w-4 text-slate-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-700">Exportar dados</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Direito de portabilidade e acesso aos dados (LGPD Art. 18 II e IV).
+                  Gera um arquivo JSON com todos os dados pessoais, registros clínicos e financeiro.
+                </p>
+                <button
+                  onClick={handleExportar}
+                  disabled={exportando}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {exportando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                  Exportar dados (JSON)
+                </button>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-red-700">Zona de risco</p>
-              <p className="mt-1 text-xs text-red-600/80">
-                A exclusão remove permanentemente todos os dados pessoais identificadores deste paciente
-                (nome, CPF, e-mail, telefone, endereço). Os registros clínicos são preservados conforme
-                exigência da CFP Resolução 06/2019 (retenção mínima de 5 anos). Esta ação é irreversível.
-              </p>
-              <button
-                onClick={() => { setModalExclusaoAberto(true); setTextoExclusao('') }}
-                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:border-red-300"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Excluir dados do paciente
-              </button>
+          </div>
+
+          {/* Zona de risco — exclusão */}
+          <div className="rounded-xl border border-red-100 bg-red-50/40 p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-red-700">Zona de risco</p>
+                <p className="mt-1 text-xs text-red-600/80">
+                  A exclusão remove permanentemente todos os dados pessoais identificadores deste paciente
+                  (nome, CPF, e-mail, telefone, endereço). Os registros clínicos são preservados conforme
+                  exigência da CFP Resolução 06/2019 (retenção mínima de 5 anos). Esta ação é irreversível.
+                </p>
+                <button
+                  onClick={() => { setModalExclusaoAberto(true); setTextoExclusao('') }}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:border-red-300"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Excluir dados do paciente
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2484,8 +2537,13 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                     setModalExclusaoAberto(false)
                     toast.success('Dados excluídos', { description: 'Os dados pessoais foram anonimizados conforme a LGPD.' })
                     router.push('/dashboard/pacientes')
-                  } catch {
-                    toast.error('Erro ao excluir dados', { description: 'Tente novamente ou contate o suporte.' })
+                  } catch (err) {
+                    if (err instanceof MFARequiredError) {
+                      setModalExclusaoAberto(false)
+                      setMfaExclusaoAberto(true)
+                    } else {
+                      toast.error('Erro ao excluir dados', { description: 'Tente novamente ou contate o suporte.' })
+                    }
                   }
                 }}
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -2497,6 +2555,17 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal MFA — exclusão exige AAL2 */}
+      <ModalMFARequired
+        open={mfaExclusaoAberto}
+        onClose={() => setMfaExclusaoAberto(false)}
+        onSessaoElevada={() => {
+          setMfaExclusaoAberto(false)
+          toast.info('Sessão verificada', { description: 'Agora complete a exclusão novamente.' })
+          setModalExclusaoAberto(true)
+        }}
+      />
 
       {/* Lightbox de imagem (painéis expandidos inline) */}
       <Dialog open={!!imagemLightboxUrl} onOpenChange={() => setImagemLightboxUrl(null)}>

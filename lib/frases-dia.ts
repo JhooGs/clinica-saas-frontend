@@ -7,6 +7,7 @@ export const FRASES_COM_ATENDIMENTOS = [
   'Respira fundo, você está preparado.',
   'Cada atendimento é uma chance de cuidar de alguém.',
   'Dia cheio, mas dá pra fazer bonito.',
+  'Um novo dia, uma nova oportunidade de fazer algo melhor.',
 ]
 
 export const FRASES_SEM_ATENDIMENTOS = [
@@ -16,7 +17,7 @@ export const FRASES_SEM_ATENDIMENTOS = [
   'Dia sem atendimentos, ótimo pra planejar a semana.',
   'Sem atendimentos hoje, uma pausa merecida.',
   'Tempo livre pra cuidar do que ficou pendente.',
-  'Dia calmo pela frente, aproveita bem.',
+  'Dia calmo pela frente, aproveite ele bem.',
 ]
 
 /** seed: valor de Math.random() fixo por montagem do componente */

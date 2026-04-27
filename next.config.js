@@ -48,6 +48,34 @@ const securityHeaders = [
     key: "Strict-Transport-Security",
     value: "max-age=31536000; includeSubDomains; preload",
   },
+  {
+    key: "Content-Security-Policy",
+    value: [
+      // Padrão restritivo — bloqueia tudo que não for explicitamente permitido
+      "default-src 'self'",
+      // Next.js App Router requer 'unsafe-inline' para scripts de hidratação.
+      // Nonce-based CSP é o ideal mas exige mudanças no proxy.ts — melhoria futura.
+      "script-src 'self' 'unsafe-inline'",
+      // Tailwind + Radix UI usam atributos style inline para animações/transforms
+      "style-src 'self' 'unsafe-inline'",
+      // Imagens: self, data URIs, blobs (previews), Supabase Storage
+      "img-src 'self' data: blob: https://*.supabase.co",
+      // Fontes: self (Poppins auto-hospedada) + Google Fonts CDN (caso use)
+      "font-src 'self' https://fonts.gstatic.com",
+      // Conexões: API backend + Supabase REST/Realtime + ViaCEP (busca de CEP)
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co " +
+        "http://localhost:8000 https://api.clinitra.com " +
+        "https://viacep.com.br",
+      // Bloqueia carregamento em frames (já coberto pelo X-Frame-Options mas reforça)
+      "frame-ancestors 'none'",
+      // Restringe base href e actions de formulário
+      "base-uri 'self'",
+      "form-action 'self'",
+      // PWA: manifesto e service worker
+      "manifest-src 'self'",
+      "worker-src 'self' blob:",
+    ].join("; "),
+  },
 ];
 
 /** @type {import('next').NextConfig} */
