@@ -24,6 +24,7 @@ const CHANGELOG: VersionEntry[] = [
     version: 'v1.1.0',
     date: '28 de abril de 2026',
     changes: [
+      { category: 'Fixed', description: 'Ajustado erro onde o número do atendimento voltava a 1 depois de qualquer atendimento feito.'},
       { category: 'Fixed', description: 'Ajustado erro onde campos não eram salvos se o usuário sair da página.'},
       { category: 'Added', description: 'Adicionado menu de documentos.'},
       { category: 'Added', description: 'Agora é possível criar templates de formulários manualmente.'},
