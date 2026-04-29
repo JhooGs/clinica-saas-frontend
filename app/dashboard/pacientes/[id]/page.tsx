@@ -15,7 +15,7 @@ import {
   Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
   Paperclip, BookOpen, Image as ImageIcon,
   ArrowUpDown, ArrowUp, ArrowDown, Columns3, Loader2,
-  Trash2,
+  Trash2, Plus, FolderOpen,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
@@ -36,6 +36,11 @@ import { useRegistros } from '@/hooks/use-registros'
 import type { Registro, Agendamento } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
 import { ModalVerRegistro } from '@/components/modal-ver-registro'
+import { useDocumentosPaciente, useCriarDocumento, useDeletarDocumento } from '@/hooks/use-documentos-paciente'
+import { ModalNovoDocumento } from '@/components/documentos/modal-novo-documento'
+import { SecaoArquivosPaciente } from '@/components/documentos/secao-arquivos-paciente'
+import { ModalPortal } from '@/components/modal-portal'
+import type { DocumentoTemplate } from '@/types'
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -1238,6 +1243,11 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   })
   const agendamentosHist: Agendamento[] = useMemo(() => agendamentosHistData?.items ?? [], [agendamentosHistData])
 
+  const { data: documentos = [] } = useDocumentosPaciente(paciente.id, undefined, 'formulario')
+  const criarDocumentoMutation = useCriarDocumento(paciente.id)
+  const deletarDocumentoMutation = useDeletarDocumento(paciente.id)
+  const [excluindoDocPaciente, setExcluindoDocPaciente] = useState<{ id: string; nome: string } | null>(null)
+
   // Maps para vincular agendamentos ↔ registros
   const registroByAgendamentoId = useMemo(() => {
     const map = new Map<string, Registro>()
@@ -1265,6 +1275,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
   const [registroModal, setRegistroModal] = useState<Registro | null>(null)
   const [horarioModal, setHorarioModal] = useState<string | null>(null)
+  const [modalNovoDocAberto, setModalNovoDocAberto] = useState(false)
 
   function toggleAtendimento(id: string) {
     setExpandidoSessaoId(prev => (prev === id ? null : id))
@@ -2415,6 +2426,114 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         </div>
       </div>
 
+      {/* ── Documentos ───────────────────────────────── */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+            <FolderOpen className="h-4.5 w-4.5 text-[#04c2fb]" />
+            Documentos
+          </h2>
+          <button
+            type="button"
+            onClick={() => setModalNovoDocAberto(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Novo documento
+          </button>
+        </div>
+
+        {documentos.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
+            <FileText className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-400">Nenhum documento ainda.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {documentos.map(doc => (
+              <div
+                key={doc.id}
+                className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 transition-all group"
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push(`/dashboard/pacientes/${paciente.id}/documentos/${doc.id}`)}
+                  className="flex items-start gap-3 flex-1 min-w-0 text-left"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#04c2fb]/10">
+                    <FileText className="h-4 w-4 text-[#04c2fb]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{doc.nome}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        doc.status === 'finalizado'
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {doc.status === 'finalizado' ? 'Finalizado' : 'Rascunho'}
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        {new Date(doc.criado_em).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExcluindoDocPaciente({ id: doc.id, nome: doc.nome })}
+                  className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal novo documento */}
+      {excluindoDocPaciente && (
+        <ModalExclusaoDocPaciente
+          nome={excluindoDocPaciente.nome}
+          onConfirmar={() => {
+            const nome = excluindoDocPaciente.nome
+            deletarDocumentoMutation.mutate(excluindoDocPaciente.id, {
+              onSuccess: () => {
+                setExcluindoDocPaciente(null)
+                toast.success('Documento removido', { description: `"${nome}" foi removido.` })
+              },
+              onError: () => toast.error('Erro ao remover documento'),
+            })
+          }}
+          onCancelar={() => setExcluindoDocPaciente(null)}
+          isPending={deletarDocumentoMutation.isPending}
+        />
+      )}
+
+      {modalNovoDocAberto && (
+        <ModalNovoDocumento
+          onSelecionar={(template: DocumentoTemplate, nome: string) => {
+            criarDocumentoMutation.mutate(
+              { template_id: template.id, nome },
+              {
+                onSuccess: doc => {
+                  setModalNovoDocAberto(false)
+                  toast.success('Documento criado')
+                  router.push(`/dashboard/pacientes/${paciente.id}/documentos/${doc.id}`)
+                },
+                onError: () => toast.error('Erro ao criar documento'),
+              },
+            )
+          }}
+          onFechar={() => setModalNovoDocAberto(false)}
+          isLoading={criarDocumentoMutation.isPending}
+        />
+      )}
+
+      {/* ── Arquivos do paciente ─────────────────────── */}
+      <SecaoArquivosPaciente pacienteId={paciente.id} />
+
       {/* Dados do paciente — direitos LGPD */}
       {(isAdmin || isSuperAdmin) && (
         <div className="mt-8 space-y-3">
@@ -2595,6 +2714,65 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
 }
 
 /* ── Page wrapper ─────────────────────────────────── */
+
+function ModalExclusaoDocPaciente({
+  nome,
+  onConfirmar,
+  onCancelar,
+  isPending,
+}: {
+  nome: string
+  onConfirmar: () => void
+  onCancelar: () => void
+  isPending: boolean
+}) {
+  return (
+    <ModalPortal>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backdropFilter: 'blur(5px)', background: 'rgba(0,0,0,0.22)' }}
+      onClick={e => { if (e.target === e.currentTarget) onCancelar() }}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-white/60 shadow-2xl"
+        style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(24px)' }}
+      >
+        <div className="px-6 pt-6 pb-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 border border-red-100">
+              <Trash2 className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Remover documento</h2>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                Tem certeza que deseja remover{' '}
+                <span className="font-semibold text-gray-800">&ldquo;{nome}&rdquo;</span>?
+                {' '}Esta ação não pode ser desfeita.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              onClick={onCancelar}
+              className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={onConfirmar}
+              disabled={isPending}
+              className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60"
+            >
+              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Remover
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </ModalPortal>
+  )
+}
 
 export default function PacienteDetalhePage() {
   const params = useParams()

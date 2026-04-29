@@ -1319,12 +1319,10 @@ function AbaSeguranca() {
                 <p className="text-sm font-medium text-slate-700">
                   1. Abra o Google Authenticator, Authy ou similar e escaneie:
                 </p>
-                {/* QR Code — SVG gerado pelo Supabase, não é input do usuário */}
-                {/* eslint-disable-next-line react/no-danger */}
-                <div
-                  className="flex justify-center"
-                  dangerouslySetInnerHTML={{ __html: enrollData.qrCode }}
-                />
+                <div className="flex justify-center">
+                  {/* qr_code do Supabase é uma data URI (data:image/svg+xml;utf-8,...) */}
+                  <img src={enrollData.qrCode} alt="QR Code MFA" className="w-40 h-40" />
+                </div>
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground mb-1">Ou insira manualmente:</p>
                   <code className="text-xs font-mono bg-white border rounded px-2 py-1 select-all">

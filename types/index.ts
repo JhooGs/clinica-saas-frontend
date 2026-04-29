@@ -207,3 +207,71 @@ export interface Usuario {
   criado_em: string
   permissoes: Permissoes | null
 }
+
+// ── Documentos ────────────────────────────────────────────────────────────────
+
+export type TipoCampo =
+  | 'texto_curto'
+  | 'texto_longo'
+  | 'escolha_unica'
+  | 'escolha_multipla'
+  | 'escala'
+  | 'data'
+  | 'numero'
+  | 'sim_nao'
+  | 'secao'
+  | 'texto_informativo'
+
+export interface Campo {
+  id: string
+  tipo: TipoCampo
+  label: string
+  obrigatorio?: boolean
+  opcoes?: string[]
+  min?: number
+  max?: number
+  conteudo?: string
+}
+
+export interface Secao {
+  id: string
+  titulo: string
+  campos: Campo[]
+}
+
+export interface DocumentoSchema {
+  secoes: Secao[]
+}
+
+export type DocumentoStatus = 'rascunho' | 'finalizado'
+
+export interface DocumentoTemplate {
+  id: string
+  clinica_id: string
+  criado_por: string
+  nome: string
+  categoria: string
+  descricao?: string
+  schema: DocumentoSchema
+  origem: 'manual' | 'ia'
+  arquivo_origem_url?: string
+  ativo: boolean
+  criado_em: string
+  atualizado_em: string
+}
+
+export interface DocumentoPaciente {
+  id: string
+  paciente_id: string
+  clinica_id: string
+  template_id?: string
+  criado_por: string
+  nome: string
+  schema_snapshot?: DocumentoSchema
+  respostas?: Record<string, unknown>
+  status: DocumentoStatus
+  arquivo_anexo_url?: string
+  ativo: boolean
+  criado_em: string
+  atualizado_em: string
+}

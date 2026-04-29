@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Menu, X, Home, Users, ClipboardList, CalendarDays,
   DollarSign, BarChart2, Settings, LogOut, Package, UserCog, ChevronRight,
-  Building2,
+  Building2, FolderOpen,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -284,12 +284,13 @@ export function AppNav() {
   if (pathname.startsWith('/dashboard/onboarding')) return null
 
   const mainNav = [
-    { title: 'Início',     href: '/dashboard',              icon: Home,         show: true },
-    { title: 'Pacientes',  href: '/dashboard/pacientes',    icon: Users,        show: can('pacientes') },
-    { title: 'Registros',  href: '/dashboard/registros',    icon: ClipboardList,show: can('registros') },
-    { title: 'Agenda',     href: '/dashboard/agenda',       icon: CalendarDays, show: can('agenda') },
-    { title: 'Relatórios', href: '/dashboard/relatorios',   icon: BarChart2,    show: can('relatorios') },
-    { title: 'Financeiro', href: '/dashboard/financeiro',   icon: DollarSign,   show: can('financeiro') },
+    { title: 'Início',      href: '/dashboard',                        icon: Home,         show: true },
+    { title: 'Pacientes',   href: '/dashboard/pacientes',              icon: Users,        show: can('pacientes') },
+    { title: 'Registros',   href: '/dashboard/registros',              icon: ClipboardList,show: can('registros') },
+    { title: 'Agenda',      href: '/dashboard/agenda',                 icon: CalendarDays, show: can('agenda') },
+    { title: 'Relatórios',  href: '/dashboard/relatorios',             icon: BarChart2,    show: can('relatorios') },
+    { title: 'Financeiro',  href: '/dashboard/financeiro',             icon: DollarSign,   show: can('financeiro') },
+    { title: 'Documentos',  href: '/dashboard/documentos',             icon: FolderOpen,   show: true },
   ].filter(i => i.show)
 
   const adminNav = [

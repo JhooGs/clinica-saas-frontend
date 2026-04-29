@@ -569,18 +569,20 @@ function PacientesContent() {
   const inputBuscaRef = useRef<HTMLInputElement>(null)
   const criarPaciente = useCriarPaciente()
 
-  const [colunasVisiveis, setColunasVisiveis] = useState<ColPac[]>(() => {
+  const [colunasVisiveis, setColunasVisiveis] = useState<ColPac[]>(COLUNAS_PAC_PADRAO)
+
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(COLUNAS_PAC_LS_KEY)
       if (saved) {
         const parsed = JSON.parse(saved) as ColPac[]
         const todas = COLUNAS_PAC_TODAS.map(c => c.key)
         const validas = todas.filter(k => parsed.includes(k))
-        if (validas.length > 0) return validas
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (validas.length > 0) setColunasVisiveis(validas)
       }
     } catch { /* ignore */ }
-    return COLUNAS_PAC_PADRAO
-  })
+  }, [])
 
   function toggleColuna(col: ColPac) {
     setColunasVisiveis(prev => {

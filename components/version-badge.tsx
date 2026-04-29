@@ -21,6 +21,15 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v1.1.0',
+    date: '28 de abril de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Ajustado erro onde campos não eram salvos se o usuário sair da página.'},
+      { category: 'Added', description: 'Adicionado menu de documentos.'},
+      { category: 'Added', description: 'Agora é possível criar templates de formulários manualmente.'},
+    ],
+  },
+  {
     version: 'v1.0.1',
     date: '26 de abril de 2026',
     changes: [

@@ -824,7 +824,14 @@ function FormularioAtendimento({ id }: { id: string }) {
   }, [id])
 
   useEffect(() => {
-    if (!rascunhoRestaurado && form.notasSessaoJson === null && arquivos.length === 0) return
+    const formVazio = (
+      !rascunhoRestaurado &&
+      form.notasSessaoJson === null &&
+      arquivos.length === 0 &&
+      !form.material &&
+      form.links.length === 0
+    )
+    if (formVazio) return
     salvarRascunho(form, arquivos)
   }, [form, arquivos, salvarRascunho, rascunhoRestaurado])
 
