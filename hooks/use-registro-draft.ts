@@ -10,6 +10,7 @@ type DraftData = {
     tipoAtendimento: string
     numeroAtendimento: string
     presenca: boolean
+    valorAtendimento: string
     material: string
     links: string[]
     notasSessaoJson: Record<string, unknown> | null
@@ -64,6 +65,16 @@ export function useRegistroDraft(agendamentoId: string) {
     [agendamentoId],
   )
 
+  // Salva imediatamente (sem debounce) — usado no visibilitychange
+  const salvarAgora = useCallback(
+    (form: DraftData['form'], arquivos: UploadedFile[]) => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      const draft: DraftData = { form, arquivos, savedAt: new Date().toISOString() }
+      localStorage.setItem(chave(agendamentoId), JSON.stringify(draft))
+    },
+    [agendamentoId],
+  )
+
   // Apaga o rascunho — chamado após salvar com sucesso
   const descartarRascunho = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -78,5 +89,5 @@ export function useRegistroDraft(agendamentoId: string) {
     }
   }, [])
 
-  return { carregarRascunho, salvarRascunho, descartarRascunho }
+  return { carregarRascunho, salvarRascunho, salvarAgora, descartarRascunho }
 }

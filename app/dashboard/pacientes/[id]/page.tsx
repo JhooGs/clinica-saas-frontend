@@ -15,7 +15,7 @@ import {
   Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
   Paperclip, BookOpen, Image as ImageIcon,
   ArrowUpDown, ArrowUp, ArrowDown, Columns3, Loader2,
-  Trash2, Plus, FolderOpen,
+  Trash2, Plus, FolderOpen, Lock, ArrowRight,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
@@ -40,6 +40,7 @@ import { useDocumentosPaciente, useCriarDocumento, useDeletarDocumento } from '@
 import { ModalNovoDocumento } from '@/components/documentos/modal-novo-documento'
 import { SecaoArquivosPaciente } from '@/components/documentos/secao-arquivos-paciente'
 import { ModalPortal } from '@/components/modal-portal'
+import { useFeatureGate } from '@/hooks/use-feature-gate'
 import type { DocumentoTemplate } from '@/types'
 
 /* ── Types ─────────────────────────────────────────── */
@@ -1149,6 +1150,36 @@ function maskTelefone(v: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
 
+/* ── Bloco bloqueado por plano ── */
+
+function LockedFeatureBlock({ label, description, requiredPlanLabel }: {
+  label: string
+  description: string
+  requiredPlanLabel: string
+}) {
+  return (
+    <div className="mt-8 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center select-none">
+      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
+        <Lock className="h-5 w-5 text-gray-400" />
+      </div>
+      <p className="text-sm font-semibold text-gray-500">{label}</p>
+      <p className="text-xs text-gray-400 mt-1 mb-4 max-w-xs mx-auto leading-relaxed">{description}</p>
+      <span className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-3 py-1 text-xs font-medium text-gray-500">
+        Disponível no plano{' '}
+        <span className="font-semibold text-[#04c2fb]">{requiredPlanLabel}</span>
+      </span>
+      <div className="mt-3">
+        <button
+          onClick={() => window.open('https://clinitra.com.br/planos', '_blank')}
+          className="inline-flex items-center gap-1 text-xs text-[#04c2fb] hover:underline font-medium"
+        >
+          Ver planos <ArrowRight className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /* ── Conteúdo principal (separado para evitar hooks condicionais) ── */
 
 function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: PacienteCompleto }) {
@@ -1184,6 +1215,10 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       setExportando(false)
     }
   }
+  const patientPlanGate    = useFeatureGate('FEATURE_PATIENT_PLAN')
+  const formTemplatesGate  = useFeatureGate('FEATURE_FORM_TEMPLATES')
+  const attachmentsGate    = useFeatureGate('FEATURE_ATTACHMENTS')
+
   const [plano, setPlano] = useState<PlanoAtendimento>(pacienteInicial.plano)
   const salvarPlanoMutation = useSalvarPlanoAtendimento(pacienteInicial.id)
   const { data: pacotesData } = usePacotes()
@@ -1906,21 +1941,29 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         </div>
 
       {/* ── Plano ────────────────────────────────── */}
-      <CardPlano
-        key={`plano-${String(paciente.ativo)}`}
-        planoInicial={plano}
-        onSalvar={(novoPlano) => {
-          salvarPlanoMutation.mutate(novoPlano, {
-            onSuccess: () => setPlano(novoPlano),
-            onError: (err) => toast.error('Erro ao salvar plano', { description: err.message }),
-          })
-        }}
-        pacienteId={paciente.id}
-        pacienteNome={paciente.nome}
-        pacienteAtivo={paciente.ativo}
-        pacotesDisponiveis={pacotesDisponiveis}
-        tiposDisponiveis={tiposDisponiveis}
-      />
+      {patientPlanGate.allowed ? (
+        <CardPlano
+          key={`plano-${String(paciente.ativo)}`}
+          planoInicial={plano}
+          onSalvar={(novoPlano) => {
+            salvarPlanoMutation.mutate(novoPlano, {
+              onSuccess: () => setPlano(novoPlano),
+              onError: (err) => toast.error('Erro ao salvar plano', { description: err.message }),
+            })
+          }}
+          pacienteId={paciente.id}
+          pacienteNome={paciente.nome}
+          pacienteAtivo={paciente.ativo}
+          pacotesDisponiveis={pacotesDisponiveis}
+          tiposDisponiveis={tiposDisponiveis}
+        />
+      ) : (
+        <LockedFeatureBlock
+          label="Plano de Atendimento"
+          description="Configure pacotes, recorrência e cobrança automática para este paciente."
+          requiredPlanLabel={patientPlanGate.requiredPlanLabel ?? 'Solo'}
+        />
+      )}
 
       {/* ── Histórico de atendimentos ───────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -2427,6 +2470,13 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       </div>
 
       {/* ── Documentos ───────────────────────────────── */}
+      {!formTemplatesGate.allowed ? (
+        <LockedFeatureBlock
+          label="Documentos"
+          description="Crie e preencha formulários clínicos personalizados para este paciente."
+          requiredPlanLabel={formTemplatesGate.requiredPlanLabel ?? 'Solo'}
+        />
+      ) : (
       <div className="mt-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
@@ -2491,9 +2541,10 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           </div>
         )}
       </div>
+      )}
 
-      {/* Modal novo documento */}
-      {excluindoDocPaciente && (
+      {/* Modais de documentos — só montados quando feature liberada */}
+      {formTemplatesGate.allowed && excluindoDocPaciente && (
         <ModalExclusaoDocPaciente
           nome={excluindoDocPaciente.nome}
           onConfirmar={() => {
@@ -2511,7 +2562,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         />
       )}
 
-      {modalNovoDocAberto && (
+      {formTemplatesGate.allowed && modalNovoDocAberto && (
         <ModalNovoDocumento
           onSelecionar={(template: DocumentoTemplate, nome: string) => {
             criarDocumentoMutation.mutate(
@@ -2530,9 +2581,16 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           isLoading={criarDocumentoMutation.isPending}
         />
       )}
-
       {/* ── Arquivos do paciente ─────────────────────── */}
-      <SecaoArquivosPaciente pacienteId={paciente.id} />
+      {attachmentsGate.allowed ? (
+        <SecaoArquivosPaciente pacienteId={paciente.id} />
+      ) : (
+        <LockedFeatureBlock
+          label="Arquivos"
+          description="Armazene fotos, documentos e links vinculados a este paciente."
+          requiredPlanLabel={attachmentsGate.requiredPlanLabel ?? 'Solo'}
+        />
+      )}
 
       {/* Dados do paciente — direitos LGPD */}
       {(isAdmin || isSuperAdmin) && (

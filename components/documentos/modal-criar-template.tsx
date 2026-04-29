@@ -112,10 +112,10 @@ export function ModalCriarTemplate({
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-gray-900">Gerar com IA</p>
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                      PRO
+                      CLÍNICA
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">Disponível nos planos Pro e Clínica.</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Disponível nos planos Clínica e Clínica Pro.</p>
                 </div>
               </div>
             ) : carregando ? (

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Pencil, Trash2, Save, X, Tag, Info,
   AlertTriangle, ArrowUp, ArrowDown, Package,
-  Zap, ZapOff, Lock, Loader2,
+  Zap, ZapOff, Lock, Loader2, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -15,6 +15,7 @@ import {
   usePacotes, useCriarPacote, useAtualizarPacote, useExcluirPacote,
 } from '@/hooks/use-planos'
 import { PageLoader } from '@/components/ui/page-loader'
+import { useFeatureGate } from '@/hooks/use-feature-gate'
 
 type TabId = 'tipos' | 'pacotes'
 
@@ -656,6 +657,77 @@ function ModalExclusao({
 }
 
 /* ══════════════════════════════════════════════════════
+   Modal de limite de tipos de atendimento
+   ══════════════════════════════════════════════════════ */
+
+const LIMITE_TIPOS_POR_PLANO: Record<string, number | null> = {
+  free: 3,
+  solo: 5,
+  clinica: null,
+  clinica_pro: null,
+}
+
+function ModalLimiteTipos({
+  planoAtual,
+  limite,
+  onFechar,
+}: {
+  planoAtual: string
+  limite: number
+  onFechar: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backdropFilter: 'blur(5px)', background: 'rgba(0,0,0,0.22)' }}
+      onClick={e => { if (e.target === e.currentTarget) onFechar() }}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-white/60 shadow-2xl"
+        style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(24px)' }}
+      >
+        <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-5 sm:pb-6 space-y-5">
+          <div className="flex items-start gap-3">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+            >
+              <Sparkles className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Limite atingido</h2>
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                O plano <span className="font-semibold text-gray-700">{planoAtual === 'free' ? 'Free' : 'Solo'}</span> permite até{' '}
+                <span className="font-semibold text-gray-700">{limite} tipos de atendimento</span>.
+                Para criar mais, faça upgrade para o plano Solo ou superior.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              onClick={onFechar}
+              className="rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-gray-100 transition-colors border border-gray-200"
+            >
+              Fechar
+            </button>
+            <a
+              href="https://sodata.com.br/planos"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-110 active:scale-95"
+              style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Ver planos
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════
    Page
    ══════════════════════════════════════════════════════ */
 
@@ -666,7 +738,11 @@ function PlanosContent() {
   const onboardingAction = searchParams.get('action')
   const onboardingAbrirCriacaoPacote = onboardingMode && onboardingAction === 'create_pacote'
 
-  const [tab, setTab] = useState<TabId>(onboardingAbrirCriacaoPacote ? 'pacotes' : 'tipos')
+  const packagesGate = useFeatureGate('FEATURE_PACKAGES')
+  const { currentPlan } = useFeatureGate('FEATURE_UNLIMITED_TYPES')
+  const [tab, setTab] = useState<TabId>(
+    onboardingAbrirCriacaoPacote && packagesGate.allowed ? 'pacotes' : 'tipos',
+  )
 
   /* ── API: Tipos de atendimento ── */
   const { data: tiposData, isLoading: loadingTipos } = useTiposAtendimento()
@@ -683,6 +759,7 @@ function PlanosContent() {
   const pacotes = useMemo(() => pacotesData?.items ?? [], [pacotesData])
 
   /* ── State: Modais ── */
+  const [modalLimiteTipos, setModalLimiteTipos] = useState(false)
   const [modalTipo, setModalTipo] = useState<{ modo: 'criar' | 'editar'; tipo?: TipoAtendimento } | null>(null)
   const [excluindoTipo, setExcluindoTipo] = useState<TipoAtendimento | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -701,6 +778,16 @@ function PlanosContent() {
       return sortDir === 'asc' ? cmp : -cmp
     }),
   [tipos, sortDir])
+
+  /* ── Helpers ── */
+  function abrirCriarTipo() {
+    const limite = LIMITE_TIPOS_POR_PLANO[currentPlan] ?? null
+    if (limite !== null && tipos.length >= limite) {
+      setModalLimiteTipos(true)
+      return
+    }
+    setModalTipo({ modo: 'criar' })
+  }
 
   /* ── Handlers: Tipos ── */
   function criarTipo(dados: { nome: string; valor_padrao: string }) {
@@ -811,7 +898,7 @@ function PlanosContent() {
   /* ── Tabs ── */
   const tabs: { id: TabId; label: string; icon: typeof Tag }[] = [
     { id: 'tipos', label: 'Tipos de Atendimento', icon: Tag },
-    { id: 'pacotes', label: 'Pacotes', icon: Package },
+    ...(packagesGate.allowed ? [{ id: 'pacotes' as TabId, label: 'Pacotes', icon: Package }] : []),
   ]
 
   if (loadingTipos || loadingPacotes) return <PageLoader />
@@ -820,6 +907,13 @@ function PlanosContent() {
     <div className="space-y-6 sm:space-y-7">
 
       {/* Modais */}
+      {modalLimiteTipos && (
+        <ModalLimiteTipos
+          planoAtual={currentPlan}
+          limite={LIMITE_TIPOS_POR_PLANO[currentPlan] ?? 0}
+          onFechar={() => setModalLimiteTipos(false)}
+        />
+      )}
       {modalTipo && (
         <ModalTipo
           modo={modalTipo.modo}
@@ -908,7 +1002,7 @@ function PlanosContent() {
                 }
               </div>
               <button
-                onClick={() => setModalTipo({ modo: 'criar' })}
+                onClick={abrirCriarTipo}
                 className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110 active:scale-95 shrink-0"
                 style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
               >
@@ -928,7 +1022,7 @@ function PlanosContent() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setModalTipo({ modo: 'criar' })}
+                  onClick={abrirCriarTipo}
                   className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white mt-1 shadow-sm transition-all hover:brightness-110 active:scale-95"
                   style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
                 >

@@ -31,7 +31,7 @@ import { ModalPortal } from '@/components/modal-portal'
 import { ModalPauta, chavePauta } from '@/components/modal-pauta'
 import { useAgendamentos, useCancelarAgendamento } from '@/hooks/use-agenda'
 import { WhatsAppTemplatePicker } from '@/components/whatsapp-template-picker'
-import { useConfiguracoes } from '@/hooks/use-configuracoes'
+import { useFeatureGate } from '@/hooks/use-feature-gate'
 import type { Agendamento } from '@/types'
 
 const LS_EXPORTED_KEY = 'clinitra_gcal_exported_ids'
@@ -168,8 +168,7 @@ function WhatsAppButton({ ag }: { ag: AgendamentoComSource }) {
 }
 
 export default function AgendaPage() {
-  const { data: config } = useConfiguracoes()
-  const temGoogleCalendar = config?.plano === 'pro' || config?.plano === 'clinica'
+  const { allowed: temGoogleCalendar } = useFeatureGate('FEATURE_GOOGLE_CALENDAR')
 
   const {
     connected,
@@ -768,7 +767,7 @@ export default function AgendaPage() {
             <Info className="h-4 w-4 text-amber-500 shrink-0" />
             <p className="text-sm text-amber-800">
               A integração com Google Calendar está disponível no plano{' '}
-              <span className="font-semibold">Pro</span> e superiores.
+              <span className="font-semibold">Solo</span> e superiores.
             </p>
           </div>
           <Link

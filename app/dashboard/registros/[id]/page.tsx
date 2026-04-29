@@ -784,7 +784,12 @@ function FormularioAtendimento({ id }: { id: string }) {
   const [pauta, setPauta] = useState<string | null>(null)
   const [pautaVisivel, setPautaVisivel] = useState(true)
 
-  const { carregarRascunho, salvarRascunho, descartarRascunho } = useRegistroDraft(id)
+  const { carregarRascunho, salvarRascunho, salvarAgora, descartarRascunho } = useRegistroDraft(id)
+  const formRef = useRef(form)
+  const arquivosRef = useRef(arquivos)
+
+  useEffect(() => { formRef.current = form }, [form])
+  useEffect(() => { arquivosRef.current = arquivos }, [arquivos])
 
   useEffect(() => {
     if (!agendamento) return
@@ -829,11 +834,24 @@ function FormularioAtendimento({ id }: { id: string }) {
       form.notasSessaoJson === null &&
       arquivos.length === 0 &&
       !form.material &&
-      form.links.length === 0
+      form.links.length === 0 &&
+      form.presenca === true &&
+      !form.valorAtendimento
     )
     if (formVazio) return
     salvarRascunho(form, arquivos)
   }, [form, arquivos, salvarRascunho, rascunhoRestaurado])
+
+  // Salva imediatamente quando o usuário sai da aba/janela (antes do debounce disparar)
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'hidden') {
+        salvarAgora(formRef.current, arquivosRef.current)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [salvarAgora])
 
   function f(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }))

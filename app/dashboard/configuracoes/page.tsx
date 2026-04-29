@@ -54,6 +54,7 @@ import { Switch } from '@/components/ui/switch'
 import { ImportWizard } from '@/components/onboarding/import-wizard'
 import type { ImportModulo } from '@/components/onboarding/import-wizard'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useFeatureGate } from '@/hooks/use-feature-gate'
 import { useAuditLog, LABELS_ACAO, LABELS_ENTIDADE } from '@/hooks/use-audit-log'
 import { useMFA } from '@/hooks/use-mfa'
 import type { EnrollData } from '@/hooks/use-mfa'
@@ -911,8 +912,7 @@ function AbaAtendimentos() {
 // ─── Aba Conexões ─────────────────────────────────────────────────────────────
 
 function AbaConexoes() {
-  const { data: config } = useConfiguracoes()
-  const temGoogleCalendar = config?.plano === 'pro' || config?.plano === 'clinica'
+  const { allowed: temGoogleCalendar } = useFeatureGate('FEATURE_GOOGLE_CALENDAR')
 
   const { connected, googleEmail, loading, error, connect, disconnect } = useGoogleCalendar()
 
@@ -972,7 +972,7 @@ function AbaConexoes() {
                 {!temGoogleCalendar && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
                     <Lock className="h-2.5 w-2.5" />
-                    Plano Pro
+                    Plano Solo
                   </span>
                 )}
                 {temGoogleCalendar && connected && (
@@ -1036,7 +1036,7 @@ function AbaConexoes() {
             <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
               <p className="text-xs text-amber-700">
-                Disponível a partir do plano <span className="font-semibold">Pro</span>. Faça upgrade para ativar esta integração.
+                Disponível a partir do plano <span className="font-semibold">Solo</span>. Faça upgrade para ativar esta integração.
               </p>
             </div>
           )}
@@ -1450,8 +1450,17 @@ function ConfiguracoesPageInner() {
   const searchParams = useSearchParams()
   // IMPORTANTE: isSuperAdmin não é coberto por isAdmin — usar sempre a combinação
   const { isAdmin, isSuperAdmin } = usePermissions()
+  const dadosGate       = useFeatureGate('FEATURE_DATA_IMPORT')
+  const conexoesGate    = useFeatureGate('FEATURE_GOOGLE_CALENDAR')
+  const financeiroGate  = useFeatureGate('FEATURE_FINANCE')
 
-  const configNav = configNavBase.filter(item => !item.adminOnly || isAdmin || isSuperAdmin)
+  const configNav = configNavBase.filter(item => {
+    if (item.adminOnly && !isAdmin && !isSuperAdmin) return false
+    if (item.id === 'dados' && !dadosGate.allowed) return false
+    if (item.id === 'conexoes' && !conexoesGate.allowed) return false
+    if (item.id === 'financeiro' && !financeiroGate.allowed) return false
+    return true
+  })
 
   const [abaAtiva, setAbaAtiva] = useState<AbaConfig>(() => {
     const aba = searchParams.get('aba')

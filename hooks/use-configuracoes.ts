@@ -19,6 +19,8 @@ export type ConfiguracaoGeral = {
   logo_url: string | null
   whatsapp_template: string | null
   plano: string
+  trial_expira_em: string | null
+  trial_dias_restantes: number | null
 }
 
 export type ConfiguracaoGeralUpdate = Partial<Omit<ConfiguracaoGeral, 'email_responsavel'>>

@@ -24,6 +24,7 @@ import { createClient } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useConfiguracoes } from '@/hooks/use-configuracoes'
+import { useFeatureGate } from '@/hooks/use-feature-gate'
 import { cn } from '@/lib/utils'
 
 const COLLAPSED_W = 56
@@ -57,10 +58,11 @@ const staggerItem = {
 
 function planoLabel(plano?: string): string {
   switch (plano) {
-    case 'free':    return 'Plano Free'
-    case 'pro':     return 'Plano Pro'
-    case 'clinica': return 'Plano Clínica'
-    default:        return 'Plano Free'
+    case 'free':        return 'Plano Free'
+    case 'solo':        return 'Plano Solo'
+    case 'clinica':     return 'Plano Clínica'
+    case 'clinica_pro': return 'Plano Clínica Pro'
+    default:            return 'Plano Free'
   }
 }
 
@@ -232,6 +234,9 @@ export function AppNav() {
   const queryClient = useQueryClient()
   const { can, isSuperAdmin, isAdmin } = usePermissions()
   const { data: clinicaConfig } = useConfiguracoes()
+  const financeiroGate = useFeatureGate('FEATURE_FINANCE')
+  const documentosGate = useFeatureGate('FEATURE_FORM_TEMPLATES')
+  const usuariosGate   = useFeatureGate('FEATURE_MULTI_USER')
 
   useEffect(() => {
     const supabase = createClient()
@@ -289,12 +294,12 @@ export function AppNav() {
     { title: 'Registros',   href: '/dashboard/registros',              icon: ClipboardList,show: can('registros') },
     { title: 'Agenda',      href: '/dashboard/agenda',                 icon: CalendarDays, show: can('agenda') },
     { title: 'Relatórios',  href: '/dashboard/relatorios',             icon: BarChart2,    show: can('relatorios') },
-    { title: 'Financeiro',  href: '/dashboard/financeiro',             icon: DollarSign,   show: can('financeiro') },
-    { title: 'Documentos',  href: '/dashboard/documentos',             icon: FolderOpen,   show: true },
+    { title: 'Financeiro',  href: '/dashboard/financeiro',             icon: DollarSign,   show: can('financeiro') && financeiroGate.allowed },
+    { title: 'Documentos',  href: '/dashboard/documentos',             icon: FolderOpen,   show: documentosGate.allowed },
   ].filter(i => i.show)
 
   const adminNav = [
-    { title: 'Usuários', href: '/dashboard/usuarios', icon: UserCog, show: isAdmin || isSuperAdmin },
+    { title: 'Usuários', href: '/dashboard/usuarios', icon: UserCog, show: (isAdmin || isSuperAdmin) && usuariosGate.allowed },
     { title: 'Planos',   href: '/dashboard/planos',   icon: Package, show: isSuperAdmin },
   ].filter(i => i.show)
 

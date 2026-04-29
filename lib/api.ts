@@ -32,6 +32,18 @@ export class RateLimitError extends ApiError {
   }
 }
 
+/** 403 — feature_gate. Dispara evento global para o UpgradeModal. */
+export class FeatureGateError extends ApiError {
+  constructor(
+    public readonly feature: string,
+    public readonly requiredPlan: string,
+    public readonly currentPlan: string,
+  ) {
+    super(403, `Recurso bloqueado: ${feature}`)
+    this.name = 'FeatureGateError'
+  }
+}
+
 // ── apiFetch ──────────────────────────────────────────────────────────────────
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -62,6 +74,22 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 
     // 403 MFA — surface como erro tipado para o componente exibir ModalMFARequired
     if (res.status === 403 && text.includes('dois fatores')) throw new MFARequiredError()
+
+    // 403 feature_gate — lança FeatureGateError e dispara evento global para o UpgradeModal
+    if (res.status === 403) {
+      try {
+        const body = JSON.parse(text)
+        if (body?.error === 'feature_gate') {
+          const err = new FeatureGateError(body.feature, body.required_plan, body.current_plan)
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('feature-gate', { detail: body }))
+          }
+          throw err
+        }
+      } catch (e) {
+        if (e instanceof FeatureGateError) throw e
+      }
+    }
 
     throw new ApiError(res.status, `Erro ${res.status}`, text)
   }

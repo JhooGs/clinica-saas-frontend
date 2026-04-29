@@ -9,6 +9,8 @@ export interface PlanoConfig {
   preco: number
   max_pacientes: number | null
   max_usuarios: number | null
+  max_tipos_atendimento: number | null
+  max_ia_mes: number | null
   ativo: boolean
   ordem: number
 }
@@ -25,6 +27,8 @@ interface PlanoUpdateBody {
   preco?: number
   max_pacientes?: number | null
   max_usuarios?: number | null
+  max_tipos_atendimento?: number | null
+  max_ia_mes?: number | null
   ativo?: boolean
   ordem?: number
 }

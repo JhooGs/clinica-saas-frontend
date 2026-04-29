@@ -75,7 +75,7 @@ export default function ClinicasPage() {
               />
             </div>
             <div className="flex gap-2 flex-wrap">
-              {['free', 'pro', 'clinica'].map((p) => (
+              {['free', 'solo', 'clinica', 'clinica_pro'].map((p) => (
                 <Button
                   key={p}
                   variant={filtroPlano === p ? 'default' : 'outline'}
