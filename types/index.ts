@@ -256,6 +256,7 @@ export interface DocumentoTemplate {
   origem: 'manual' | 'ia'
   arquivo_origem_url?: string
   ativo: boolean
+  uso_count?: number
   criado_em: string
   atualizado_em: string
 }

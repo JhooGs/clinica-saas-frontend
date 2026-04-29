@@ -300,7 +300,7 @@ export function AppNav() {
 
   const adminNav = [
     { title: 'Usuários', href: '/dashboard/usuarios', icon: UserCog, show: (isAdmin || isSuperAdmin) && usuariosGate.allowed },
-    { title: 'Planos',   href: '/dashboard/planos',   icon: Package, show: isSuperAdmin },
+    { title: 'Pacotes',  href: '/dashboard/pacotes',  icon: Package, show: isSuperAdmin },
   ].filter(i => i.show)
 
   return (

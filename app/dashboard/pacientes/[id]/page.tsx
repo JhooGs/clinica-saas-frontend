@@ -354,7 +354,7 @@ function CardPlano({
     if (editando && planoFoiAlterado()) {
       setConfirmarNavPlanos(true)
     } else {
-      router.push('/dashboard/planos')
+      router.push('/dashboard/pacotes')
     }
   }
 
@@ -479,7 +479,7 @@ function CardPlano({
       <ConfirmDiscard
         onConfirmar={() => {
           setConfirmarNavPlanos(false)
-          router.push('/dashboard/planos')
+          router.push('/dashboard/pacotes')
         }}
         onCancelar={() => setConfirmarNavPlanos(false)}
       />

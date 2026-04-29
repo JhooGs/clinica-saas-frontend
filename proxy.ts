@@ -94,7 +94,7 @@ export async function proxy(request: NextRequest) {
     }
 
     if (
-      (pathname.startsWith('/dashboard/configuracoes') || pathname.startsWith('/dashboard/planos')) &&
+      (pathname.startsWith('/dashboard/configuracoes') || pathname.startsWith('/dashboard/pacotes')) &&
       !isSuperAdmin
     ) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
