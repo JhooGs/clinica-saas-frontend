@@ -24,7 +24,9 @@ const CHANGELOG: VersionEntry[] = [
     version: 'v1.1.1',
     date: '29 de abril de 2026',
     changes: [
-      { category: 'Fixed', description: 'Ajustado problemas em planos'},
+      { category: 'Changed', description: 'Agora planos são pacotes de atendimento'},
+      { category: 'Changed', description: 'Sistema de administração foi totalmente refeito'},
+      { category: 'Added', description: 'Sistema de planos e precificação foi atualizado no sistema'},
       { category: 'Changed', description: 'Agora pauta passa a ser um campo com formatação completa, não é mais apenas um campo texto.'},
       { category: 'Changed', description: 'Agora quando uma pauta é escrita ele aparece diretamente no campo de registro do paciente, facilitando a edição.'},
       { category: 'Added', description: 'Foi adicionado um meio de enviar notificação de atendimento para grupos.'},

@@ -485,12 +485,15 @@ export function WhatsAppTemplatePicker({ agendamento, trigger }: WhatsAppTemplat
     return <IndividualPicker agendamento={agendamento} trigger={trigger} />
   }
 
-  const triggerComClick = React.cloneElement(trigger as React.ReactElement, {
-    onClick: (e: React.MouseEvent) => {
-      e.stopPropagation()
-      setGrupoAberto(true)
-    },
-  })
+  const triggerComClick = React.cloneElement(
+    trigger as React.ReactElement<React.HTMLAttributes<HTMLElement>>,
+    {
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation()
+        setGrupoAberto(true)
+      },
+    }
+  )
 
   return (
     <>

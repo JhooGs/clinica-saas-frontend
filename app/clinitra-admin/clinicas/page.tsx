@@ -17,10 +17,6 @@ const PLANO_CONFIG: Record<string, { label: string; color: string; bg: string; b
   clinica_pro: { label: 'Clínica Pro', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
 }
 
-function planoLabel(p: string) {
-  return PLANO_CONFIG[p]?.label ?? p
-}
-
 function ClinicaAvatar({ nome }: { nome: string }) {
   const iniciais = nome.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
   return (
