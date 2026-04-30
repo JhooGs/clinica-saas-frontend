@@ -31,6 +31,7 @@ export type AgendamentoComSource = {
   googleEventId?: string
   confirmacao_status?: 'pendente' | 'confirmado' | 'reagendamento' | 'cancelado' | null
   confirmacao_pendente?: boolean
+  confirmacoes_grupo?: { paciente_nome: string; status: 'pendente' | 'confirmado' | 'reagendamento' | 'cancelado' }[]
 }
 
 declare global {

@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Menu, X, Home, Users, ClipboardList, CalendarDays,
   DollarSign, BarChart2, Settings, LogOut, Package, UserCog, ChevronRight,
-  Building2, FolderOpen,
+  Building2, FolderOpen, Shield,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -64,6 +64,24 @@ function planoLabel(plano?: string): string {
     case 'clinica_pro': return 'Plano Clínica Pro'
     default:            return 'Plano Free'
   }
+}
+
+function PlanoBadge({ plano }: { plano?: string }) {
+  const isFree = !plano || plano === 'free'
+  const bgStyle = isFree
+    ? { background: 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 60%, #94a3b8 100%)' }
+    : { background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }
+
+  return (
+    <span
+      className="badge-shimmer relative inline-flex overflow-hidden rounded-full px-2 py-[2px]"
+      style={bgStyle}
+    >
+      <span className="text-[10px] font-semibold text-white leading-tight whitespace-nowrap relative z-10">
+        {planoLabel(plano)}
+      </span>
+    </span>
+  )
 }
 
 // ── Componentes de nav ────────────────────────────────────────────────────────
@@ -195,7 +213,7 @@ function ClinicaAvatarDropdown({
           </Avatar>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{nomeClinica || 'Clínica'}</p>
-            <p className="text-xs text-gray-500 mt-0.5 leading-none truncate">{planoLabel(plano)}</p>
+            <div className="mt-1"><PlanoBadge plano={plano} /></div>
           </div>
         </div>
 
@@ -207,6 +225,7 @@ function ClinicaAvatarDropdown({
             <span>Perfil da clínica</span>
           </Link>
         </DropdownMenuItem>
+
 
         <DropdownMenuSeparator />
 
@@ -296,11 +315,12 @@ export function AppNav() {
     { title: 'Relatórios',  href: '/dashboard/relatorios',             icon: BarChart2,    show: can('relatorios') },
     { title: 'Financeiro',  href: '/dashboard/financeiro',             icon: DollarSign,   show: can('financeiro') && financeiroGate.allowed },
     { title: 'Documentos',  href: '/dashboard/documentos',             icon: FolderOpen,   show: documentosGate.allowed },
+    { title: 'Pacotes',    href: '/dashboard/pacotes',                icon: Package,      show: isSuperAdmin },
   ].filter(i => i.show)
 
   const adminNav = [
-    { title: 'Usuários', href: '/dashboard/usuarios', icon: UserCog, show: (isAdmin || isSuperAdmin) && usuariosGate.allowed },
-    { title: 'Pacotes',  href: '/dashboard/pacotes',  icon: Package, show: isSuperAdmin },
+    { title: 'Usuários',   href: '/dashboard/usuarios',  icon: UserCog, show: (isAdmin || isSuperAdmin) && usuariosGate.allowed },
+    { title: 'Auditoria',  href: '/dashboard/auditoria', icon: Shield,  show: isAdmin || isSuperAdmin },
   ].filter(i => i.show)
 
   return (
@@ -399,7 +419,7 @@ export function AppNav() {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{clinicaConfig?.nome_responsavel || email || 'Usuário'}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-tight">{planoLabel(clinicaConfig?.plano)}</p>
+                  <div className="mt-1"><PlanoBadge plano={clinicaConfig?.plano} /></div>
                 </div>
                 <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
               </div>
@@ -495,7 +515,7 @@ export function AppNav() {
             className="min-w-0 overflow-hidden"
           >
             <p className="text-sm font-semibold text-gray-900 truncate leading-tight whitespace-nowrap">{clinicaConfig?.nome_responsavel || email || 'Usuário'}</p>
-            <p className="text-xs text-gray-500 mt-0.5 leading-tight whitespace-nowrap">{planoLabel(clinicaConfig?.plano)}</p>
+            <div className="mt-1"><PlanoBadge plano={clinicaConfig?.plano} /></div>
           </motion.div>
         </div>
 

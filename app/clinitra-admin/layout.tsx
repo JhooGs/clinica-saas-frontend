@@ -1,5 +1,4 @@
-import { AdminSidebar } from '@/components/admin/admin-sidebar'
-import { AdminMobileHeader } from '@/components/admin/admin-mobile-header'
+import { AdminNav } from '@/components/admin/admin-nav'
 
 export default function ClintraAdminLayout({
   children,
@@ -8,9 +7,9 @@ export default function ClintraAdminLayout({
 }) {
   return (
     <div className="flex h-screen overflow-hidden">
-      <AdminSidebar />
-      <div className="flex flex-1 flex-col overflow-hidden bg-background">
-        <AdminMobileHeader />
+      <AdminNav />
+      {/* Offset da sidebar fixa no desktop (56px colapsada) */}
+      <div className="flex flex-1 flex-col overflow-hidden bg-background md:pl-14">
         <main className="flex-1 overflow-y-auto p-3 sm:p-6">
           {children}
         </main>

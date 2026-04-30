@@ -442,17 +442,17 @@ export default function DashboardPage() {
     const ids = atendimentosHoje
       .filter(at => {
         const v = localStorage.getItem(chavePauta(at.id))
-        return v && v.trim().length > 0
+        return v && v.length > 0
       })
       .map(at => at.id)
     startTransition(() => setComPauta(new Set(ids)))
   }, [atendimentosHoje])
 
-  function handlePautaSalva(atendId: number | string, texto: string) {
+  function handlePautaSalva(atendId: number | string, temConteudo: boolean) {
     const strId = String(atendId)
     setComPauta(prev => {
       const next = new Set(prev)
-      if (texto.trim()) next.add(strId)
+      if (temConteudo) next.add(strId)
       else next.delete(strId)
       return next
     })

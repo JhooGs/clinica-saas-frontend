@@ -146,6 +146,27 @@ body { background-color: var(--background); color: var(--foreground); }
   animation: page-fade-in 0.4s ease-out both;
 }
 
+/* ── Plano badge shimmer ───────────────────────────────────────────────────── */
+
+@keyframes badge-shimmer {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(110%); }
+}
+
+.badge-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  animation: badge-shimmer 2.4s ease-in-out infinite;
+  border-radius: inherit;
+}
+
 /* ── Onboarding animations ─────────────────────────────────────────────────── */
 
 @keyframes onboarding-dot-pulse {

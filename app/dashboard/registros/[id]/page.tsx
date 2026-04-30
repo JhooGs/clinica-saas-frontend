@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, startTransition } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, User, Users, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, NotebookPen, Pencil } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, User, Users, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, Pencil } from 'lucide-react'
 import { cn, hoje, tiptapToHtml } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
@@ -781,8 +781,6 @@ function FormularioAtendimento({ id }: { id: string }) {
   const [temAlteracoes, setTemAlteracoes] = useState(false)
   const [confirmarDescartar, setConfirmarDescartar] = useState(false)
   const [confirmarDeletar, setConfirmarDeletar] = useState(false)
-  const [pauta, setPauta] = useState<string | null>(null)
-  const [pautaVisivel, setPautaVisivel] = useState(true)
 
   const { carregarRascunho, salvarRascunho, salvarAgora, descartarRascunho } = useRegistroDraft(id)
   const formRef = useRef(form)
@@ -810,23 +808,30 @@ function FormularioAtendimento({ id }: { id: string }) {
 
   useEffect(() => {
     const draft = carregarRascunho()
-    if (!draft) return
-    startTransition(() => {
-      setForm({
-        ...draft.form,
-        tipoAtendimento: draft.form.tipoAtendimento ?? agendamento?.tipo_atendimento ?? 'Atendimento',
-        valorAtendimento: (draft.form as Record<string, unknown>).valorAtendimento as string ?? '',
-        links: draft.form.links ?? [],
+    if (draft) {
+      startTransition(() => {
+        setForm({
+          ...draft.form,
+          tipoAtendimento: draft.form.tipoAtendimento ?? agendamento?.tipo_atendimento ?? 'Atendimento',
+          valorAtendimento: (draft.form as Record<string, unknown>).valorAtendimento as string ?? '',
+          links: draft.form.links ?? [],
+        })
+        setArquivos(draft.arquivos ?? [])
+        setRascunhoRestaurado(true)
       })
-      setArquivos(draft.arquivos ?? [])
-      setRascunhoRestaurado(true)
-    })
-  }, [carregarRascunho, agendamento?.tipo_atendimento])
-
-  useEffect(() => {
-    const texto = localStorage.getItem(chavePauta(id))
-    if (texto && texto.trim()) startTransition(() => setPauta(texto))
-  }, [id])
+      return
+    }
+    // Sem draft: pré-carrega a pauta como conteúdo inicial
+    const raw = localStorage.getItem(chavePauta(id))
+    if (raw) {
+      try {
+        const json = JSON.parse(raw) as Record<string, unknown>
+        if (json && typeof json === 'object') {
+          startTransition(() => setForm(prev => ({ ...prev, notasSessaoJson: json })))
+        }
+      } catch { /* pauta em formato legado — ignora */ }
+    }
+  }, [carregarRascunho, agendamento?.tipo_atendimento, id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const formVazio = (
@@ -1311,49 +1316,6 @@ function FormularioAtendimento({ id }: { id: string }) {
                 Pressione <kbd className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[10px] font-mono">Enter</kbd> para adicionar cada link
               </p>
             </div>
-
-            {/* Pauta pré-atendimento */}
-            {pauta && (
-              <div className={cn(
-                'rounded-xl border border-[#04c2fb]/25 bg-gradient-to-b from-[#04c2fb]/[0.06] to-[#04c2fb]/[0.02] overflow-hidden',
-                (!isGrupo && !form.presenca) && 'opacity-40 pointer-events-none',
-              )}>
-                <button
-                  type="button"
-                  onClick={() => setPautaVisivel(v => !v)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#04c2fb]/5 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <NotebookPen className="h-4 w-4 text-[#04c2fb] shrink-0" />
-                    <span className="text-sm font-semibold text-[#0094c8]">Pauta deste atendimento</span>
-                    <span className="inline-flex items-center rounded-full bg-[#04c2fb]/10 border border-[#04c2fb]/20 px-2 py-0.5 text-[10px] font-semibold text-[#04c2fb]">
-                      pré-atendimento
-                    </span>
-                  </div>
-                  <ChevronDown className={cn('h-4 w-4 text-[#04c2fb] transition-transform shrink-0', pautaVisivel ? 'rotate-180' : '')} />
-                </button>
-                {pautaVisivel && (
-                  <div className="px-4 pb-4">
-                    <div className="rounded-lg bg-white/70 border border-[#04c2fb]/15 px-4 py-3">
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{pauta}</p>
-                    </div>
-                    <div className="flex items-center justify-between mt-2.5">
-                      <p className="text-[10px] text-muted-foreground/60 italic">Consulte a pauta enquanto redige suas notas abaixo</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          localStorage.removeItem(chavePauta(id))
-                          setPauta(null)
-                        }}
-                        className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
-                      >
-                        Descartar pauta
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             <div className="space-y-1.5">
               <label className={cn('text-xs font-medium', (!isGrupo && !form.presenca) ? 'text-muted-foreground/50' : 'text-muted-foreground')}>

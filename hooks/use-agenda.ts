@@ -146,11 +146,18 @@ export interface GerarConfirmacaoResponse {
 
 export function useGerarConfirmacaoWhatsApp() {
   const queryClient = useQueryClient()
-  return useMutation<GerarConfirmacaoResponse, Error, { agendamentoId: string; templateId?: string }>({
-    mutationFn: ({ agendamentoId, templateId }) =>
+  return useMutation<
+    GerarConfirmacaoResponse,
+    Error,
+    { agendamentoId: string; templateId?: string; pacienteId?: string }
+  >({
+    mutationFn: ({ agendamentoId, templateId, pacienteId }) =>
       apiFetch<GerarConfirmacaoResponse>(`/api/v1/agendamentos/${agendamentoId}/gerar-confirmacao`, {
         method: 'POST',
-        body: JSON.stringify({ template_id: templateId ?? null }),
+        body: JSON.stringify({
+          template_id: templateId ?? null,
+          paciente_id: pacienteId ?? null,
+        }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agenda'] })

@@ -1,12 +1,23 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, startTransition } from 'react'
+import { useEffect, useCallback, useState, useRef, startTransition } from 'react'
 import { NotebookPen, X, Check } from 'lucide-react'
+import RichEditor from '@/components/editor/rich-editor'
 
 /* ── Helpers ──────────────────────────────────────── */
 
 export function chavePauta(id: number | string) {
   return `clinitra:pauta:${id}`
+}
+
+function jsonTemConteudo(raw: string | null): boolean {
+  if (!raw) return false
+  try {
+    const str = JSON.stringify(JSON.parse(raw))
+    return str.includes('"text"')
+  } catch {
+    return raw.trim().length > 0
+  }
 }
 
 /* ── Tipo genérico para o atendimento ─────────────── */
@@ -27,60 +38,55 @@ export function ModalPauta({
 }: {
   atendimento: PautaAtendimento
   onFechar: () => void
-  onPautaSalva: (atendId: number | string, texto: string) => void
+  onPautaSalva: (atendId: number | string, temConteudo: boolean) => void
 }) {
-  const [texto, setTexto] = useState('')
+  const [conteudo, setConteudo] = useState<Record<string, unknown> | null>(null)
   const [salvo, setSalvo] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     const raw = localStorage.getItem(chavePauta(atendimento.id))
-    if (raw) startTransition(() => setTexto(raw))
-    setTimeout(() => textareaRef.current?.focus(), 50)
-  }, [atendimento.id])
-
-  useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [texto])
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onFechar()
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>
+        startTransition(() => setConteudo(parsed))
+      } catch {
+        // pauta em formato texto antigo — ignora
+      }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onFechar])
-
-  const salvarComDebounce = useCallback((novoTexto: string) => {
-    setSalvo(false)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      localStorage.setItem(chavePauta(atendimento.id), novoTexto)
-      onPautaSalva(atendimento.id, novoTexto)
-      setSalvo(true)
-    }, 1000)
-  }, [atendimento.id, onPautaSalva])
-
-  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setTexto(e.target.value)
-    salvarComDebounce(e.target.value)
-  }
+  }, [atendimento.id])
 
   function handleFechar() {
     if (timerRef.current) clearTimeout(timerRef.current)
-    if (texto.trim()) {
-      localStorage.setItem(chavePauta(atendimento.id), texto)
-      onPautaSalva(atendimento.id, texto)
-    } else {
-      localStorage.removeItem(chavePauta(atendimento.id))
-      onPautaSalva(atendimento.id, '')
-    }
     onFechar()
   }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') handleFechar()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const handleChange = useCallback((json: Record<string, unknown>) => {
+    setConteudo(json)
+    setSalvo(false)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      const raw = JSON.stringify(json)
+      const temConteudo = jsonTemConteudo(raw)
+      if (temConteudo) {
+        localStorage.setItem(chavePauta(atendimento.id), raw)
+      } else {
+        localStorage.removeItem(chavePauta(atendimento.id))
+      }
+      onPautaSalva(atendimento.id, temConteudo)
+      setSalvo(true)
+    }, 800)
+  }, [atendimento.id, onPautaSalva])
+
+  const temConteudo = conteudo !== null && jsonTemConteudo(JSON.stringify(conteudo))
 
   return (
     <div
@@ -89,7 +95,7 @@ export function ModalPauta({
       onClick={e => { if (e.target === e.currentTarget) handleFechar() }}
     >
       <div
-        className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-white/30 shadow-2xl flex flex-col max-h-[85vh]"
+        className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl border border-white/30 shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[80vh]"
         style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
       >
         {/* Header */}
@@ -118,14 +124,12 @@ export function ModalPauta({
         </div>
 
         {/* Body */}
-        <div className="p-5 flex-1 overflow-y-auto">
-          <textarea
-            ref={textareaRef}
-            value={texto}
+        <div className="p-4 sm:p-5 flex-1 overflow-y-auto">
+          <RichEditor
+            key={String(atendimento.id)}
+            value={conteudo}
             onChange={handleChange}
-            placeholder="Escreva objetivos, ideias de atividades ou materiais para este atendimento..."
-            className="w-full resize-none bg-transparent text-sm text-gray-800 placeholder:text-muted-foreground/60 focus:outline-none leading-relaxed min-h-[160px]"
-            style={{ overflow: 'hidden' }}
+            placeholder="Objetivos, ideias de atividades, materiais — organize o atendimento antes de começar..."
           />
         </div>
 
@@ -139,7 +143,7 @@ export function ModalPauta({
               </>
             ) : (
               <span className="text-xs text-muted-foreground/60">
-                {texto.trim() ? 'Salvando...' : 'Nenhuma pauta ainda'}
+                {temConteudo ? 'Salvando...' : 'Nenhuma pauta ainda'}
               </span>
             )}
           </div>
