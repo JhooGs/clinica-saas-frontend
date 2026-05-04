@@ -15,6 +15,11 @@ export interface ClinicaListItem {
   quota_usuarios: number | null
   uso_pacientes_pct: number | null
   uso_usuarios_pct: number | null
+  registros_count: number
+  documentos_count: number
+  storage_bytes_used: number
+  storage_bytes_limite: number
+  storage_uso_pct: number | null
 }
 
 export interface ClinicaListResponse {
@@ -28,7 +33,15 @@ export interface ClinicaDetalhe extends ClinicaListItem {
   cnpj: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  trial_expira_em: string | null
   ultimo_acesso: string | null
+  registros_count: number
+  agendamentos_count: number
+  formularios_count: number
+  arquivos_count: number
+  storage_bytes_used: number
+  storage_bytes_limite: number
+  storage_uso_pct: number | null
   usuarios: {
     id: string
     nome: string

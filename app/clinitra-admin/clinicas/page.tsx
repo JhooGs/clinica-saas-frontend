@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import Link from 'next/link'
-import { Search, Building2, ChevronLeft, ChevronRight, ArrowRight, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Search, Building2, ChevronLeft, ChevronRight, X, FileText, HardDrive } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -10,12 +10,14 @@ import { Badge } from '@/components/ui/badge'
 import { useAdminClinicas } from '@/hooks/use-admin-clinicas'
 import { cn } from '@/lib/utils'
 
-const PLANO_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  free:        { label: 'Free',        color: 'text-gray-600',   bg: 'bg-gray-50',   border: 'border-gray-200' },
-  solo:        { label: 'Solo',        color: 'text-cyan-700',   bg: 'bg-cyan-50',   border: 'border-cyan-200' },
-  clinica:     { label: 'Clínica',     color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
-  clinica_pro: { label: 'Clínica Pro', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+const PLANO_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
+  free:        { label: 'Free',        color: 'text-gray-600',   bg: 'bg-gray-50',   border: 'border-gray-200',   dot: 'bg-gray-400' },
+  solo:        { label: 'Solo',        color: 'text-cyan-700',   bg: 'bg-cyan-50',   border: 'border-cyan-200',   dot: 'bg-[#04c2fb]' },
+  clinica:     { label: 'Clínica',     color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200', dot: 'bg-purple-500' },
+  clinica_pro: { label: 'Clínica Pro', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-600' },
 }
+
+const PLANOS_FILTRO = ['free', 'solo', 'clinica', 'clinica_pro']
 
 function ClinicaAvatar({ nome }: { nome: string }) {
   const iniciais = nome.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
@@ -30,23 +32,64 @@ function ClinicaAvatar({ nome }: { nome: string }) {
 }
 
 function UsageBar({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-xs text-muted-foreground">∞</span>
+  if (pct === null) return <span className="text-xs text-emerald-600 font-medium">∞</span>
   const color = pct >= 80 ? 'bg-rose-500' : pct >= 60 ? 'bg-amber-500' : 'bg-emerald-500'
   return (
     <div className="flex items-center gap-1.5">
-      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full', color)} style={{ width: `${Math.min(pct, 100)}%` }} />
+      <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
-      <span className={cn('text-xs tabular-nums', pct >= 80 ? 'text-rose-600 font-medium' : 'text-muted-foreground')}>
+      <span className={cn('text-xs tabular-nums font-medium', pct >= 80 ? 'text-rose-600' : 'text-muted-foreground')}>
         {pct}%
       </span>
     </div>
   )
 }
 
-const PLANOS_FILTRO = ['free', 'solo', 'clinica', 'clinica_pro']
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
+function StorageCell({
+  bytesUsed, bytesLimite, pct, registros, documentos,
+}: {
+  bytesUsed: number; bytesLimite: number; pct: number | null; registros: number; documentos: number
+}) {
+  const cor = pct !== null && pct >= 80 ? 'bg-rose-500' : pct !== null && pct >= 60 ? 'bg-amber-400' : 'bg-[#04c2fb]'
+  return (
+    <div className="space-y-1.5 min-w-[130px]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <HardDrive className="h-3 w-3 text-muted-foreground shrink-0" />
+          <span className="text-xs tabular-nums font-medium text-gray-700">{formatBytes(bytesUsed)}</span>
+        </div>
+        {bytesLimite > 0
+          ? <span className="text-[10px] text-muted-foreground">{formatBytes(bytesLimite)}</span>
+          : <span className="text-[10px] text-muted-foreground italic">Sem limite</span>
+        }
+      </div>
+      {bytesLimite > 0 && (
+        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+          <div
+            className={cn('h-full rounded-full transition-all', cor)}
+            style={{ width: `${Math.min(pct ?? 0, 100)}%` }}
+          />
+        </div>
+      )}
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-0.5"><FileText className="h-2.5 w-2.5" />{registros} reg.</span>
+        <span>·</span>
+        <span>{documentos} docs</span>
+      </div>
+    </div>
+  )
+}
 
 export default function ClinicasPage() {
+  const router = useRouter()
   const [busca, setBusca] = useState('')
   const [buscaDebounced, setBuscaDebounced] = useState('')
   const [page, setPage] = useState(1)
@@ -95,10 +138,9 @@ export default function ClinicasPage() {
         </div>
       </div>
 
-      {/* Barra de busca + filtros */}
+      {/* Busca + filtros */}
       <Card>
         <CardContent className="p-3 sm:p-4 space-y-3">
-          {/* Busca */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -114,7 +156,6 @@ export default function ClinicasPage() {
             )}
           </div>
 
-          {/* Filtros de plano */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground font-medium">Plano:</span>
             {PLANOS_FILTRO.map(p => {
@@ -128,38 +169,28 @@ export default function ClinicasPage() {
                     'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
                     ativo
                       ? cn(cfg.color, cfg.bg, cfg.border, 'ring-2 ring-offset-1 ring-current/30')
-                      : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted'
+                      : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted',
                   )}
                 >
                   {cfg.label}
                 </button>
               )
             })}
-
             <div className="w-px h-4 bg-border" />
-
-            <button
-              onClick={() => { setFiltroAtivo(filtroAtivo === false ? undefined : false); setPage(1) }}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
-                filtroAtivo === false
-                  ? 'bg-rose-50 text-rose-700 border-rose-200 ring-2 ring-offset-1 ring-rose-300'
-                  : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted'
-              )}
-            >
-              Inativas
-            </button>
-            <button
-              onClick={() => { setFiltroAtivo(filtroAtivo === true ? undefined : true); setPage(1) }}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
-                filtroAtivo === true
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-2 ring-offset-1 ring-emerald-300'
-                  : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted'
-              )}
-            >
-              Ativas
-            </button>
+            {([['Inativas', false, 'bg-rose-50 text-rose-700 border-rose-200 ring-rose-300'], ['Ativas', true, 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-emerald-300']] as const).map(([label, val, activeClasses]) => (
+              <button
+                key={label}
+                onClick={() => { setFiltroAtivo(filtroAtivo === val ? undefined : val); setPage(1) }}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+                  filtroAtivo === val
+                    ? cn(activeClasses, 'ring-2 ring-offset-1')
+                    : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted',
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -175,87 +206,102 @@ export default function ClinicasPage() {
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Plano</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden sm:table-cell">Pacientes</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden md:table-cell">Usuários</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden lg:table-cell">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden lg:table-cell">Criada em</th>
-                  <th className="px-4 py-3" />
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden lg:table-cell">Storage</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden xl:table-cell">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden xl:table-cell">Criada</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  [...Array(5)].map((_, i) => (
+                  [...Array(6)].map((_, i) => (
                     <tr key={i} className="border-b animate-pulse">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-muted" />
-                          <div className="h-4 bg-muted rounded w-32" />
+                          <div className="h-9 w-9 rounded-full bg-muted shrink-0" />
+                          <div className="h-4 bg-muted rounded w-36" />
                         </div>
                       </td>
-                      <td className="px-4 py-3"><div className="h-5 bg-muted rounded-full w-16" /></td>
-                      <td className="px-4 py-3 hidden sm:table-cell"><div className="h-4 bg-muted rounded w-24" /></td>
-                      <td className="px-4 py-3 hidden md:table-cell"><div className="h-4 bg-muted rounded w-10" /></td>
-                      <td className="px-4 py-3 hidden lg:table-cell"><div className="h-5 bg-muted rounded-full w-14" /></td>
-                      <td className="px-4 py-3 hidden lg:table-cell"><div className="h-4 bg-muted rounded w-20" /></td>
-                      <td className="px-4 py-3" />
+                      <td className="px-4 py-3.5"><div className="h-5 bg-muted rounded-full w-16" /></td>
+                      <td className="px-4 py-3.5 hidden sm:table-cell"><div className="h-4 bg-muted rounded w-24" /></td>
+                      <td className="px-4 py-3.5 hidden md:table-cell"><div className="h-4 bg-muted rounded w-10" /></td>
+                      <td className="px-4 py-3.5 hidden lg:table-cell"><div className="h-8 bg-muted rounded w-20" /></td>
+                      <td className="px-4 py-3.5 hidden xl:table-cell"><div className="h-5 bg-muted rounded-full w-14" /></td>
+                      <td className="px-4 py-3.5 hidden xl:table-cell"><div className="h-4 bg-muted rounded w-20" /></td>
                     </tr>
                   ))
                 ) : data?.items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center">
-                      <Building2 className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
+                    <td colSpan={7} className="px-4 py-16 text-center">
+                      <Building2 className="h-10 w-10 mx-auto text-muted-foreground/20 mb-3" />
                       <p className="text-muted-foreground text-sm">Nenhuma clínica encontrada.</p>
                     </td>
                   </tr>
                 ) : (
                   data?.items.map((c) => {
-                    const planoCfg = PLANO_CONFIG[c.plano]
+                    const cfg = PLANO_CONFIG[c.plano]
                     return (
-                      <tr key={c.id} className="border-b hover:bg-muted/20 transition-colors group">
-                        <td className="px-4 py-3">
+                      <tr
+                        key={c.id}
+                        onClick={() => router.push(`/clinitra-admin/clinicas/${c.id}`)}
+                        className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
+                      >
+                        <td className="px-4 py-3.5">
                           <div className="flex items-center gap-3">
                             <ClinicaAvatar nome={c.nome} />
-                            <span className="font-medium text-gray-900 truncate max-w-[140px]">{c.nome}</span>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 truncate max-w-[160px]">{c.nome}</p>
+                              {!c.ativo && (
+                                <p className="text-[10px] text-rose-500 font-medium">Inativa</p>
+                              )}
+                            </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant="outline"
-                            className={cn('text-xs font-semibold', planoCfg?.color, planoCfg?.bg, planoCfg?.border)}
-                          >
-                            {planoCfg?.label ?? c.plano}
-                          </Badge>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn('h-2 w-2 rounded-full shrink-0', cfg?.dot ?? 'bg-gray-400')} />
+                            <Badge
+                              variant="outline"
+                              className={cn('text-xs font-semibold whitespace-nowrap', cfg?.color, cfg?.bg, cfg?.border)}
+                            >
+                              {cfg?.label ?? c.plano}
+                            </Badge>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 hidden sm:table-cell">
-                          <div className="space-y-1">
-                            <span className="text-xs tabular-nums text-gray-700">
+                        <td className="px-4 py-3.5 hidden sm:table-cell">
+                          <div className="space-y-1.5">
+                            <span className="text-xs tabular-nums font-medium text-gray-700">
                               {c.pacientes_count}{c.quota_pacientes ? `/${c.quota_pacientes}` : ''}
                             </span>
                             <UsageBar pct={c.uso_pacientes_pct} />
                           </div>
                         </td>
-                        <td className="px-4 py-3 hidden md:table-cell">
-                          <span className="text-xs tabular-nums text-gray-700">
-                            {c.usuarios_count}{c.quota_usuarios ? `/${c.quota_usuarios}` : ''}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 hidden lg:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            <div className={cn('h-2 w-2 rounded-full', c.ativo ? 'bg-emerald-500' : 'bg-gray-300')} />
-                            <span className="text-xs text-muted-foreground">{c.ativo ? 'Ativa' : 'Inativa'}</span>
+                        <td className="px-4 py-3.5 hidden md:table-cell">
+                          <div className="space-y-1.5">
+                            <span className="text-xs tabular-nums font-medium text-gray-700">
+                              {c.usuarios_count}{c.quota_usuarios ? `/${c.quota_usuarios}` : ''}
+                            </span>
+                            <UsageBar pct={c.uso_usuarios_pct} />
                           </div>
                         </td>
-                        <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
-                          {c.criado_em ? new Date(c.criado_em).toLocaleDateString('pt-BR') : '-'}
+                        <td className="px-4 py-3.5 hidden lg:table-cell">
+                          <StorageCell
+                            bytesUsed={c.storage_bytes_used}
+                            bytesLimite={c.storage_bytes_limite}
+                            pct={c.storage_uso_pct}
+                            registros={c.registros_count}
+                            documentos={c.documentos_count}
+                          />
                         </td>
-                        <td className="px-4 py-3">
-                          <Link href={`/clinitra-admin/clinicas/${c.id}`}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
-                          </Link>
+                        <td className="px-4 py-3.5 hidden xl:table-cell">
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn('h-2 w-2 rounded-full', c.ativo ? 'bg-emerald-500' : 'bg-gray-300')} />
+                            <span className={cn('text-xs', c.ativo ? 'text-emerald-700 font-medium' : 'text-muted-foreground')}>
+                              {c.ativo ? 'Ativa' : 'Inativa'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 hidden xl:table-cell text-xs text-muted-foreground whitespace-nowrap">
+                          {c.criado_em ? new Date(c.criado_em).toLocaleDateString('pt-BR') : '-'}
                         </td>
                       </tr>
                     )
@@ -265,17 +311,16 @@ export default function ClinicasPage() {
             </table>
           </div>
 
-          {/* Paginação */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
               <p className="text-xs text-muted-foreground">
                 Página {page} de {totalPages} · {data?.total} total
               </p>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={(e) => { e.stopPropagation(); setPage(page - 1) }}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={(e) => { e.stopPropagation(); setPage(page + 1) }}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
