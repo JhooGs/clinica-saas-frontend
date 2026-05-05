@@ -282,3 +282,62 @@ export interface DocumentoPaciente {
   criado_em: string
   atualizado_em: string
 }
+
+// ── Financeiro Admin (Clinitra) ───────────────────────────────────────────────
+
+export type ClinitraCategoriaExpensa =
+  | 'infraestrutura'
+  | 'ferramentas'
+  | 'marketing'
+  | 'pessoal'
+  | 'impostos'
+  | 'outros'
+
+export type ClinitraCategoriaReceita = 'assinaturas' | 'consultoria' | 'outros'
+
+export type ClinitraCategoria = ClinitraCategoriaExpensa | ClinitraCategoriaReceita
+
+export interface ClinitraAssinatura {
+  id: string
+  nome: string
+  descricao?: string
+  tipo: 'receita' | 'despesa'
+  categoria: string
+  valor: number
+  dia_cobranca: number
+  ativo: boolean
+  inicio: string   // YYYY-MM-DD
+  fim?: string     // YYYY-MM-DD
+  criado_em: string
+  criado_por_email: string
+  total_lancamentos: number
+}
+
+export interface ClinitraFinanceiro {
+  id: string
+  tipo: 'receita' | 'despesa'
+  categoria: string
+  descricao: string
+  valor: number
+  status: 'pendente' | 'pago' | 'atrasado' | 'cancelado'
+  data_referencia: string   // YYYY-MM
+  data_vencimento?: string  // YYYY-MM-DD
+  data_pagamento?: string   // YYYY-MM-DD
+  assinatura_id?: string
+  assinatura_nome?: string
+  criado_em: string
+  criado_por_email?: string
+}
+
+export interface ClinitraFinanceiroResumo {
+  receita_mes: number
+  despesa_mes: number
+  saldo_mes: number
+  a_pagar: number
+}
+
+export interface ClinitraFinanceiroListResponse {
+  items: ClinitraFinanceiro[]
+  total: number
+  resumo: ClinitraFinanceiroResumo
+}

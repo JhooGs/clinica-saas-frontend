@@ -75,7 +75,7 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
   }
 
   return (
-    <div className="mt-8">
+    <div className="p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
           <Paperclip className="h-4 w-4 text-[#04c2fb]" />

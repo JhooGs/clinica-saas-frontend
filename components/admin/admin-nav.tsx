@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Menu, X, LayoutDashboard, Building2, Settings2, LogOut, ClipboardList,
+  Menu, X, LayoutDashboard, Building2, Settings2, LogOut, ClipboardList, DollarSign,
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase'
@@ -43,10 +43,11 @@ const staggerItem = {
 // ── Itens de navegação ────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { title: 'Visão Geral', href: '/clinitra-admin',           icon: LayoutDashboard },
-  { title: 'Clínicas',    href: '/clinitra-admin/clinicas',  icon: Building2 },
-  { title: 'Planos',      href: '/clinitra-admin/planos',    icon: Settings2 },
-  { title: 'Auditoria',   href: '/clinitra-admin/auditoria', icon: ClipboardList },
+  { title: 'Visão Geral', href: '/clinitra-admin',            icon: LayoutDashboard },
+  { title: 'Clínicas',    href: '/clinitra-admin/clinicas',   icon: Building2 },
+  { title: 'Planos',      href: '/clinitra-admin/planos',     icon: Settings2 },
+  { title: 'Financeiro',  href: '/clinitra-admin/financeiro', icon: DollarSign },
+  { title: 'Auditoria',   href: '/clinitra-admin/auditoria',  icon: ClipboardList },
 ]
 
 // ── Itens de navegação — mobile ───────────────────────────────────────────────

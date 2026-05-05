@@ -1,9 +1,23 @@
 'use client'
 
-import { Building2, DollarSign, Users, UserPlus, TrendingUp, TrendingDown, Activity } from 'lucide-react'
+import { useState } from 'react'
+import { Building2, DollarSign, Users, UserPlus, Activity } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAdminMetricas } from '@/hooks/use-admin-metricas'
 import { cn } from '@/lib/utils'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  TooltipProps,
+} from 'recharts'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -11,14 +25,21 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
-const PLANO_CONFIG: Record<string, { label: string; color: string; bg: string; bar: string }> = {
-  free:        { label: 'Free',        color: 'text-gray-600',   bg: 'bg-gray-100',   bar: 'bg-gray-400' },
-  solo:        { label: 'Solo',        color: 'text-cyan-700',   bg: 'bg-cyan-100',   bar: 'bg-[#04c2fb]' },
-  clinica:     { label: 'Clínica',     color: 'text-purple-700', bg: 'bg-purple-100', bar: 'bg-purple-500' },
-  clinica_pro: { label: 'Clínica Pro', color: 'text-violet-700', bg: 'bg-violet-100', bar: 'bg-violet-600' },
+const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+function mesAbrev(mesStr: string) {
+  const num = parseInt(mesStr, 10)
+  return MESES_ABREV[(num - 1) % 12] ?? mesStr
 }
 
-// ── Componentes ───────────────────────────────────────────────────────────────
+const PLANO_CONFIG: Record<string, { label: string; color: string; hex: string }> = {
+  free:        { label: 'Free',        color: 'text-gray-600',   hex: '#9ca3af' },
+  solo:        { label: 'Solo',        color: 'text-cyan-700',   hex: '#04c2fb' },
+  clinica:     { label: 'Clínica',     color: 'text-purple-700', hex: '#a855f7' },
+  clinica_pro: { label: 'Clínica Pro', color: 'text-violet-700', hex: '#7c3aed' },
+}
+
+// ── MetricCard ────────────────────────────────────────────────────────────────
 
 function MetricCard({
   title,
@@ -51,105 +72,202 @@ function MetricCard({
   )
 }
 
+// ── PlanDistribution — Donut Chart ────────────────────────────────────────────
+
 function PlanDistribution({ por_plano }: { por_plano: Record<string, number> }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+
   const total = Object.values(por_plano).reduce((a, b) => a + b, 0)
   if (total === 0) return null
 
   const order = ['free', 'solo', 'clinica', 'clinica_pro']
-  const entries = order
-    .filter(k => por_plano[k] > 0)
-    .map(k => ({ key: k, count: por_plano[k], pct: Math.round((por_plano[k] / total) * 100) }))
+  const data = order
+    .filter(k => (por_plano[k] ?? 0) > 0)
+    .map(k => ({
+      name: PLANO_CONFIG[k]?.label ?? k,
+      value: por_plano[k],
+      pct: Math.round((por_plano[k] / total) * 100),
+      hex: PLANO_CONFIG[k]?.hex ?? '#9ca3af',
+    }))
+
+  const active = activeIndex !== null ? data[activeIndex] : null
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
           Distribuição por Plano
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Barra empilhada */}
-        <div className="flex h-3 w-full overflow-hidden rounded-full gap-0.5">
-          {entries.map(e => {
-            const cfg = PLANO_CONFIG[e.key]
-            return (
-              <div
-                key={e.key}
-                className={cn('h-full transition-all', cfg?.bar ?? 'bg-gray-300')}
-                style={{ width: `${e.pct}%` }}
-                title={`${cfg?.label ?? e.key}: ${e.count}`}
-              />
-            )
-          })}
-        </div>
+      <CardContent>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          {/* Donut */}
+          <div className="relative w-44 h-44 shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={52}
+                  outerRadius={70}
+                  paddingAngle={3}
+                  dataKey="value"
+                  strokeWidth={0}
+                  onMouseEnter={(_, index) => setActiveIndex(index)}
+                  onMouseLeave={() => setActiveIndex(null)}
+                >
+                  {data.map((entry, index) => (
+                    <Cell
+                      key={entry.name}
+                      fill={entry.hex}
+                      opacity={activeIndex === null || activeIndex === index ? 1 : 0.35}
+                      style={{ cursor: 'pointer', transition: 'opacity 0.15s' }}
+                    />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            {/* Centro: total ou info do segmento ativo */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none transition-all">
+              {active ? (
+                <>
+                  <span
+                    className="text-xl font-bold tabular-nums leading-none transition-colors"
+                    style={{ color: active.hex }}
+                  >
+                    {active.value}
+                  </span>
+                  <span className="text-[11px] font-medium mt-0.5" style={{ color: active.hex }}>
+                    {active.pct}%
+                  </span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 max-w-[80px] text-center leading-tight">
+                    {active.name}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-2xl font-bold tabular-nums leading-none">{total}</span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">clínicas</span>
+                </>
+              )}
+            </div>
+          </div>
 
-        {/* Legenda */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {entries.map(e => {
-            const cfg = PLANO_CONFIG[e.key]
-            return (
-              <div key={e.key} className="flex items-center gap-2">
-                <div className={cn('h-2.5 w-2.5 rounded-full shrink-0', cfg?.bar ?? 'bg-gray-300')} />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">{cfg?.label ?? e.key}</p>
-                  <p className="text-xs text-muted-foreground">{e.count} · {e.pct}%</p>
+          {/* Legenda */}
+          <div className="flex flex-col gap-2.5 w-full">
+            {data.map((entry, index) => (
+              <div
+                key={entry.name}
+                className="flex items-center justify-between gap-2 min-w-0 transition-opacity"
+                style={{ opacity: activeIndex === null || activeIndex === index ? 1 : 0.4 }}
+                onMouseEnter={() => setActiveIndex(index)}
+                onMouseLeave={() => setActiveIndex(null)}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: entry.hex }} />
+                  <span className="text-sm font-medium truncate">{entry.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${entry.pct}%`, background: entry.hex }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground w-14 text-right tabular-nums">
+                    {entry.value} · {entry.pct}%
+                  </span>
                 </div>
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+// ── CrescimentoChart — Bar Chart ──────────────────────────────────────────────
+
+function BarTooltipContent({ active, payload, label }: TooltipProps<number, string>) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{
+      background: '#ffffff',
+      border: '1px solid #e5e7eb',
+      borderRadius: 8,
+      padding: '6px 12px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+      fontSize: 12,
+      lineHeight: '1.5',
+    }}>
+      <p style={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}>{label}</p>
+      <p style={{ color: '#6b7280' }}>
+        <span style={{ fontWeight: 500, color: '#111827' }}>{payload[0].value}</span>{' '}
+        nova{(payload[0].value as number) !== 1 ? 's' : ''} clínica{(payload[0].value as number) !== 1 ? 's' : ''}
+      </p>
+    </div>
   )
 }
 
 function CrescimentoChart({ crescimento }: { crescimento: { mes: string; novas: number }[] }) {
   if (crescimento.length === 0) return null
-  const max = Math.max(...crescimento.map(c => c.novas), 1)
+
+  const data = crescimento.map(c => ({
+    mes: mesAbrev(c.mes.slice(5)),
+    mesCompleto: c.mes,
+    novas: c.novas,
+  }))
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
           Novas Clínicas por Mês
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-end gap-2 h-36">
-          {crescimento.map((item, idx) => {
-            const heightPct = (item.novas / max) * 100
-            const prev = idx > 0 ? crescimento[idx - 1].novas : item.novas
-            const up = item.novas >= prev
-
-            return (
-              <div key={item.mes} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-                <div className="flex items-center gap-0.5 text-[11px] font-semibold">
-                  <span>{item.novas}</span>
-                  {up
-                    ? <TrendingUp className="h-3 w-3 text-emerald-500" />
-                    : <TrendingDown className="h-3 w-3 text-rose-400" />
-                  }
-                </div>
-                <div className="relative w-full flex-1 flex items-end">
-                  <div
-                    className="w-full rounded-t-md transition-all min-h-[4px]"
-                    style={{
-                      height: `${Math.max(heightPct, 4)}%`,
-                      background: 'linear-gradient(180deg, #04c2fb 0%, #0094c8 100%)',
-                    }}
-                  />
-                </div>
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{item.mes.slice(5)}</span>
-              </div>
-            )
-          })}
-        </div>
+        <ResponsiveContainer width="100%" height={176}>
+          <BarChart data={data} margin={{ top: 4, right: 4, left: -28, bottom: 0 }} barCategoryGap="35%">
+            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+            <XAxis
+              dataKey="mes"
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              allowDecimals={false}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip content={<BarTooltipContent />} cursor={{ fill: 'rgba(0,0,0,0.05)', radius: 6 }} />
+            <Bar dataKey="novas" radius={[6, 6, 0, 0]}>
+              {data.map((_, idx) => (
+                <Cell
+                  key={idx}
+                  fill={`url(#barGrad-${idx})`}
+                />
+              ))}
+              <defs>
+                {data.map((_, idx) => (
+                  <linearGradient key={idx} id={`barGrad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#04c2fb" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#0094c8" stopOpacity={0.8} />
+                  </linearGradient>
+                ))}
+              </defs>
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   )
 }
 
-// ── Skeleton de loading ───────────────────────────────────────────────────────
+// ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function Skeleton() {
   return (
@@ -166,6 +284,13 @@ function Skeleton() {
         {[...Array(3)].map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-5 h-24 bg-muted/20" />
+          </Card>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {[...Array(2)].map((_, i) => (
+          <Card key={i} className="animate-pulse">
+            <CardContent className="p-5 h-52 bg-muted/20" />
           </Card>
         ))}
       </div>
@@ -213,10 +338,8 @@ export default function ClintraAdminDashboard() {
         className="relative overflow-hidden rounded-2xl p-5 sm:p-6"
         style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
       >
-        {/* Círculo decorativo */}
         <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10" />
         <div className="absolute -right-2 top-8 h-24 w-24 rounded-full bg-white/10" />
-
         <div className="relative">
           <div className="flex items-center gap-2 mb-1">
             <DollarSign className="h-4 w-4 text-white/70" />
@@ -256,7 +379,7 @@ export default function ClintraAdminDashboard() {
         />
       </div>
 
-      {/* Distribuição por plano + gráfico */}
+      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <PlanDistribution por_plano={data.clinicas_por_plano} />
         <CrescimentoChart crescimento={data.crescimento_mensal} />

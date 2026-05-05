@@ -257,7 +257,7 @@ export default function ClinicasPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <div className={cn('h-2 w-2 rounded-full shrink-0', cfg?.dot ?? 'bg-gray-400')} />
                             <Badge
                               variant="outline"
@@ -265,6 +265,11 @@ export default function ClinicasPage() {
                             >
                               {cfg?.label ?? c.plano}
                             </Badge>
+                            {c.trial_expira_em && new Date(c.trial_expira_em) > new Date() && (
+                              <Badge className="text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap px-1.5 py-0">
+                                Trial
+                              </Badge>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3.5 hidden sm:table-cell">

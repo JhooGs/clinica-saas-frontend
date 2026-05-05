@@ -21,6 +21,14 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v1.1.2',
+    date: '05 de maio de 2026',
+    changes: [
+      { category: 'Added', description: 'Sistema de admin atualizado'},
+      { category: 'Changed', description: 'Agora as informações do paciente possuem hover para melhorar a visualização.'},
+    ],
+  },
+  {
     version: 'v1.1.1',
     date: '29 de abril de 2026',
     changes: [

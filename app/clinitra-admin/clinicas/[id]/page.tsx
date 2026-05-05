@@ -613,8 +613,26 @@ function PageSkeleton() {
 export default function ClinicaDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { data: clinica, isLoading } = useAdminClinicaDetalhe(id)
+  const atualizar = useAdminAtualizarClinica()
   const [modalPlano, setModalPlano] = useState(false)
   const [modalStatus, setModalStatus] = useState(false)
+  const [togglingIsencao, setTogglingIsencao] = useState(false)
+
+  async function handleToggleIsencao(novoValor: boolean) {
+    if (!clinica) return
+    setTogglingIsencao(true)
+    try {
+      await atualizar.mutateAsync({ clinicaId: id, body: { isento_cobranca: novoValor } })
+      toast.success(
+        novoValor ? 'Isenção ativada' : 'Isenção removida',
+        { description: novoValor ? `${clinica.nome} não será cobrada.` : `${clinica.nome} voltará a ser cobrada normalmente.` },
+      )
+    } catch (e) {
+      toast.error('Erro ao alterar isenção', { description: String(e) })
+    } finally {
+      setTogglingIsencao(false)
+    }
+  }
 
   if (isLoading) return <PageSkeleton />
 
@@ -682,18 +700,53 @@ export default function ClinicaDetalhePage({ params }: { params: Promise<{ id: s
             </div>
 
             {/* Ações */}
-            <div className="flex gap-2 shrink-0 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => setModalPlano(true)}>
-                <Edit3 className="h-3.5 w-3.5 mr-1.5" /> Alterar plano
-              </Button>
-              <Button
-                variant={clinica.ativo ? 'destructive' : 'default'}
-                size="sm"
-                onClick={() => setModalStatus(true)}
+            <div className="flex flex-col gap-2 shrink-0">
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setModalPlano(true)}
+                  className="inline-flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded-lg text-white shadow-sm transition-opacity hover:opacity-90"
+                  style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 100%)' }}
+                >
+                  <Edit3 className="h-3.5 w-3.5" /> Alterar plano
+                </button>
+                <button
+                  onClick={() => setModalStatus(true)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded-lg text-white shadow-sm transition-opacity hover:opacity-90',
+                    clinica.ativo
+                      ? 'bg-rose-500 hover:bg-rose-600'
+                      : 'bg-emerald-500 hover:bg-emerald-600',
+                  )}
+                >
+                  <Power className="h-3.5 w-3.5" />
+                  {clinica.ativo ? 'Desativar' : 'Ativar'}
+                </button>
+              </div>
+
+              {/* Toggle isenção de cobrança */}
+              <div
+                className={cn(
+                  'flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors',
+                  clinica.isento_cobranca
+                    ? 'border-amber-300 bg-amber-50'
+                    : 'border-gray-200 bg-gray-50',
+                )}
               >
-                <Power className="h-3.5 w-3.5 mr-1.5" />
-                {clinica.ativo ? 'Desativar' : 'Ativar'}
-              </Button>
+                <Switch
+                  checked={clinica.isento_cobranca}
+                  onCheckedChange={handleToggleIsencao}
+                  disabled={togglingIsencao}
+                  className="data-[state=checked]:bg-amber-500"
+                />
+                <div>
+                  <p className={cn('text-xs font-semibold leading-none', clinica.isento_cobranca ? 'text-amber-700' : 'text-gray-600')}>
+                    {clinica.isento_cobranca ? 'Isento de cobrança' : 'Cobrança normal'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">
+                    {clinica.isento_cobranca ? 'Nenhuma taxa é gerada' : 'Assinatura e add-ons cobrados'}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

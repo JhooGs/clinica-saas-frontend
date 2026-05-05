@@ -15,7 +15,7 @@ import {
   Clock, X, Sparkles, PowerOff, CalendarRange, Filter,
   Paperclip, BookOpen, Image as ImageIcon,
   ArrowUpDown, ArrowUp, ArrowDown, Columns3, Loader2,
-  Trash2, Plus, FolderOpen, Lock, ArrowRight,
+  Trash2, Plus, Lock, ArrowRight, ChevronDown,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, extractTiptapText, tiptapToHtml } from '@/lib/utils'
@@ -301,6 +301,8 @@ function CardPlano({
   pacienteAtivo,
   pacotesDisponiveis,
   tiposDisponiveis,
+  isOpen,
+  onToggle,
 }: {
   planoInicial: PlanoAtendimento
   onSalvar: (novoPlano: PlanoAtendimento) => void
@@ -309,6 +311,8 @@ function CardPlano({
   pacienteAtivo: boolean
   pacotesDisponiveis: Pacote[]
   tiposDisponiveis: TipoAtendimento[]
+  isOpen: boolean
+  onToggle: () => void
 }) {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
@@ -507,77 +511,87 @@ function CardPlano({
         </div>
       )}
 
-      {/* Header */}
-      <div className="p-4 sm:p-5 border-b flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className={cn(
-            'rounded-lg p-2 shrink-0 transition-colors',
-            pacienteAtivo ? 'bg-[#04c2fb]/10' : 'bg-gray-100',
-          )}>
-            <CreditCard className={cn('h-4 w-4', pacienteAtivo ? 'text-[#04c2fb]' : 'text-gray-400')} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">Plano de atendimento</p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {editando
-                ? 'Selecione o pacote e a recorrência'
-                : pacoteSelecionado
-                  ? `${pacoteSelecionado.nome} · ${descRec}`
-                  : 'Consultas pontuais'
-              }
-            </p>
-          </div>
+      {/* Header — clicável para accordion */}
+      <div
+        className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted/20 transition-colors select-none"
+        onClick={() => !editando && onToggle()}
+      >
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}>
+          <CreditCard className="h-4 w-4 text-white" />
         </div>
-
-        {!editando ? (
-          <button
-            disabled={!pacienteAtivo}
-            onClick={() => {
-              const f = { ...planoInicial }
-              // Inicializa slots se recorrência definida mas agenda ainda não foi configurada
-              if (f.pacoteId && f.recorrencia && (!f.agenda || f.agenda.slots.length === 0)) {
-                const numSlots = f.recorrencia === 'semanal' ? (f.vezesPorSemana ?? 1) : 1
-                f.agenda = {
-                  slots: Array.from({ length: numSlots }, () =>
-                    f.recorrencia === 'mensal'
-                      ? { diaMes: 10, horario: '08:00' }
-                      : { diaSemana: 1, horario: '08:00' }
-                  ),
-                }
-              }
-              setForm(f)
-              setEditando(true)
-            }}
-            className={cn(
-              'group/edit shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 border',
-              pacienteAtivo
-                ? 'text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] hover:border-[#04c2fb]/30'
-                : 'text-gray-300 border-gray-200 cursor-not-allowed',
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">Plano de Atendimento</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            {isOpen && editando
+              ? 'Selecione o pacote e a recorrência'
+              : pacoteSelecionado
+                ? `${pacoteSelecionado.nome} · ${descRec}`
+                : 'Consultas pontuais'
+            }
+          </p>
+        </div>
+        {isOpen && (
+          <div onClick={e => e.stopPropagation()} className="flex items-center gap-2 shrink-0">
+            {!editando ? (
+              <button
+                disabled={!pacienteAtivo}
+                onClick={() => {
+                  const f = { ...planoInicial }
+                  if (f.pacoteId && f.recorrencia && (!f.agenda || f.agenda.slots.length === 0)) {
+                    const numSlots = f.recorrencia === 'semanal' ? (f.vezesPorSemana ?? 1) : 1
+                    f.agenda = {
+                      slots: Array.from({ length: numSlots }, () =>
+                        f.recorrencia === 'mensal'
+                          ? { diaMes: 10, horario: '08:00' }
+                          : { diaSemana: 1, horario: '08:00' }
+                      ),
+                    }
+                  }
+                  setForm(f)
+                  setEditando(true)
+                }}
+                className={cn(
+                  'group/edit shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 border',
+                  pacienteAtivo
+                    ? 'text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] hover:border-[#04c2fb]/30'
+                    : 'text-gray-300 border-gray-200 cursor-not-allowed',
+                )}
+              >
+                <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" /> Editar
+              </button>
+            ) : (
+              <>
+                <button onClick={cancelar} className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border">
+                  Cancelar
+                </button>
+                <button
+                  onClick={salvar}
+                  disabled={temConflitoHorario || camposObrigatoriosFaltando}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors',
+                    (temConflitoHorario || camposObrigatoriosFaltando) ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',
+                  )}
+                  style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                >
+                  <Save className="h-3.5 w-3.5" /> Salvar
+                </button>
+              </>
             )}
-          >
-            <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" /> Editar
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={cancelar} className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border">
-              Cancelar
-            </button>
-            <button
-              onClick={salvar}
-              disabled={temConflitoHorario || camposObrigatoriosFaltando}
-              className={cn(
-                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors',
-                (temConflitoHorario || camposObrigatoriosFaltando) ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',
-              )}
-              style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
-            >
-              <Save className="h-3.5 w-3.5" /> Salvar
-            </button>
           </div>
         )}
+        <ChevronDown className={cn(
+          'h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0',
+          isOpen && 'rotate-180',
+        )} />
       </div>
 
-      {/* Body */}
+      {/* Body — animação accordion */}
+      <div className={cn(
+        'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+        isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+      )}>
+      <div className={cn('overflow-hidden min-h-0', isOpen && 'border-t')}>
       <div className="p-4 sm:p-5">
         {editando ? (
           <div className="space-y-5">
@@ -1105,6 +1119,8 @@ function CardPlano({
           )
         )}
       </div>
+      </div>
+      </div>
 
       {/* Modal de horário recorrente */}
       {modalHorarioAberto && (
@@ -1152,13 +1168,14 @@ function maskTelefone(v: string): string {
 
 /* ── Bloco bloqueado por plano ── */
 
-function LockedFeatureBlock({ label, description, requiredPlanLabel }: {
+function LockedFeatureBlock({ label, description, requiredPlanLabel, className }: {
   label: string
   description: string
   requiredPlanLabel: string
+  className?: string
 }) {
   return (
-    <div className="mt-8 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center select-none">
+    <div className={cn('rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center select-none', className)}>
       <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
         <Lock className="h-5 w-5 text-gray-400" />
       </div>
@@ -1305,6 +1322,8 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const totalSessoes = registros.length
   const presencas = registros.filter(r => r.presenca).length
   const faltas = registros.filter(r => !r.presenca).length
+
+  const [secaoAberta, setSecaoAberta] = useState<'informacoes' | 'plano' | 'historico' | 'documentos' | 'arquivos' | null>(null)
 
   const [expandidoAtendimentoId, setExpandidoSessaoId] = useState<string | null>(null)
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
@@ -1704,39 +1723,67 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         ))}
       </div>
 
-      {/* ── Informações do paciente ──── */}
-      <div className="rounded-xl border bg-card shadow-sm">
-          <div className="p-5 border-b flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold">Informações</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Dados cadastrais do paciente</p>
-            </div>
-            {!editando ? (
-              <button
-                onClick={() => setEditando(true)}
-                className="group/edit flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200 border hover:border-[#04c2fb]/30"
-              >
-                <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" /> Editar
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={tentarCancelar}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={salvarEdicao}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110"
-                  style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
-                >
-                  <Save className="h-3.5 w-3.5" /> Salvar
-                </button>
-              </div>
-            )}
+      {/* ── Informações Pessoais ──── */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* Header clicável */}
+        <div
+          className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted/20 transition-colors select-none"
+          onClick={() => !editando && setSecaoAberta(s => s === 'informacoes' ? null : 'informacoes')}
+        >
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+          >
+            <User className="h-4 w-4 text-white" />
           </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Informações Pessoais</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {secaoAberta !== 'informacoes'
+                ? ([paciente.telefone, paciente.email].filter(Boolean).join(' · ') || 'Nome, contato e endereço')
+                : 'Nome, contato e endereço'}
+            </p>
+          </div>
+          {secaoAberta === 'informacoes' && (
+            <div onClick={e => e.stopPropagation()} className="flex items-center gap-2 shrink-0">
+              {!editando ? (
+                <button
+                  onClick={() => setEditando(true)}
+                  className="group/edit flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-[#04c2fb]/5 hover:text-[#04c2fb] transition-all duration-200 border hover:border-[#04c2fb]/30"
+                >
+                  <Pencil className="h-3.5 w-3.5 transition-transform duration-200 group-hover/edit:-rotate-12 group-hover/edit:scale-110" /> Editar
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={tentarCancelar}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors border"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={salvarEdicao}
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110"
+                    style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                  >
+                    <Save className="h-3.5 w-3.5" /> Salvar
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          <ChevronDown className={cn(
+            'h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0',
+            secaoAberta === 'informacoes' && 'rotate-180',
+          )} />
+        </div>
 
+        {/* Conteúdo colapsável com animação */}
+        <div className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          secaoAberta === 'informacoes' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}>
+        <div className={cn('overflow-hidden min-h-0', secaoAberta === 'informacoes' && 'border-t')}>
           {editando ? (
             <div className="p-5 space-y-4">
               {/* Dados básicos */}
@@ -1917,28 +1964,28 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 </div>
               </div>
 
-              {/* Endereço — adulto apenas */}
-              {ehAdulto && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-px flex-1 bg-gray-100" />
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Endereço</span>
-                    <div className="h-px flex-1 bg-gray-100" />
-                  </div>
-                  <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-y-5 sm:gap-x-6">
-                    <InfoItem label="CEP" value={paciente.cep || '-'} />
-                    <InfoItem label="Número" value={paciente.numero || '-'} />
-                    <InfoItem label="Logradouro" value={paciente.logradouro || '-'} />
-                    <InfoItem label="Bairro" value={paciente.bairro || '-'} />
-                    <InfoItem label="Cidade" value={paciente.cidade || '-'} />
-                    <InfoItem label="UF" value={paciente.estado || '-'} />
-                    {paciente.complemento && <InfoItem label="Complemento" value={paciente.complemento} />}
-                  </div>
+              {/* Endereço */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-gray-100" />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Endereço</span>
+                  <div className="h-px flex-1 bg-gray-100" />
                 </div>
-              )}
+                <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-y-5 sm:gap-x-6">
+                  <InfoItem label="CEP" value={paciente.cep || '-'} />
+                  <InfoItem label="Número" value={paciente.numero || '-'} />
+                  <InfoItem label="Logradouro" value={paciente.logradouro || '-'} />
+                  <InfoItem label="Bairro" value={paciente.bairro || '-'} />
+                  <InfoItem label="Cidade" value={paciente.cidade || '-'} />
+                  <InfoItem label="UF" value={paciente.estado || '-'} />
+                  {paciente.complemento && <InfoItem label="Complemento" value={paciente.complemento} />}
+                </div>
+              </div>
             </div>
           )}
         </div>
+        </div>
+      </div>
 
       {/* ── Plano ────────────────────────────────── */}
       {patientPlanGate.allowed ? (
@@ -1956,25 +2003,65 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           pacienteAtivo={paciente.ativo}
           pacotesDisponiveis={pacotesDisponiveis}
           tiposDisponiveis={tiposDisponiveis}
+          isOpen={secaoAberta === 'plano'}
+          onToggle={() => setSecaoAberta(s => s === 'plano' ? null : 'plano')}
         />
       ) : (
-        <LockedFeatureBlock
-          label="Plano de Atendimento"
-          description="Configure pacotes, recorrência e cobrança automática para este paciente."
-          requiredPlanLabel={patientPlanGate.requiredPlanLabel ?? 'Solo'}
-        />
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div
+            className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted/20 transition-colors select-none"
+            onClick={() => setSecaoAberta(s => s === 'plano' ? null : 'plano')}
+          >
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+            >
+              <CreditCard className="h-4 w-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">Plano de Atendimento</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Recurso disponível em plano superior</p>
+            </div>
+            <ChevronDown className={cn(
+              'h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0',
+              secaoAberta === 'plano' && 'rotate-180',
+            )} />
+          </div>
+          <div className={cn(
+            'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+            secaoAberta === 'plano' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+          )}>
+          <div className={cn('overflow-hidden min-h-0 p-4', secaoAberta === 'plano' && 'border-t')}>
+            <LockedFeatureBlock
+              label="Plano de Atendimento"
+              description="Configure pacotes, recorrência e cobrança automática para este paciente."
+              requiredPlanLabel={patientPlanGate.requiredPlanLabel ?? 'Solo'}
+            />
+          </div>
+          </div>
+        </div>
       )}
 
       {/* ── Histórico de atendimentos ───────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b flex flex-col sm:flex-row sm:items-center gap-3">
+        <div
+          className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted/20 transition-colors select-none"
+          onClick={() => setSecaoAberta(s => s === 'historico' ? null : 'historico')}
+        >
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+          >
+            <CalendarDays className="h-4 w-4 text-white" />
+          </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">Histórico de Atendimentos</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {totalSessoes} {totalSessoes === 1 ? 'atendimento' : 'atendimentos'} realizados
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          {secaoAberta === 'historico' && (
+          <div onClick={e => e.stopPropagation()} className="flex items-center gap-2 shrink-0">
             {filtrosStatus.length < TODOS_STATUS_HIST.length && (
               <span className="text-xs text-muted-foreground">
                 {agendamentosFiltrados.length} de {agendamentosHist.length} exibida(s)
@@ -2107,7 +2194,17 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
               </PopoverContent>
             </Popover>
           </div>
+          )}
+          <ChevronDown className={cn(
+            'h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0',
+            secaoAberta === 'historico' && 'rotate-180',
+          )} />
         </div>
+        <div className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          secaoAberta === 'historico' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}>
+        <div className={cn('overflow-hidden min-h-0', secaoAberta === 'historico' && 'border-t')}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -2467,81 +2564,114 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
             </tbody>
           </table>
         </div>
+        </div>
+        </div>
       </div>
 
       {/* ── Documentos ───────────────────────────────── */}
-      {!formTemplatesGate.allowed ? (
-        <LockedFeatureBlock
-          label="Documentos"
-          description="Crie e preencha formulários clínicos personalizados para este paciente."
-          requiredPlanLabel={formTemplatesGate.requiredPlanLabel ?? 'Solo'}
-        />
-      ) : (
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
-            <FolderOpen className="h-4.5 w-4.5 text-[#04c2fb]" />
-            Documentos
-          </h2>
-          <button
-            type="button"
-            onClick={() => setModalNovoDocAberto(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div
+          className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted/20 transition-colors select-none"
+          onClick={() => setSecaoAberta(s => s === 'documentos' ? null : 'documentos')}
+        >
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
           >
-            <Plus className="h-3.5 w-3.5" />
-            Novo documento
-          </button>
-        </div>
-
-        {documentos.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
-            <FileText className="mx-auto h-8 w-8 text-gray-300 mb-2" />
-            <p className="text-sm text-gray-400">Nenhum documento ainda.</p>
+            <FileText className="h-4 w-4 text-white" />
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {documentos.map(doc => (
-              <div
-                key={doc.id}
-                className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 transition-all group"
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Documentos</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {formTemplatesGate.allowed && documentos.length > 0
+                ? `${documentos.length} documento(s)`
+                : 'Formulários e registros clínicos'}
+            </p>
+          </div>
+          {secaoAberta === 'documentos' && formTemplatesGate.allowed && (
+            <div onClick={e => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setModalNovoDocAberto(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
               >
-                <button
-                  type="button"
-                  onClick={() => router.push(`/dashboard/pacientes/${paciente.id}/documentos/${doc.id}`)}
-                  className="flex items-start gap-3 flex-1 min-w-0 text-left"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#04c2fb]/10">
-                    <FileText className="h-4 w-4 text-[#04c2fb]" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{doc.nome}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        doc.status === 'finalizado'
-                          ? 'bg-green-50 text-green-700'
-                          : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {doc.status === 'finalizado' ? 'Finalizado' : 'Rascunho'}
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        {new Date(doc.criado_em).toLocaleDateString('pt-BR')}
-                      </span>
+                <Plus className="h-3.5 w-3.5" />
+                Novo documento
+              </button>
+            </div>
+          )}
+          <ChevronDown className={cn(
+            'h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0',
+            secaoAberta === 'documentos' && 'rotate-180',
+          )} />
+        </div>
+        <div className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          secaoAberta === 'documentos' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}>
+        <div className={cn('overflow-hidden min-h-0', secaoAberta === 'documentos' && 'border-t')}>
+        <div className="p-4 sm:p-5">
+          {!formTemplatesGate.allowed ? (
+            <LockedFeatureBlock
+              label="Documentos"
+              description="Crie e preencha formulários clínicos personalizados para este paciente."
+              requiredPlanLabel={formTemplatesGate.requiredPlanLabel ?? 'Solo'}
+            />
+          ) : (
+            <>
+              {documentos.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
+                  <FileText className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+                  <p className="text-sm text-gray-400">Nenhum documento ainda.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {documentos.map(doc => (
+                    <div
+                      key={doc.id}
+                      className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 transition-all group"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/dashboard/pacientes/${paciente.id}/documentos/${doc.id}`)}
+                        className="flex items-start gap-3 flex-1 min-w-0 text-left"
+                      >
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#04c2fb]/10">
+                          <FileText className="h-4 w-4 text-[#04c2fb]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">{doc.nome}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              doc.status === 'finalizado'
+                                ? 'bg-green-50 text-green-700'
+                                : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              {doc.status === 'finalizado' ? 'Finalizado' : 'Rascunho'}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {new Date(doc.criado_em).toLocaleDateString('pt-BR')}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExcluindoDocPaciente({ id: doc.id, nome: doc.nome })}
+                        className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExcluindoDocPaciente({ id: doc.id, nome: doc.nome })}
-                  className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        </div>
+        </div>
       </div>
-      )}
 
       {/* Modais de documentos — só montados quando feature liberada */}
       {formTemplatesGate.allowed && excluindoDocPaciente && (
@@ -2582,15 +2712,45 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         />
       )}
       {/* ── Arquivos do paciente ─────────────────────── */}
-      {attachmentsGate.allowed ? (
-        <SecaoArquivosPaciente pacienteId={paciente.id} />
-      ) : (
-        <LockedFeatureBlock
-          label="Arquivos"
-          description="Armazene fotos, documentos e links vinculados a este paciente."
-          requiredPlanLabel={attachmentsGate.requiredPlanLabel ?? 'Solo'}
-        />
-      )}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div
+          className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted/20 transition-colors select-none"
+          onClick={() => setSecaoAberta(s => s === 'arquivos' ? null : 'arquivos')}
+        >
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+          >
+            <Paperclip className="h-4 w-4 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Arquivos</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Fotos, PDFs e outros documentos</p>
+          </div>
+          <ChevronDown className={cn(
+            'h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0',
+            secaoAberta === 'arquivos' && 'rotate-180',
+          )} />
+        </div>
+        <div className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          secaoAberta === 'arquivos' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}>
+        <div className={cn('overflow-hidden min-h-0', secaoAberta === 'arquivos' && 'border-t')}>
+          {attachmentsGate.allowed ? (
+            <SecaoArquivosPaciente pacienteId={paciente.id} />
+          ) : (
+            <div className="p-4">
+              <LockedFeatureBlock
+                label="Arquivos"
+                description="Armazene fotos, documentos e links vinculados a este paciente."
+                requiredPlanLabel={attachmentsGate.requiredPlanLabel ?? 'Solo'}
+              />
+            </div>
+          )}
+        </div>
+        </div>
+      </div>
 
       {/* Dados do paciente — direitos LGPD */}
       {(isAdmin || isSuperAdmin) && (

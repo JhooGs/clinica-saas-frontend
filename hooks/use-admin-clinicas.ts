@@ -8,7 +8,9 @@ export interface ClinicaListItem {
   nome: string
   plano: string
   ativo: boolean
+  isento_cobranca: boolean
   criado_em: string
+  trial_expira_em: string | null
   usuarios_count: number
   pacientes_count: number
   quota_pacientes: number | null
@@ -33,6 +35,7 @@ export interface ClinicaDetalhe extends ClinicaListItem {
   cnpj: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  isento_cobranca: boolean
   trial_expira_em: string | null
   ultimo_acesso: string | null
   registros_count: number
@@ -87,7 +90,7 @@ export function useAdminAtualizarClinica() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ clinicaId, body }: { clinicaId: string; body: { plano?: string; ativo?: boolean } }) =>
+    mutationFn: ({ clinicaId, body }: { clinicaId: string; body: { plano?: string; ativo?: boolean; isento_cobranca?: boolean } }) =>
       apiFetch(`/api/v1/admin/clinicas/${clinicaId}`, {
         method: 'PATCH',
         body: JSON.stringify(body),

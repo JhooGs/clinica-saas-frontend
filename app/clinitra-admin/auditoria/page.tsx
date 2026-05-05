@@ -8,6 +8,115 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useAdminAuditoria, type AuditLogItem } from '@/hooks/use-admin-auditoria'
 
+// ── Labels legíveis para chaves comuns ────────────────────────────────────────
+
+const FIELD_LABELS: Record<string, string> = {
+  nome: 'Nome',
+  email: 'E-mail',
+  email_contato: 'E-mail de contato',
+  telefone: 'Telefone',
+  especialidade: 'Especialidade',
+  plano: 'Plano',
+  trial_expira_em: 'Trial expira em',
+  ativo: 'Ativo',
+  max_profissionais: 'Máx. profissionais',
+  max_pacientes: 'Máx. pacientes',
+  preco_mensal: 'Preço mensal',
+  preco_anual: 'Preço anual',
+  descricao: 'Descrição',
+  features: 'Recursos',
+  logradouro: 'Logradouro',
+  numero: 'Número',
+  complemento: 'Complemento',
+  bairro: 'Bairro',
+  cidade: 'Cidade',
+  estado: 'Estado',
+  cep: 'CEP',
+  cnpj: 'CNPJ',
+  ia_requests_mensais: 'Req. IA/mês',
+  status: 'Status',
+  criado_em: 'Criado em',
+  atualizado_em: 'Atualizado em',
+}
+
+function fieldLabel(key: string) {
+  return FIELD_LABELS[key] ?? key.replace(/_/g, ' ')
+}
+
+function formatValue(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'boolean') return v ? 'Sim' : 'Não'
+  if (typeof v === 'number') return String(v)
+  if (typeof v === 'string') {
+    // ISO date
+    if (/^\d{4}-\d{2}-\d{2}T/.test(v)) {
+      return new Date(v).toLocaleString('pt-BR')
+    }
+    return v
+  }
+  if (Array.isArray(v)) return v.join(', ')
+  return JSON.stringify(v)
+}
+
+// ── Componente de diff ────────────────────────────────────────────────────────
+
+function PayloadDiff({
+  antes,
+  depois,
+}: {
+  antes?: Record<string, unknown> | null
+  depois?: Record<string, unknown> | null
+}) {
+  const keys = Array.from(new Set([
+    ...Object.keys(antes ?? {}),
+    ...Object.keys(depois ?? {}),
+  ]))
+
+  // Quando só um lado existe, mostra lista simples
+  if (!antes || !depois) {
+    const payload = (antes ?? depois)!
+    return (
+      <div className="space-y-1">
+        {Object.entries(payload).map(([k, v]) => (
+          <div key={k} className="flex gap-2 text-xs">
+            <span className="text-muted-foreground w-36 shrink-0">{fieldLabel(k)}</span>
+            <span className="text-gray-800 break-all">{formatValue(v)}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Mostra só os campos que mudaram
+  const changed = keys.filter(k => JSON.stringify(antes[k]) !== JSON.stringify(depois[k]))
+
+  if (changed.length === 0) {
+    return <p className="text-xs text-muted-foreground italic">Sem alterações detectadas.</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      {changed.map(k => (
+        <div key={k} className="rounded-lg border bg-white overflow-hidden">
+          <div className="px-3 py-1 bg-muted/50 border-b">
+            <span className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">{fieldLabel(k)}</span>
+          </div>
+          <div className="grid grid-cols-2 divide-x">
+            <div className="px-3 py-2 bg-rose-50/60">
+              <p className="text-[10px] font-semibold text-rose-600 uppercase tracking-wider mb-1">Antes</p>
+              <p className="text-xs text-gray-700 break-all">{formatValue(antes[k])}</p>
+            </div>
+            <div className="px-3 py-2 bg-emerald-50/60">
+              <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-1">Depois</p>
+              <p className="text-xs text-gray-700 break-all">{formatValue(depois[k])}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Mapeamento de ações ───────────────────────────────────────────────────────
 
 const ACAO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -86,23 +195,11 @@ function AuditRow({ item }: { item: AuditLogItem }) {
 
       {/* Payload expandido */}
       {expanded && temPayload && (
-        <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {item.payload_antes && (
-            <div className="rounded-lg border bg-rose-50/50 p-3">
-              <p className="text-[11px] font-semibold text-rose-700 uppercase tracking-wider mb-2">Antes</p>
-              <pre className="text-xs text-gray-700 whitespace-pre-wrap break-all">
-                {JSON.stringify(item.payload_antes, null, 2)}
-              </pre>
-            </div>
-          )}
-          {item.payload_depois && (
-            <div className="rounded-lg border bg-emerald-50/50 p-3">
-              <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider mb-2">Depois</p>
-              <pre className="text-xs text-gray-700 whitespace-pre-wrap break-all">
-                {JSON.stringify(item.payload_depois, null, 2)}
-              </pre>
-            </div>
-          )}
+        <div className="px-4 pb-4 pt-1">
+          <PayloadDiff
+            antes={item.payload_antes as Record<string, unknown> | null}
+            depois={item.payload_depois as Record<string, unknown> | null}
+          />
         </div>
       )}
     </div>
