@@ -16,7 +16,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  TooltipProps,
 } from 'recharts'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -190,7 +189,11 @@ function PlanDistribution({ por_plano }: { por_plano: Record<string, number> }) 
 
 // ── CrescimentoChart — Bar Chart ──────────────────────────────────────────────
 
-function BarTooltipContent({ active, payload, label }: TooltipProps<number, string>) {
+function BarTooltipContent({ active, payload, label }: {
+  active?: boolean
+  payload?: Array<{ value?: number; name?: string }>
+  label?: string
+}) {
   if (!active || !payload?.length) return null
   return (
     <div style={{

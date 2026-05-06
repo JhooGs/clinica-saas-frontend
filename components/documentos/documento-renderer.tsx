@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { CheckCircle2, Clock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { format, isToday } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { FieldRenderer } from '@/components/documentos/field-renderer'
 import { useSalvarRespostas } from '@/hooks/use-documentos-paciente'
+import { cn } from '@/lib/utils'
 import type { DocumentoSchema, TipoCampo } from '@/types'
 
 interface DocumentoRendererProps {
@@ -14,18 +17,27 @@ interface DocumentoRendererProps {
   respostasIniciais: Record<string, unknown>
   readonly?: boolean
   onFinalizar?: () => void
+  /** ISO string do `atualizado_em` do backend — usado como valor inicial do indicador */
+  ultimoSalvoEm?: string
 }
 
 const TIPOS_NAO_PREENCHAVEIS: TipoCampo[] = ['secao', 'texto_informativo']
 
 function valorVazio(tipo: TipoCampo, valor: unknown): boolean {
   if (TIPOS_NAO_PREENCHAVEIS.includes(tipo)) return false
-  if (tipo === 'escala') return false // slider sempre tem valor
+  if (tipo === 'escala') return false
   if (valor === undefined || valor === null) return true
   if (typeof valor === 'string') return valor.trim() === ''
   if (Array.isArray(valor)) return valor.length === 0
   if (typeof valor === 'number') return isNaN(valor)
   return false
+}
+
+function formatarTimestamp(data: Date): string {
+  if (isToday(data)) {
+    return `Rascunho salvo às ${format(data, 'HH:mm')}`
+  }
+  return `Rascunho salvo em ${format(data, "dd/MM 'às' HH:mm", { locale: ptBR })}`
 }
 
 export function DocumentoRenderer({
@@ -35,9 +47,14 @@ export function DocumentoRenderer({
   respostasIniciais,
   readonly = false,
   onFinalizar,
+  ultimoSalvoEm,
 }: DocumentoRendererProps) {
   const [respostas, setRespostas] = useState<Record<string, unknown>>(respostasIniciais)
   const [camposComErro, setCamposComErro] = useState<Set<string>>(new Set())
+  const [ultimoSalvo, setUltimoSalvo] = useState<Date | null>(
+    ultimoSalvoEm ? new Date(ultimoSalvoEm) : null,
+  )
+  const [salvando, setSalvando] = useState(false)
   const salvarMutation = useSalvarRespostas(pacienteId, docId)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDirtyRef = useRef(false)
@@ -49,7 +66,6 @@ export function DocumentoRenderer({
     setRespostas(novas)
     isDirtyRef.current = true
 
-    // Limpa erro do campo quando o usuário preenche
     if (camposComErro.has(campoId)) {
       setCamposComErro(prev => {
         const next = new Set(prev)
@@ -58,18 +74,22 @@ export function DocumentoRenderer({
       })
     }
 
+    setSalvando(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       salvarMutation.mutate(
         { respostas: novas },
         {
           onSuccess: () => {
+            setSalvando(false)
+            setUltimoSalvo(new Date())
             if (!toastSalvoRef.current) {
               toast.info('Rascunho salvo automaticamente', { id: `doc-autosave-${docId}`, duration: 2000 })
               toastSalvoRef.current = true
             }
           },
           onError: () => {
+            setSalvando(false)
             toast.error('Erro ao salvar rascunho')
           },
         },
@@ -79,7 +99,6 @@ export function DocumentoRenderer({
   }
 
   const handleFinalizar = () => {
-    // Coleta campos obrigatórios vazios
     const invalidos = new Set<string>()
     const labelsInvalidos: string[] = []
 
@@ -123,7 +142,39 @@ export function DocumentoRenderer({
   }, [])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Indicador de último save — topo, sempre visível ao abrir o documento */}
+      {!readonly && (
+        <div
+          className={cn(
+            'flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-medium border transition-all',
+            salvando
+              ? 'bg-[#04c2fb]/8 border-[#04c2fb]/25 text-[#04c2fb]'
+              : ultimoSalvo
+                ? 'bg-emerald-50 border-emerald-150 text-emerald-700'
+                : 'bg-gray-50 border-gray-100 text-gray-400',
+          )}
+        >
+          {salvando ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+              Salvando rascunho…
+            </>
+          ) : ultimoSalvo ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              {formatarTimestamp(ultimoSalvo)}
+            </>
+          ) : (
+            <>
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              Nenhuma alteração salva ainda
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Campos do formulário */}
       {schema.secoes.map(secao => (
         <div key={secao.id} className="rounded-xl border border-gray-100 bg-white p-4 sm:p-6 space-y-4">
           <h3 className="text-sm font-semibold text-gray-800 pb-2 border-b border-gray-100">{secao.titulo}</h3>

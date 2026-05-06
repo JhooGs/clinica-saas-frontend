@@ -10,6 +10,8 @@ export interface AuditLogEntry {
   descricao: string | null
   ip: string | null
   criado_em: string
+  payload_antes: Record<string, unknown> | null
+  payload_depois: Record<string, unknown> | null
 }
 
 export interface AuditLogResponse {
@@ -60,16 +62,28 @@ export const LABELS_ACAO: Record<string, string> = {
   PACOTE_CRIADO:                'Pacote criado',
   PACOTE_ATUALIZADO:            'Pacote atualizado',
   PACOTE_EXCLUIDO:              'Pacote excluído',
+  // Documentos
+  TEMPLATE_CRIADO:              'Template criado',
+  TEMPLATE_ATUALIZADO:          'Template atualizado',
+  TEMPLATE_EXCLUIDO:            'Template excluído',
+  TEMPLATE_IA_EXTRAIDO:         'Template gerado por IA',
+  DOCUMENTO_CRIADO:             'Documento criado',
+  DOCUMENTO_VISUALIZADO:        'Documento acessado',
+  DOCUMENTO_ATUALIZADO:         'Documento salvo',
+  DOCUMENTO_EXCLUIDO:           'Documento excluído',
+  DOCUMENTO_REABERTO_EDICAO:    'Doc. finalizado reaberto',
 }
 
 export const LABELS_ENTIDADE: Record<string, string> = {
-  paciente:        'Paciente',
-  registro:        'Registro',
-  financeiro:      'Financeiro',
-  agendamento:     'Agenda',
-  usuario:         'Usuário',
-  tipo_atendimento:'Tipo de atendimento',
-  pacote:          'Pacote',
+  paciente:           'Paciente',
+  registro:           'Registro',
+  financeiro:         'Financeiro',
+  agendamento:        'Agenda',
+  usuario:            'Usuário',
+  tipo_atendimento:   'Tipo de atendimento',
+  pacote:             'Pacote',
+  documento_paciente: 'Documento',
+  documento_template: 'Template',
 }
 
 export function useAuditLog(filtros: FiltrosAuditLog = {}) {

@@ -26,6 +26,8 @@ const CHANGELOG: VersionEntry[] = [
     changes: [
       { category: 'Added', description: 'Sistema de admin atualizado'},
       { category: 'Changed', description: 'Agora as informações do paciente possuem hover para melhorar a visualização.'},
+      { category: 'Changed', description: 'Agora os formulários podem ser editados depois de finalizados.'},
+      { category: 'Added', description: 'Dentro de formulários o horário do último rascunho salvo é exibido.'},
     ],
   },
   {

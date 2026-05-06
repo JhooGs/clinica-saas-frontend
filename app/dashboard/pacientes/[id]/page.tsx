@@ -2031,12 +2031,14 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
             'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
             secaoAberta === 'plano' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
           )}>
-          <div className={cn('overflow-hidden min-h-0 p-4', secaoAberta === 'plano' && 'border-t')}>
-            <LockedFeatureBlock
-              label="Plano de Atendimento"
-              description="Configure pacotes, recorrência e cobrança automática para este paciente."
-              requiredPlanLabel={patientPlanGate.requiredPlanLabel ?? 'Solo'}
-            />
+          <div className={cn('overflow-hidden min-h-0', secaoAberta === 'plano' && 'border-t')}>
+            <div className="p-4">
+              <LockedFeatureBlock
+                label="Plano de Atendimento"
+                description="Configure pacotes, recorrência e cobrança automática para este paciente."
+                requiredPlanLabel={patientPlanGate.requiredPlanLabel ?? 'Solo'}
+              />
+            </div>
           </div>
           </div>
         </div>
