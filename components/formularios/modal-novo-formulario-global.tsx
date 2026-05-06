@@ -7,8 +7,8 @@ import { toast } from 'sonner'
 import { ModalPortal } from '@/components/modal-portal'
 import { useTemplates } from '@/hooks/use-templates'
 import { usePacientes } from '@/hooks/use-pacientes'
-import { useCriarDocumento } from '@/hooks/use-documentos-paciente'
-import type { DocumentoTemplate } from '@/types'
+import { useCriarFormulario } from '@/hooks/use-formularios-paciente'
+import type { FormularioTemplate } from '@/types'
 
 interface Props {
   onFechar: () => void
@@ -23,7 +23,7 @@ const CATEGORIA_LABELS: Record<string, string> = {
   outro: 'Outro',
 }
 
-export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: Props) {
+export function ModalNovoFormularioGlobal({ onFechar, templatePreSelecionado }: Props) {
   const router = useRouter()
   // Quando há template pré-selecionado começa na etapa 1 (paciente) e nunca vai para etapa 2
   const [etapa, setEtapa] = useState<1 | 2>(1)
@@ -36,7 +36,7 @@ export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: P
   )
   const { data: templates = [], isLoading: loadingTemplates } = useTemplates()
 
-  const criarDocumento = useCriarDocumento(pacienteSelecionado?.id ?? '')
+  const criarFormulario = useCriarFormulario(pacienteSelecionado?.id ?? '')
 
   const pacientes = pacientesData?.items ?? []
 
@@ -51,15 +51,15 @@ export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: P
   }, [templates, categoriaFiltro])
 
   function criarComTemplate(templateId: string, templateNome: string, pacienteId: string) {
-    criarDocumento.mutate(
+    criarFormulario.mutate(
       { template_id: templateId, nome: templateNome },
       {
         onSuccess: doc => {
-          toast.success('Documento criado', { description: `Abrindo "${templateNome}"` })
+          toast.success('Formulário criado', { description: `Abrindo "${templateNome}"` })
           onFechar()
-          router.push(`/dashboard/pacientes/${pacienteId}/documentos/${doc.id}`)
+          router.push(`/dashboard/pacientes/${pacienteId}/formularios/${doc.id}`)
         },
-        onError: () => toast.error('Erro ao criar documento'),
+        onError: () => toast.error('Erro ao criar formulário'),
       },
     )
   }
@@ -75,7 +75,7 @@ export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: P
     }
   }
 
-  function handleSelecionarTemplate(template: DocumentoTemplate) {
+  function handleSelecionarTemplate(template: FormularioTemplate) {
     if (!pacienteSelecionado) return
     criarComTemplate(template.id, template.nome, pacienteSelecionado.id)
   }
@@ -169,7 +169,7 @@ export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: P
                     <button
                       key={p.id}
                       type="button"
-                      disabled={criarDocumento.isPending}
+                      disabled={criarFormulario.isPending}
                       onClick={() => handleSelecionarPaciente({ id: p.id, nome: p.nome })}
                       className="w-full flex items-center gap-3 rounded-xl border border-gray-200 p-3 text-left hover:border-[#04c2fb] hover:bg-[#04c2fb]/5 transition-all group disabled:opacity-60"
                     >
@@ -177,7 +177,7 @@ export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: P
                         {p.nome.charAt(0).toUpperCase()}
                       </div>
                       <span className="text-sm font-medium text-gray-900 flex-1 truncate">{p.nome}</span>
-                      {criarDocumento.isPending && pacienteSelecionado?.id === p.id
+                      {criarFormulario.isPending && pacienteSelecionado?.id === p.id
                         ? <Loader2 className="h-4 w-4 text-[#04c2fb] animate-spin shrink-0" />
                         : <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-[#04c2fb] transition-colors shrink-0" />
                       }
@@ -237,7 +237,7 @@ export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: P
                       key={t.id}
                       type="button"
                       onClick={() => handleSelecionarTemplate(t)}
-                      disabled={criarDocumento.isPending}
+                      disabled={criarFormulario.isPending}
                       className="w-full flex items-start gap-3 rounded-xl border border-gray-200 p-3 text-left hover:border-[#04c2fb] hover:bg-[#04c2fb]/5 transition-all disabled:opacity-60"
                     >
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#04c2fb]/10">
@@ -247,7 +247,7 @@ export function ModalNovoDocumentoGlobal({ onFechar, templatePreSelecionado }: P
                         <p className="text-sm font-medium text-gray-900 truncate">{t.nome}</p>
                         <p className="text-xs text-gray-500 mt-0.5">{CATEGORIA_LABELS[t.categoria] ?? t.categoria}</p>
                       </div>
-                      {criarDocumento.isPending && (
+                      {criarFormulario.isPending && (
                         <Loader2 className="ml-auto h-4 w-4 animate-spin text-[#04c2fb] shrink-0 self-center" />
                       )}
                     </button>

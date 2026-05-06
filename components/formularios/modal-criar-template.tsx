@@ -5,11 +5,11 @@ import { Loader2, Pencil, Sparkles, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalPortal } from '@/components/modal-portal'
 import { useExtrairTemplateIA } from '@/hooks/use-templates'
-import type { DocumentoSchema } from '@/types'
+import type { FormularioSchema } from '@/types'
 
 interface ModalCriarTemplateProps {
   onManual: () => void
-  onIASuccess: (schema: DocumentoSchema, arquivoNome: string) => void
+  onIASuccess: (schema: FormularioSchema, arquivoNome: string) => void
   onFechar: () => void
   planoFree?: boolean
 }
@@ -38,7 +38,7 @@ export function ModalCriarTemplate({
 
     try {
       const result = await extrair.mutateAsync(file)
-      onIASuccess(result.schema as DocumentoSchema, result.arquivo_nome)
+      onIASuccess(result.schema as FormularioSchema, result.arquivo_nome)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Tente novamente.'
       toast.error('Erro ao processar o arquivo', { description: msg })

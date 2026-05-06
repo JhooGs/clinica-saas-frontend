@@ -5,15 +5,15 @@ import { CheckCircle2, Clock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { FieldRenderer } from '@/components/documentos/field-renderer'
-import { useSalvarRespostas } from '@/hooks/use-documentos-paciente'
+import { FieldRenderer } from '@/components/formularios/field-renderer'
+import { useSalvarRespostas } from '@/hooks/use-formularios-paciente'
 import { cn } from '@/lib/utils'
-import type { DocumentoSchema, TipoCampo } from '@/types'
+import type { FormularioSchema, TipoCampo } from '@/types'
 
-interface DocumentoRendererProps {
+interface FormularioRendererProps {
   pacienteId: string
   docId: string
-  schema: DocumentoSchema
+  schema: FormularioSchema
   respostasIniciais: Record<string, unknown>
   readonly?: boolean
   onFinalizar?: () => void
@@ -40,7 +40,7 @@ function formatarTimestamp(data: Date): string {
   return `Rascunho salvo em ${format(data, "dd/MM 'às' HH:mm", { locale: ptBR })}`
 }
 
-export function DocumentoRenderer({
+export function FormularioRenderer({
   pacienteId,
   docId,
   schema,
@@ -48,7 +48,7 @@ export function DocumentoRenderer({
   readonly = false,
   onFinalizar,
   ultimoSalvoEm,
-}: DocumentoRendererProps) {
+}: FormularioRendererProps) {
   const [respostas, setRespostas] = useState<Record<string, unknown>>(respostasIniciais)
   const [camposComErro, setCamposComErro] = useState<Set<string>>(new Set())
   const [ultimoSalvo, setUltimoSalvo] = useState<Date | null>(
@@ -84,7 +84,7 @@ export function DocumentoRenderer({
             setSalvando(false)
             setUltimoSalvo(new Date())
             if (!toastSalvoRef.current) {
-              toast.info('Rascunho salvo automaticamente', { id: `doc-autosave-${docId}`, duration: 2000 })
+              toast.info('Rascunho salvo automaticamente', { id: `formulario-autosave-${docId}`, duration: 2000 })
               toastSalvoRef.current = true
             }
           },
@@ -127,10 +127,10 @@ export function DocumentoRenderer({
       { respostas, status: 'finalizado' },
       {
         onSuccess: () => {
-          toast.success('Documento finalizado')
+          toast.success('Formulário finalizado')
           onFinalizar?.()
         },
-        onError: () => toast.error('Erro ao finalizar documento'),
+        onError: () => toast.error('Erro ao finalizar formulário'),
       },
     )
   }
@@ -143,7 +143,7 @@ export function DocumentoRenderer({
 
   return (
     <div className="space-y-4">
-      {/* Indicador de último save — topo, sempre visível ao abrir o documento */}
+      {/* Indicador de último save — topo, sempre visível ao abrir o formulário */}
       {!readonly && (
         <div
           className={cn(
@@ -201,7 +201,7 @@ export function DocumentoRenderer({
             style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
           >
             {salvarMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Finalizar documento
+            Finalizar formulário
           </button>
         </div>
       )}

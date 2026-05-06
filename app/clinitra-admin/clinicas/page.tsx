@@ -54,9 +54,9 @@ function formatBytes(bytes: number): string {
 }
 
 function StorageCell({
-  bytesUsed, bytesLimite, pct, registros, documentos,
+  bytesUsed, bytesLimite, pct, registros, formularios,
 }: {
-  bytesUsed: number; bytesLimite: number; pct: number | null; registros: number; documentos: number
+  bytesUsed: number; bytesLimite: number; pct: number | null; registros: number; formularios: number
 }) {
   const cor = pct !== null && pct >= 80 ? 'bg-rose-500' : pct !== null && pct >= 60 ? 'bg-amber-400' : 'bg-[#04c2fb]'
   return (
@@ -82,7 +82,7 @@ function StorageCell({
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-0.5"><FileText className="h-2.5 w-2.5" />{registros} reg.</span>
         <span>·</span>
-        <span>{documentos} docs</span>
+        <span>{formularios} forms</span>
       </div>
     </div>
   )
@@ -294,7 +294,7 @@ export default function ClinicasPage() {
                             bytesLimite={c.storage_bytes_limite}
                             pct={c.storage_uso_pct}
                             registros={c.registros_count}
-                            documentos={c.documentos_count}
+                            formularios={c.formularios_count}
                           />
                         </td>
                         <td className="px-4 py-3.5 hidden xl:table-cell">

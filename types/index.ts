@@ -214,7 +214,7 @@ export interface Usuario {
   permissoes: Permissoes | null
 }
 
-// ── Documentos ────────────────────────────────────────────────────────────────
+// ── Formulários ───────────────────────────────────────────────────────────────
 
 export type TipoCampo =
   | 'texto_curto'
@@ -245,20 +245,20 @@ export interface Secao {
   campos: Campo[]
 }
 
-export interface DocumentoSchema {
+export interface FormularioSchema {
   secoes: Secao[]
 }
 
-export type DocumentoStatus = 'rascunho' | 'finalizado'
+export type FormularioStatus = 'rascunho' | 'finalizado'
 
-export interface DocumentoTemplate {
+export interface FormularioTemplate {
   id: string
   clinica_id: string
   criado_por: string
   nome: string
   categoria: string
   descricao?: string
-  schema: DocumentoSchema
+  schema: FormularioSchema
   origem: 'manual' | 'ia'
   arquivo_origem_url?: string
   ativo: boolean
@@ -267,16 +267,16 @@ export interface DocumentoTemplate {
   atualizado_em: string
 }
 
-export interface DocumentoPaciente {
+export interface FormularioPaciente {
   id: string
   paciente_id: string
   clinica_id: string
   template_id?: string
   criado_por: string
   nome: string
-  schema_snapshot?: DocumentoSchema
+  schema_snapshot?: FormularioSchema
   respostas?: Record<string, unknown>
-  status: DocumentoStatus
+  status: FormularioStatus
   arquivo_anexo_url?: string
   ativo: boolean
   criado_em: string

@@ -101,7 +101,7 @@ function PayloadDiff({
 function AuditRow({ entry }: { entry: AuditLogEntry }) {
   const [expanded, setExpanded] = useState(false)
   const temPayload = !!(entry.payload_antes || entry.payload_depois)
-  const isReabertura = entry.acao === 'DOCUMENTO_REABERTO_EDICAO'
+  const isReabertura = entry.acao === 'FORMULARIO_REABERTO_EDICAO' || entry.acao === 'DOCUMENTO_REABERTO_EDICAO'
 
   return (
     <>
@@ -175,7 +175,8 @@ const FILTROS_ENTIDADE = [
   { value: '',                   label: 'Todos' },
   { value: 'paciente',           label: 'Pacientes' },
   { value: 'registro',           label: 'Registros' },
-  { value: 'documento_paciente', label: 'Documentos' },
+  { value: 'formulario_paciente', label: 'Formulários' },
+  { value: 'documento_paciente', label: 'Formulários (legado)' },
   { value: 'financeiro',         label: 'Financeiro' },
   { value: 'agendamento',        label: 'Agenda' },
   { value: 'usuario',            label: 'Usuários' },

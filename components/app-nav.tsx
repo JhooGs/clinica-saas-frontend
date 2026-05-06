@@ -254,7 +254,7 @@ export function AppNav() {
   const { can, isSuperAdmin, isAdmin } = usePermissions()
   const { data: clinicaConfig } = useConfiguracoes()
   const financeiroGate = useFeatureGate('FEATURE_FINANCE')
-  const documentosGate = useFeatureGate('FEATURE_FORM_TEMPLATES')
+  const formulariosGate = useFeatureGate('FEATURE_FORM_TEMPLATES')
   const usuariosGate   = useFeatureGate('FEATURE_MULTI_USER')
 
   useEffect(() => {
@@ -314,7 +314,7 @@ export function AppNav() {
     { title: 'Agenda',      href: '/dashboard/agenda',                 icon: CalendarDays, show: can('agenda') },
     { title: 'Relatórios',  href: '/dashboard/relatorios',             icon: BarChart2,    show: can('relatorios') },
     { title: 'Financeiro',  href: '/dashboard/financeiro',             icon: DollarSign,   show: can('financeiro') && financeiroGate.allowed },
-    { title: 'Documentos',  href: '/dashboard/documentos',             icon: FolderOpen,   show: documentosGate.allowed },
+    { title: 'Formulários', href: '/dashboard/formularios',            icon: FolderOpen,   show: formulariosGate.allowed },
     { title: 'Pacotes',    href: '/dashboard/pacotes',                icon: Package,      show: isSuperAdmin },
   ].filter(i => i.show)
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
-import type { DocumentoTemplate } from '@/types'
+import type { FormularioTemplate } from '@/types'
 
 interface TemplateCreatePayload {
   nome: string
@@ -21,16 +21,16 @@ interface TemplateUpdatePayload {
 
 export function useTemplates(categoria?: string) {
   const params = categoria ? `?categoria=${encodeURIComponent(categoria)}` : ''
-  return useQuery<DocumentoTemplate[]>({
+  return useQuery<FormularioTemplate[]>({
     queryKey: ['templates', categoria ?? null],
-    queryFn: () => apiFetch<DocumentoTemplate[]>(`/api/v1/documentos/templates${params}`),
+    queryFn: () => apiFetch<FormularioTemplate[]>(`/api/v1/formularios/templates${params}`),
   })
 }
 
 export function useTemplate(id: string) {
-  return useQuery<DocumentoTemplate>({
+  return useQuery<FormularioTemplate>({
     queryKey: ['template', id],
-    queryFn: () => apiFetch<DocumentoTemplate>(`/api/v1/documentos/templates/${id}`),
+    queryFn: () => apiFetch<FormularioTemplate>(`/api/v1/formularios/templates/${id}`),
     enabled: !!id,
   })
 }
@@ -39,7 +39,7 @@ export function useCriarTemplate() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: TemplateCreatePayload) =>
-      apiFetch<DocumentoTemplate>('/api/v1/documentos/templates', {
+      apiFetch<FormularioTemplate>('/api/v1/formularios/templates', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
@@ -51,7 +51,7 @@ export function useEditarTemplate() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, ...payload }: TemplateUpdatePayload & { id: string }) =>
-      apiFetch<DocumentoTemplate>(`/api/v1/documentos/templates/${id}`, {
+      apiFetch<FormularioTemplate>(`/api/v1/formularios/templates/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
@@ -66,7 +66,7 @@ export function useDeletarTemplate() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/api/v1/documentos/templates/${id}`, { method: 'DELETE' }),
+      apiFetch(`/api/v1/formularios/templates/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['templates'] }),
   })
 }
@@ -88,7 +88,7 @@ export function useExtrairTemplateIA() {
       form.append('arquivo', arquivo)
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL
-      const res = await fetch(`${API_URL}/api/v1/documentos/templates/extrair`, {
+      const res = await fetch(`${API_URL}/api/v1/formularios/templates/extrair`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,

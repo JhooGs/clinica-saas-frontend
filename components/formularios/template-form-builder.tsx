@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
-import { FieldEditor } from '@/components/documentos/field-editor'
-import { FieldRenderer } from '@/components/documentos/field-renderer'
-import type { DocumentoSchema, Secao, Campo } from '@/types'
+import { FieldEditor } from '@/components/formularios/field-editor'
+import { FieldRenderer } from '@/components/formularios/field-renderer'
+import type { FormularioSchema, Secao, Campo } from '@/types'
 
 interface TemplateFormBuilderProps {
-  schema: DocumentoSchema
-  onChange: (schema: DocumentoSchema) => void
+  schema: FormularioSchema
+  onChange: (schema: FormularioSchema) => void
 }
 
 export function TemplateFormBuilder({ schema, onChange }: TemplateFormBuilderProps) {

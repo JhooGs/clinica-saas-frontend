@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 
-export interface DocumentoClinica {
+export interface FormularioClinica {
   id: string
   paciente_id: string
   paciente_nome: string
@@ -28,9 +28,9 @@ function buildParams(params?: Params) {
   return str ? `?${str}` : ''
 }
 
-export function useDocumentosClinica(params?: Params) {
-  return useQuery<DocumentoClinica[]>({
-    queryKey: ['documentos-clinica', params ?? null],
-    queryFn: () => apiFetch<DocumentoClinica[]>(`/api/v1/documentos${buildParams(params)}`),
+export function useFormulariosClinica(params?: Params) {
+  return useQuery<FormularioClinica[]>({
+    queryKey: ['formularios-clinica', params ?? null],
+    queryFn: () => apiFetch<FormularioClinica[]>(`/api/v1/formularios${buildParams(params)}`),
   })
 }

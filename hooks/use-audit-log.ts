@@ -62,16 +62,22 @@ export const LABELS_ACAO: Record<string, string> = {
   PACOTE_CRIADO:                'Pacote criado',
   PACOTE_ATUALIZADO:            'Pacote atualizado',
   PACOTE_EXCLUIDO:              'Pacote excluído',
-  // Documentos
+  // Formulários
   TEMPLATE_CRIADO:              'Template criado',
   TEMPLATE_ATUALIZADO:          'Template atualizado',
   TEMPLATE_EXCLUIDO:            'Template excluído',
   TEMPLATE_IA_EXTRAIDO:         'Template gerado por IA',
-  DOCUMENTO_CRIADO:             'Documento criado',
-  DOCUMENTO_VISUALIZADO:        'Documento acessado',
-  DOCUMENTO_ATUALIZADO:         'Documento salvo',
-  DOCUMENTO_EXCLUIDO:           'Documento excluído',
-  DOCUMENTO_REABERTO_EDICAO:    'Doc. finalizado reaberto',
+  FORMULARIO_CRIADO:            'Formulário criado',
+  FORMULARIO_VISUALIZADO:       'Formulário acessado',
+  FORMULARIO_ATUALIZADO:        'Formulário salvo',
+  FORMULARIO_EXCLUIDO:          'Formulário excluído',
+  FORMULARIO_REABERTO_EDICAO:   'Formulário finalizado reaberto',
+  // Aliases históricos (registros anteriores à renomeação)
+  DOCUMENTO_CRIADO:             'Formulário criado',
+  DOCUMENTO_VISUALIZADO:        'Formulário acessado',
+  DOCUMENTO_ATUALIZADO:         'Formulário salvo',
+  DOCUMENTO_EXCLUIDO:           'Formulário excluído',
+  DOCUMENTO_REABERTO_EDICAO:    'Formulário finalizado reaberto',
 }
 
 export const LABELS_ENTIDADE: Record<string, string> = {
@@ -82,7 +88,10 @@ export const LABELS_ENTIDADE: Record<string, string> = {
   usuario:            'Usuário',
   tipo_atendimento:   'Tipo de atendimento',
   pacote:             'Pacote',
-  documento_paciente: 'Documento',
+  formulario_paciente: 'Formulário',
+  formulario_template: 'Template',
+  // Aliases históricos
+  documento_paciente: 'Formulário',
   documento_template: 'Template',
 }
 

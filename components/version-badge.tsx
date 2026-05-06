@@ -21,6 +21,13 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v1.1.3',
+    date: '06 de maio de 2026',
+    changes: [
+      { category: 'Changed', description: 'Agora Documentos se chama Formulários, deixa tudo mais claro e organizado.'},
+    ],
+  },
+  {
     version: 'v1.1.2',
     date: '05 de maio de 2026',
     changes: [

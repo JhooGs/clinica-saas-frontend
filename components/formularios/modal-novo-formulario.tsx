@@ -4,19 +4,19 @@ import { useMemo, useState } from 'react'
 import { X, FileText, Loader2 } from 'lucide-react'
 import { ModalPortal } from '@/components/modal-portal'
 import { useTemplates } from '@/hooks/use-templates'
-import type { DocumentoTemplate } from '@/types'
+import type { FormularioTemplate } from '@/types'
 
-interface ModalNovoDocumentoProps {
-  onSelecionar: (template: DocumentoTemplate, nome: string) => void
+interface ModalNovoFormularioProps {
+  onSelecionar: (template: FormularioTemplate, nome: string) => void
   onFechar: () => void
   isLoading?: boolean
 }
 
-export function ModalNovoDocumento({
+export function ModalNovoFormulario({
   onSelecionar,
   onFechar,
   isLoading = false,
-}: ModalNovoDocumentoProps) {
+}: ModalNovoFormularioProps) {
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
 
   const { data: templates = [], isLoading: loadingTemplates } = useTemplates()
@@ -46,7 +46,7 @@ export function ModalNovoDocumento({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
-            <h2 className="text-base font-semibold text-gray-900">Novo documento</h2>
+            <h2 className="text-base font-semibold text-gray-900">Novo formulário</h2>
             <button
               onClick={onFechar}
               className="rounded-lg p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -100,7 +100,7 @@ export function ModalNovoDocumento({
                 </p>
                 {templates.length === 0 && (
                   <p className="text-xs text-gray-400 mt-1">
-                    Acesse Documentos no menu para criar templates.
+                    Acesse Formulários no menu para criar templates.
                   </p>
                 )}
               </div>

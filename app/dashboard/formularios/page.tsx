@@ -19,14 +19,14 @@ import { toast } from 'sonner'
 import { format, isThisMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useTemplates, useCriarTemplate, useDeletarTemplate } from '@/hooks/use-templates'
-import { useDocumentosClinica } from '@/hooks/use-documentos-clinica'
-import { useDeletarDocumentoGlobal } from '@/hooks/use-documentos-paciente'
+import { useFormulariosClinica } from '@/hooks/use-formularios-clinica'
+import { useDeletarFormularioGlobal } from '@/hooks/use-formularios-paciente'
 import { useConfiguracoes } from '@/hooks/use-configuracoes'
-import { ModalCriarTemplate } from '@/components/documentos/modal-criar-template'
-import { ModalNovoDocumentoGlobal } from '@/components/documentos/modal-novo-documento-global'
+import { ModalCriarTemplate } from '@/components/formularios/modal-criar-template'
+import { ModalNovoFormularioGlobal } from '@/components/formularios/modal-novo-formulario-global'
 import { ModalPortal } from '@/components/modal-portal'
 import { cn } from '@/lib/utils'
-import type { DocumentoSchema } from '@/types'
+import type { FormularioSchema } from '@/types'
 
 const CATEGORIA_LABELS: Record<string, string> = {
   anamnese: 'Anamnese',
@@ -52,60 +52,60 @@ const FILTROS: { valor: FiltroHistorico; label: string }[] = [
   { valor: 'finalizado', label: 'Finalizados' },
 ]
 
-export default function DocumentosPage() {
+export default function FormulariosPage() {
   const router = useRouter()
   const [modalTemplate, setModalTemplate] = useState(false)
-  const [modalDocumento, setModalDocumento] = useState<{ templateId?: string; templateNome?: string } | null>(null)
+  const [modalFormulario, setModalFormulario] = useState<{ templateId?: string; templateNome?: string } | null>(null)
   const [filtro, setFiltro] = useState<FiltroHistorico>('todos')
   const [excluindoTemplate, setExcluindoTemplate] = useState<{ id: string; nome: string } | null>(null)
-  const [excluindoDoc, setExcluindoDoc] = useState<{ id: string; pacienteId: string; nome: string } | null>(null)
+  const [excluindoForm, setExcluindoForm] = useState<{ id: string; pacienteId: string; nome: string } | null>(null)
 
   const { data: templates = [], isLoading: loadingTemplates } = useTemplates()
-  const { data: documentos = [], isLoading: loadingDocs } = useDocumentosClinica({ tipo: 'formulario', limit: 100 })
+  const { data: formularios = [], isLoading: loadingForms } = useFormulariosClinica({ tipo: 'formulario', limit: 100 })
   const { data: config } = useConfiguracoes()
   const criarTemplate = useCriarTemplate()
   const deletarTemplate = useDeletarTemplate()
-  const deletarDocumento = useDeletarDocumentoGlobal()
+  const deletarFormulario = useDeletarFormularioGlobal()
 
   const planoFree = config?.plano === 'free'
 
   const stats = useMemo(() => {
     const templateAtivos = templates.length
-    const docsMes = documentos.filter(d => isThisMonth(new Date(d.criado_em))).length
-    const rascunhos = documentos.filter(d => d.status === 'rascunho').length
-    return { templateAtivos, docsMes, rascunhos }
-  }, [templates, documentos])
+    const formsMes = formularios.filter(d => isThisMonth(new Date(d.criado_em))).length
+    const rascunhos = formularios.filter(d => d.status === 'rascunho').length
+    return { templateAtivos, formsMes, rascunhos }
+  }, [templates, formularios])
 
-  const documentosFiltrados = useMemo(() => {
-    if (filtro === 'rascunho') return documentos.filter(d => d.status === 'rascunho')
-    if (filtro === 'finalizado') return documentos.filter(d => d.status === 'finalizado')
-    return documentos
-  }, [documentos, filtro])
+  const formulariosFiltrados = useMemo(() => {
+    if (filtro === 'rascunho') return formularios.filter(d => d.status === 'rascunho')
+    if (filtro === 'finalizado') return formularios.filter(d => d.status === 'finalizado')
+    return formularios
+  }, [formularios, filtro])
 
-  function confirmarExclusaoDoc() {
-    if (!excluindoDoc) return
-    const nome = excluindoDoc.nome
-    deletarDocumento.mutate(
-      { pacienteId: excluindoDoc.pacienteId, docId: excluindoDoc.id },
+  function confirmarExclusaoForm() {
+    if (!excluindoForm) return
+    const nome = excluindoForm.nome
+    deletarFormulario.mutate(
+      { pacienteId: excluindoForm.pacienteId, formularioId: excluindoForm.id },
       {
         onSuccess: () => {
-          setExcluindoDoc(null)
-          toast.success('Documento removido', { description: `"${nome}" foi removido.` })
+          setExcluindoForm(null)
+          toast.success('Formulário removido', { description: `"${nome}" foi removido.` })
         },
-        onError: () => toast.error('Erro ao remover documento'),
+        onError: () => toast.error('Erro ao remover formulário'),
       },
     )
   }
 
   function handleManual() {
     setModalTemplate(false)
-    const schemaVazio: DocumentoSchema = { secoes: [] }
+    const schemaVazio: FormularioSchema = { secoes: [] }
     criarTemplate.mutate(
       { nome: 'Novo template', categoria: 'outro', schema: schemaVazio },
       {
         onSuccess: t => {
           toast.success('Template criado')
-          router.push(`/dashboard/documentos/templates/${t.id}/editar`)
+          router.push(`/dashboard/formularios/templates/${t.id}/editar`)
         },
         onError: () => toast.error('Erro ao criar template'),
       },
@@ -124,7 +124,7 @@ export default function DocumentosPage() {
     })
   }
 
-  function handleIASuccess(schema: DocumentoSchema, arquivoNome: string) {
+  function handleIASuccess(schema: FormularioSchema, arquivoNome: string) {
     setModalTemplate(false)
     const nome = arquivoNome.replace(/\.[^.]+$/, '') || 'Template gerado por IA'
     criarTemplate.mutate(
@@ -132,7 +132,7 @@ export default function DocumentosPage() {
       {
         onSuccess: t => {
           toast.success('Template gerado com IA', { description: 'Revise e ajuste os campos antes de usar.' })
-          router.push(`/dashboard/documentos/templates/${t.id}/editar`)
+          router.push(`/dashboard/formularios/templates/${t.id}/editar`)
         },
         onError: () => toast.error('Erro ao salvar template'),
       },
@@ -145,7 +145,7 @@ export default function DocumentosPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Documentos</h1>
+          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Formulários</h1>
           <p className="text-sm text-gray-500 mt-0.5">Templates e histórico de preenchimentos</p>
         </div>
         <div className="flex items-center gap-2">
@@ -160,13 +160,13 @@ export default function DocumentosPage() {
           </button>
           <button
             type="button"
-            onClick={() => setModalDocumento({})}
+            onClick={() => setModalFormulario({})}
             className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white transition-all hover:brightness-110"
             style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
           >
             <FilePlus2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Novo documento</span>
-            <span className="sm:hidden">Documento</span>
+            <span className="hidden sm:inline">Novo formulário</span>
+            <span className="sm:hidden">Formulário</span>
           </button>
         </div>
       </div>
@@ -188,7 +188,7 @@ export default function DocumentosPage() {
             <span className="text-xs truncate">Este mês</span>
           </div>
           <span className="text-2xl font-bold text-gray-900">
-            {loadingDocs ? <Loader2 className="h-5 w-5 animate-spin text-gray-300" /> : stats.docsMes}
+            {loadingForms ? <Loader2 className="h-5 w-5 animate-spin text-gray-300" /> : stats.formsMes}
           </span>
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-4 flex flex-col gap-1 shadow-sm">
@@ -197,7 +197,7 @@ export default function DocumentosPage() {
             <span className="text-xs truncate">Rascunhos</span>
           </div>
           <span className="text-2xl font-bold text-gray-900">
-            {loadingDocs ? <Loader2 className="h-5 w-5 animate-spin text-gray-300" /> : stats.rascunhos}
+            {loadingForms ? <Loader2 className="h-5 w-5 animate-spin text-gray-300" /> : stats.rascunhos}
           </span>
         </div>
       </div>
@@ -230,65 +230,62 @@ export default function DocumentosPage() {
             </button>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {templates.slice(0, 6).map(t => (
-                <div
-                  key={t.id}
-                  className="rounded-2xl border border-gray-100 bg-white p-4 flex flex-col gap-3 hover:border-[#04c2fb]/40 hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#04c2fb]/10">
-                      <FileText className="h-5 w-5 text-[#04c2fb]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900 truncate">{t.nome}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', CATEGORIA_CORES[t.categoria] ?? 'bg-gray-100 text-gray-600')}>
-                          {CATEGORIA_LABELS[t.categoria] ?? t.categoria}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          {t.uso_count} {t.uso_count === 1 ? 'uso' : 'usos'}
-                        </span>
-                      </div>
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {templates.slice(0, 6).map(t => (
+              <div
+                key={t.id}
+                className="rounded-2xl border border-gray-100 bg-white p-4 flex flex-col gap-3 hover:border-[#04c2fb]/40 hover:shadow-sm transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#04c2fb]/10">
+                    <FileText className="h-5 w-5 text-[#04c2fb]" />
                   </div>
-                  <div className="flex gap-2 pt-2 border-t border-gray-50 mt-auto">
-                    <button
-                      type="button"
-                      onClick={() => setModalDocumento({ templateId: t.id, templateNome: t.nome })}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-white transition-all hover:brightness-110"
-                      style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 100%)' }}
-                    >
-                      <FilePlus2 className="h-3.5 w-3.5" />
-                      Usar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/dashboard/documentos/templates/${t.id}/editar`)}
-                      className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setExcluindoTemplate({ id: t.id, nome: t.nome })}
-                      className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{t.nome}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', CATEGORIA_CORES[t.categoria] ?? 'bg-gray-100 text-gray-600')}>
+                        {CATEGORIA_LABELS[t.categoria] ?? t.categoria}
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        {t.uso_count} {t.uso_count === 1 ? 'uso' : 'usos'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-
-          </>
+                <div className="flex gap-2 pt-2 border-t border-gray-50 mt-auto">
+                  <button
+                    type="button"
+                    onClick={() => setModalFormulario({ templateId: t.id, templateNome: t.nome })}
+                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-white transition-all hover:brightness-110"
+                    style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 100%)' }}
+                  >
+                    <FilePlus2 className="h-3.5 w-3.5" />
+                    Usar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/dashboard/formularios/templates/${t.id}/editar`)}
+                    className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition-colors"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExcluindoTemplate({ id: t.id, nome: t.nome })}
+                    className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       {/* Histórico */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">Histórico de documentos</h2>
+        <h2 className="text-sm font-semibold text-gray-700">Histórico de formulários</h2>
 
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {FILTROS.map(f => (
@@ -308,19 +305,19 @@ export default function DocumentosPage() {
           ))}
         </div>
 
-        {loadingDocs ? (
+        {loadingForms ? (
           <div className="flex justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-[#04c2fb]" />
           </div>
-        ) : documentosFiltrados.length === 0 ? (
+        ) : formulariosFiltrados.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-gray-200 p-10 text-center">
             <FileText className="h-10 w-10 text-gray-200 mx-auto mb-3" strokeWidth={1.5} />
             <p className="text-sm font-medium text-gray-500">
-              {filtro === 'todos' ? 'Nenhum documento criado ainda' : `Nenhum documento ${filtro}`}
+              {filtro === 'todos' ? 'Nenhum formulário criado ainda' : `Nenhum formulário ${filtro}`}
             </p>
             {filtro === 'todos' && (
               <p className="text-xs text-gray-400 mt-1">
-                Use &ldquo;Novo documento&rdquo; para preencher um template para um paciente.
+                Use &ldquo;Novo formulário&rdquo; para preencher um template para um paciente.
               </p>
             )}
           </div>
@@ -331,21 +328,21 @@ export default function DocumentosPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/60">
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Paciente</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Documento</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Formulário</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Data</th>
                     <th className="text-right px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
                     <th className="px-3 py-3 w-10" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {documentosFiltrados.map(doc => (
+                  {formulariosFiltrados.map(doc => (
                     <tr
                       key={doc.id}
                       className="hover:bg-[#04c2fb]/5 transition-colors"
                     >
                       <td
                         className="px-4 py-3 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/documentos/${doc.id}`)}
+                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
                       >
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/10 text-[#04c2fb] text-xs font-semibold">
@@ -359,7 +356,7 @@ export default function DocumentosPage() {
                       </td>
                       <td
                         className="px-4 py-3 hidden sm:table-cell cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/documentos/${doc.id}`)}
+                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
                       >
                         <div className="min-w-0">
                           <p className="text-sm text-gray-700 truncate max-w-[200px]">{doc.nome}</p>
@@ -370,7 +367,7 @@ export default function DocumentosPage() {
                       </td>
                       <td
                         className="px-4 py-3 hidden md:table-cell cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/documentos/${doc.id}`)}
+                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
                       >
                         <span className="text-xs text-gray-500">
                           {format(new Date(doc.criado_em), "dd 'de' MMM, yyyy", { locale: ptBR })}
@@ -378,7 +375,7 @@ export default function DocumentosPage() {
                       </td>
                       <td
                         className="px-4 py-3 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/documentos/${doc.id}`)}
+                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
                       >
                         <span
                           className={cn(
@@ -394,7 +391,7 @@ export default function DocumentosPage() {
                       <td className="px-3 py-3">
                         <button
                           type="button"
-                          onClick={() => setExcluindoDoc({ id: doc.id, pacienteId: doc.paciente_id, nome: doc.nome })}
+                          onClick={() => setExcluindoForm({ id: doc.id, pacienteId: doc.paciente_id, nome: doc.nome })}
                           className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -418,12 +415,12 @@ export default function DocumentosPage() {
           planoFree={planoFree}
         />
       )}
-      {modalDocumento && (
-        <ModalNovoDocumentoGlobal
-          onFechar={() => setModalDocumento(null)}
+      {modalFormulario && (
+        <ModalNovoFormularioGlobal
+          onFechar={() => setModalFormulario(null)}
           templatePreSelecionado={
-            modalDocumento.templateId && modalDocumento.templateNome
-              ? { id: modalDocumento.templateId, nome: modalDocumento.templateNome }
+            modalFormulario.templateId && modalFormulario.templateNome
+              ? { id: modalFormulario.templateId, nome: modalFormulario.templateNome }
               : undefined
           }
         />
@@ -436,12 +433,12 @@ export default function DocumentosPage() {
           isPending={deletarTemplate.isPending}
         />
       )}
-      {excluindoDoc && (
-        <ModalExclusaoDoc
-          nome={excluindoDoc.nome}
-          onConfirmar={confirmarExclusaoDoc}
-          onCancelar={() => setExcluindoDoc(null)}
-          isPending={deletarDocumento.isPending}
+      {excluindoForm && (
+        <ModalExclusaoForm
+          nome={excluindoForm.nome}
+          onConfirmar={confirmarExclusaoForm}
+          onCancelar={() => setExcluindoForm(null)}
+          isPending={deletarFormulario.isPending}
         />
       )}
     </div>
@@ -480,11 +477,11 @@ function ModalExclusaoTemplate({
               <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
                 Tem certeza que deseja remover{' '}
                 <span className="font-semibold text-gray-800">&ldquo;{nome}&rdquo;</span>?
-                {' '}Ele deixará de aparecer nas opções de novos documentos.
+                {' '}Ele deixará de aparecer nas opções de novos formulários.
               </p>
               <p className="text-xs text-gray-400 mt-2 flex items-start gap-1.5">
                 <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                Documentos já criados com este template não são afetados.
+                Formulários já criados com este template não são afetados.
               </p>
             </div>
           </div>
@@ -511,7 +508,7 @@ function ModalExclusaoTemplate({
   )
 }
 
-function ModalExclusaoDoc({
+function ModalExclusaoForm({
   nome,
   onConfirmar,
   onCancelar,
@@ -539,7 +536,7 @@ function ModalExclusaoDoc({
               <Trash2 className="h-5 w-5 text-red-500" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-gray-900">Remover documento</h2>
+              <h2 className="text-sm font-bold text-gray-900">Remover formulário</h2>
               <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
                 Tem certeza que deseja remover{' '}
                 <span className="font-semibold text-gray-800">&ldquo;{nome}&rdquo;</span>?

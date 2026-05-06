@@ -36,12 +36,12 @@ import { useRegistros } from '@/hooks/use-registros'
 import type { Registro, Agendamento } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
 import { ModalVerRegistro } from '@/components/modal-ver-registro'
-import { useDocumentosPaciente, useCriarDocumento, useDeletarDocumento } from '@/hooks/use-documentos-paciente'
-import { ModalNovoDocumento } from '@/components/documentos/modal-novo-documento'
-import { SecaoArquivosPaciente } from '@/components/documentos/secao-arquivos-paciente'
+import { useFormulariosPaciente, useCriarFormulario, useDeletarFormulario } from '@/hooks/use-formularios-paciente'
+import { ModalNovoFormulario } from '@/components/formularios/modal-novo-formulario'
+import { SecaoArquivosPaciente } from '@/components/formularios/secao-arquivos-paciente'
 import { ModalPortal } from '@/components/modal-portal'
 import { useFeatureGate } from '@/hooks/use-feature-gate'
-import type { DocumentoTemplate } from '@/types'
+import type { FormularioTemplate } from '@/types'
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -1295,9 +1295,9 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   })
   const agendamentosHist: Agendamento[] = useMemo(() => agendamentosHistData?.items ?? [], [agendamentosHistData])
 
-  const { data: documentos = [] } = useDocumentosPaciente(paciente.id, undefined, 'formulario')
-  const criarDocumentoMutation = useCriarDocumento(paciente.id)
-  const deletarDocumentoMutation = useDeletarDocumento(paciente.id)
+  const { data: formularios = [] } = useFormulariosPaciente(paciente.id, undefined, 'formulario')
+  const criarFormularioMutation = useCriarFormulario(paciente.id)
+  const deletarFormularioMutation = useDeletarFormulario(paciente.id)
   const [excluindoDocPaciente, setExcluindoDocPaciente] = useState<{ id: string; nome: string } | null>(null)
 
   // Maps para vincular agendamentos ↔ registros
@@ -1323,7 +1323,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const presencas = registros.filter(r => r.presenca).length
   const faltas = registros.filter(r => !r.presenca).length
 
-  const [secaoAberta, setSecaoAberta] = useState<'informacoes' | 'plano' | 'historico' | 'documentos' | 'arquivos' | null>(null)
+  const [secaoAberta, setSecaoAberta] = useState<'informacoes' | 'plano' | 'historico' | 'formularios' | 'arquivos' | null>(null)
 
   const [expandidoAtendimentoId, setExpandidoSessaoId] = useState<string | null>(null)
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
@@ -2570,11 +2570,11 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         </div>
       </div>
 
-      {/* ── Documentos ───────────────────────────────── */}
+      {/* ── Formulários ──────────────────────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div
           className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer hover:bg-muted/20 transition-colors select-none"
-          onClick={() => setSecaoAberta(s => s === 'documentos' ? null : 'documentos')}
+          onClick={() => setSecaoAberta(s => s === 'formularios' ? null : 'formularios')}
         >
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
@@ -2583,14 +2583,14 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
             <FileText className="h-4 w-4 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">Documentos</p>
+            <p className="text-sm font-semibold">Formulários</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {formTemplatesGate.allowed && documentos.length > 0
-                ? `${documentos.length} documento(s)`
+              {formTemplatesGate.allowed && formularios.length > 0
+                ? `${formularios.length} formulário(s)`
                 : 'Formulários e registros clínicos'}
             </p>
           </div>
-          {secaoAberta === 'documentos' && formTemplatesGate.allowed && (
+          {secaoAberta === 'formularios' && formTemplatesGate.allowed && (
             <div onClick={e => e.stopPropagation()}>
               <button
                 type="button"
@@ -2598,44 +2598,44 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Novo documento
+                Novo formulário
               </button>
             </div>
           )}
           <ChevronDown className={cn(
             'h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0',
-            secaoAberta === 'documentos' && 'rotate-180',
+            secaoAberta === 'formularios' && 'rotate-180',
           )} />
         </div>
         <div className={cn(
           'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
-          secaoAberta === 'documentos' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+          secaoAberta === 'formularios' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
         )}>
-        <div className={cn('overflow-hidden min-h-0', secaoAberta === 'documentos' && 'border-t')}>
+        <div className={cn('overflow-hidden min-h-0', secaoAberta === 'formularios' && 'border-t')}>
         <div className="p-4 sm:p-5">
           {!formTemplatesGate.allowed ? (
             <LockedFeatureBlock
-              label="Documentos"
+              label="Formulários"
               description="Crie e preencha formulários clínicos personalizados para este paciente."
               requiredPlanLabel={formTemplatesGate.requiredPlanLabel ?? 'Solo'}
             />
           ) : (
             <>
-              {documentos.length === 0 ? (
+              {formularios.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
                   <FileText className="mx-auto h-8 w-8 text-gray-300 mb-2" />
-                  <p className="text-sm text-gray-400">Nenhum documento ainda.</p>
+                  <p className="text-sm text-gray-400">Nenhum formulário ainda.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {documentos.map(doc => (
+                  {formularios.map(doc => (
                     <div
                       key={doc.id}
                       className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 transition-all group"
                     >
                       <button
                         type="button"
-                        onClick={() => router.push(`/dashboard/pacientes/${paciente.id}/documentos/${doc.id}`)}
+                        onClick={() => router.push(`/dashboard/pacientes/${paciente.id}/formularios/${doc.id}`)}
                         className="flex items-start gap-3 flex-1 min-w-0 text-left"
                       >
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#04c2fb]/10">
@@ -2675,42 +2675,42 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         </div>
       </div>
 
-      {/* Modais de documentos — só montados quando feature liberada */}
+      {/* Modais de formulários — só montados quando feature liberada */}
       {formTemplatesGate.allowed && excluindoDocPaciente && (
         <ModalExclusaoDocPaciente
           nome={excluindoDocPaciente.nome}
           onConfirmar={() => {
             const nome = excluindoDocPaciente.nome
-            deletarDocumentoMutation.mutate(excluindoDocPaciente.id, {
+            deletarFormularioMutation.mutate(excluindoDocPaciente.id, {
               onSuccess: () => {
                 setExcluindoDocPaciente(null)
-                toast.success('Documento removido', { description: `"${nome}" foi removido.` })
+                toast.success('Formulário removido', { description: `"${nome}" foi removido.` })
               },
-              onError: () => toast.error('Erro ao remover documento'),
+              onError: () => toast.error('Erro ao remover formulário'),
             })
           }}
           onCancelar={() => setExcluindoDocPaciente(null)}
-          isPending={deletarDocumentoMutation.isPending}
+          isPending={deletarFormularioMutation.isPending}
         />
       )}
 
       {formTemplatesGate.allowed && modalNovoDocAberto && (
-        <ModalNovoDocumento
-          onSelecionar={(template: DocumentoTemplate, nome: string) => {
-            criarDocumentoMutation.mutate(
+        <ModalNovoFormulario
+          onSelecionar={(template: FormularioTemplate, nome: string) => {
+            criarFormularioMutation.mutate(
               { template_id: template.id, nome },
               {
                 onSuccess: doc => {
                   setModalNovoDocAberto(false)
-                  toast.success('Documento criado')
-                  router.push(`/dashboard/pacientes/${paciente.id}/documentos/${doc.id}`)
+                  toast.success('Formulário criado')
+                  router.push(`/dashboard/pacientes/${paciente.id}/formularios/${doc.id}`)
                 },
-                onError: () => toast.error('Erro ao criar documento'),
+                onError: () => toast.error('Erro ao criar formulário'),
               },
             )
           }}
           onFechar={() => setModalNovoDocAberto(false)}
-          isLoading={criarDocumentoMutation.isPending}
+          isLoading={criarFormularioMutation.isPending}
         />
       )}
       {/* ── Arquivos do paciente ─────────────────────── */}

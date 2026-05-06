@@ -18,7 +18,7 @@ export interface ClinicaListItem {
   uso_pacientes_pct: number | null
   uso_usuarios_pct: number | null
   registros_count: number
-  documentos_count: number
+  formularios_count: number
   storage_bytes_used: number
   storage_bytes_limite: number
   storage_uso_pct: number | null

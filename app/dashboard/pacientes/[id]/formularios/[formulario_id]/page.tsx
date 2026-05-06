@@ -6,18 +6,18 @@ import { AlertTriangle, ArrowLeft, Loader2, Pencil, ShieldAlert, User } from 'lu
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { DocumentoRenderer } from '@/components/documentos/documento-renderer'
+import { FormularioRenderer } from '@/components/formularios/formulario-renderer'
 import { ModalPortal } from '@/components/modal-portal'
-import { useDocumento, useSalvarRespostas } from '@/hooks/use-documentos-paciente'
+import { useFormulario, useSalvarRespostas } from '@/hooks/use-formularios-paciente'
 
-export default function DocumentoPacientePage() {
-  const { id: pacienteId, doc_id: docId } = useParams<{ id: string; doc_id: string }>()
+export default function FormularioPacientePage() {
+  const { id: pacienteId, formulario_id: formularioId } = useParams<{ id: string; formulario_id: string }>()
   const router = useRouter()
 
-  const { data: doc, isLoading } = useDocumento(pacienteId, docId)
+  const { data: formulario, isLoading } = useFormulario(pacienteId, formularioId)
   const [modoEdicao, setModoEdicao] = useState(false)
   const [confirmandoEdicao, setConfirmandoEdicao] = useState(false)
-  const reabrirMutation = useSalvarRespostas(pacienteId, docId)
+  const reabrirMutation = useSalvarRespostas(pacienteId, formularioId)
 
   function handleConfirmarEdicao() {
     reabrirMutation.mutate(
@@ -26,11 +26,11 @@ export default function DocumentoPacientePage() {
         onSuccess: () => {
           setConfirmandoEdicao(false)
           setModoEdicao(true)
-          toast.info('Documento reaberto para edição', {
+          toast.info('Formulário reaberto para edição', {
             description: 'As alterações serão registradas na auditoria.',
           })
         },
-        onError: () => toast.error('Erro ao reabrir documento'),
+        onError: () => toast.error('Erro ao reabrir formulário'),
       },
     )
   }
@@ -43,15 +43,15 @@ export default function DocumentoPacientePage() {
     )
   }
 
-  if (!doc) {
+  if (!formulario) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-gray-400">
-        Documento não encontrado.
+        Formulário não encontrado.
       </div>
     )
   }
 
-  const isFinalizado = doc.status === 'finalizado'
+  const isFinalizado = formulario.status === 'finalizado'
   const isReadonly = isFinalizado && !modoEdicao
 
   return (
@@ -62,14 +62,14 @@ export default function DocumentoPacientePage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push(`/dashboard/documentos`)}
+            onClick={() => router.push(`/dashboard/formularios`)}
             className="rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 truncate">{doc.nome}</p>
+            <p className="text-sm font-semibold text-gray-900 truncate">{formulario.nome}</p>
             <div className="flex items-center gap-2">
               <span
                 className={`text-[10px] font-medium rounded-full px-2 py-0.5 ${
@@ -81,7 +81,7 @@ export default function DocumentoPacientePage() {
                 {isFinalizado && !modoEdicao ? 'Finalizado' : 'Rascunho'}
               </span>
               <span className="text-[10px] text-gray-400">
-                {format(new Date(doc.criado_em), "dd 'de' MMM, yyyy", { locale: ptBR })}
+                {format(new Date(formulario.criado_em), "dd 'de' MMM, yyyy", { locale: ptBR })}
               </span>
             </div>
           </div>
@@ -113,12 +113,12 @@ export default function DocumentoPacientePage() {
       {/* Conteúdo centralizado */}
       <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-6 space-y-4">
 
-        {/* Banner de aviso ao editar documento finalizado */}
+        {/* Banner de aviso ao editar formulário finalizado */}
         {modoEdicao && (
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-amber-800">Editando documento finalizado</p>
+              <p className="text-xs font-semibold text-amber-800">Editando formulário finalizado</p>
               <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
                 Esta edição será registrada no log de auditoria da clínica com data, hora e responsável.
               </p>
@@ -126,26 +126,26 @@ export default function DocumentoPacientePage() {
           </div>
         )}
 
-        {doc.schema_snapshot ? (
-          <DocumentoRenderer
+        {formulario.schema_snapshot ? (
+          <FormularioRenderer
             pacienteId={pacienteId}
-            docId={docId}
-            schema={doc.schema_snapshot}
-            respostasIniciais={(doc.respostas as Record<string, unknown>) ?? {}}
+            docId={formularioId}
+            schema={formulario.schema_snapshot}
+            respostasIniciais={(formulario.respostas as Record<string, unknown>) ?? {}}
             readonly={isReadonly}
-            ultimoSalvoEm={doc.atualizado_em?.toString()}
-            onFinalizar={() => router.push('/dashboard/documentos')}
+            ultimoSalvoEm={formulario.atualizado_em?.toString()}
+            onFinalizar={() => router.push('/dashboard/formularios')}
           />
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
             <p className="text-sm text-gray-500">
-              Este documento é um anexo avulso. Use o campo abaixo para associar um arquivo.
+              Este formulário é um anexo avulso. Use o campo abaixo para associar um arquivo.
             </p>
           </div>
         )}
       </div>
 
-      {/* Modal de confirmação para editar documento finalizado */}
+      {/* Modal de confirmação para editar formulário finalizado */}
       {confirmandoEdicao && (
         <ModalPortal>
           <div
@@ -164,9 +164,9 @@ export default function DocumentoPacientePage() {
                     <ShieldAlert className="h-5 w-5 text-amber-500" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-gray-900">Editar documento finalizado?</h2>
+                    <h2 className="text-sm font-bold text-gray-900">Editar formulário finalizado?</h2>
                     <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                      Este documento já foi finalizado. Ao editar, ele voltará para o status de{' '}
+                      Este formulário já foi finalizado. Ao editar, ele voltará para o status de{' '}
                       <span className="font-semibold text-amber-700">rascunho</span> e a alteração será registrada
                       automaticamente no log de auditoria da clínica.
                     </p>
@@ -203,7 +203,7 @@ export default function DocumentoPacientePage() {
                     ) : (
                       <Pencil className="h-3.5 w-3.5" />
                     )}
-                    Editar documento
+                    Editar formulário
                   </button>
                 </div>
               </div>

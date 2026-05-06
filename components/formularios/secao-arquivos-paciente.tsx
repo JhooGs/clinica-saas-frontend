@@ -3,8 +3,8 @@
 import { useRef, useState } from 'react'
 import { Paperclip, Upload, Loader2, FileText, Image as ImageIcon, Trash2, Download } from 'lucide-react'
 import { toast } from 'sonner'
-import { useDocumentosPaciente, useCriarDocumento, useDeletarDocumento } from '@/hooks/use-documentos-paciente'
-import { uploadAnexoPaciente } from '@/lib/documentos-storage'
+import { useFormulariosPaciente, useCriarFormulario, useDeletarFormulario } from '@/hooks/use-formularios-paciente'
+import { uploadAnexoPaciente } from '@/lib/formularios-storage'
 import { createClient } from '@/lib/supabase'
 import { ConfirmDelete } from '@/components/confirm-delete'
 
@@ -25,9 +25,9 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
   const [uploading, setUploading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; nome: string } | null>(null)
 
-  const { data: arquivos = [] } = useDocumentosPaciente(pacienteId, undefined, 'arquivo')
-  const criarMutation = useCriarDocumento(pacienteId)
-  const deletarMutation = useDeletarDocumento(pacienteId)
+  const { data: arquivos = [] } = useFormulariosPaciente(pacienteId, undefined, 'arquivo')
+  const criarMutation = useCriarFormulario(pacienteId)
+  const deletarMutation = useDeletarFormulario(pacienteId)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

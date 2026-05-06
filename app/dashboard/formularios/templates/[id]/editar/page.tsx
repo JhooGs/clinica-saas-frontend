@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, Save, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTemplate, useEditarTemplate } from '@/hooks/use-templates'
-import { TemplateFormBuilder } from '@/components/documentos/template-form-builder'
+import { TemplateFormBuilder } from '@/components/formularios/template-form-builder'
 import { SelectClinitra } from '@/components/ui/select-clinitra'
-import type { DocumentoTemplate, DocumentoSchema } from '@/types'
+import type { FormularioTemplate, FormularioSchema } from '@/types'
 
 const CATEGORIAS = [
   { value: 'anamnese', label: 'Anamnese' },
@@ -25,14 +25,14 @@ const CATEGORIA_CORES: Record<string, string> = {
   outro: 'bg-gray-100 text-gray-600',
 }
 
-function EditorForm({ template }: { template: DocumentoTemplate }) {
+function EditorForm({ template }: { template: FormularioTemplate }) {
   const router = useRouter()
   const editarMutation = useEditarTemplate()
 
   const [nome, setNome] = useState(template.nome)
   const [categoria, setCategoria] = useState(template.categoria)
   const [descricao, setDescricao] = useState(template.descricao ?? '')
-  const [schema, setSchema] = useState<DocumentoSchema>(template.schema)
+  const [schema, setSchema] = useState<FormularioSchema>(template.schema)
 
   const totalCampos = schema.secoes.reduce((acc, s) => acc + s.campos.length, 0)
 
@@ -46,7 +46,7 @@ function EditorForm({ template }: { template: DocumentoTemplate }) {
       {
         onSuccess: () => {
           toast.success('Template salvo')
-          router.push('/dashboard/documentos')
+          router.push('/dashboard/formularios')
         },
         onError: () => toast.error('Erro ao salvar template'),
       },
@@ -61,7 +61,7 @@ function EditorForm({ template }: { template: DocumentoTemplate }) {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push('/dashboard/documentos')}
+            onClick={() => router.push('/dashboard/formularios')}
             className="rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
