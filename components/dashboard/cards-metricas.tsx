@@ -125,7 +125,7 @@ function MetricaCard({ icon: Icon, titulo, valor, delta }: MetricaCardProps) {
 export function CardsMetricasDashboard() {
   const {
     loading,
-    atendimentosSemana,
+    atendimentosMesPrevisto,
     deltaAtendimentos,
     faturamentoMes,
     deltaFaturamento,
@@ -153,15 +153,15 @@ export function CardsMetricasDashboard() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
 
-      {/* Atendimentos da semana */}
+      {/* Atendimentos previstos no mês */}
       <MetricaCard
         icon={CalendarDays}
-        titulo="Atendimentos na semana"
-        valor={atendimentosSemana}
+        titulo="Atendimentos no mês"
+        valor={atendimentosMesPrevisto}
         delta={
           <Delta
             valor={deltaAtendimentos}
-            label={`a média de ${nomeMesPassado}`}
+            label={nomeMesPassado}
             formato="inteiro"
           />
         }

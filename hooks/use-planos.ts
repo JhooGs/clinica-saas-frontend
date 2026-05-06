@@ -170,6 +170,8 @@ export function useSalvarPlanoAtendimento(pacienteId: string | undefined) {
       )
       queryClient.invalidateQueries({ queryKey: ['pacientes', pacienteId, 'plano'] })
       queryClient.invalidateQueries({ queryKey: ['planos', 'vigencias-gratuito'] })
+      // Invalida a lista de pacientes para que o dashboard reflita gratuito/gratuito_inicio/gratuito_fim atualizados
+      queryClient.invalidateQueries({ queryKey: ['pacientes'] })
     },
   })
 }

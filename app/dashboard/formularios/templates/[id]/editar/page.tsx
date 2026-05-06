@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, Save, FileText } from 'lucide-react'
+import { ArrowLeft, Loader2, Save, FileText, Clock, RotateCcw, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTemplate, useEditarTemplate } from '@/hooks/use-templates'
+import { useTemplateDraft, type TemplateDraftData } from '@/hooks/use-template-draft'
 import { TemplateFormBuilder } from '@/components/formularios/template-form-builder'
 import { SelectClinitra } from '@/components/ui/select-clinitra'
 import type { FormularioTemplate, FormularioSchema } from '@/types'
@@ -25,16 +26,79 @@ const CATEGORIA_CORES: Record<string, string> = {
   outro: 'bg-gray-100 text-gray-600',
 }
 
+function tempoRelativo(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'agora há pouco'
+  if (mins === 1) return 'há 1 minuto'
+  if (mins < 60) return `há ${mins} minutos`
+  const hours = Math.floor(mins / 60)
+  if (hours === 1) return 'há 1 hora'
+  return `há ${hours} horas`
+}
+
 function EditorForm({ template }: { template: FormularioTemplate }) {
   const router = useRouter()
   const editarMutation = useEditarTemplate()
+  const { carregarRascunho, salvarRascunho, salvarAgora, descartarRascunho } = useTemplateDraft(template.id)
 
   const [nome, setNome] = useState(template.nome)
   const [categoria, setCategoria] = useState(template.categoria)
   const [descricao, setDescricao] = useState(template.descricao ?? '')
   const [schema, setSchema] = useState<FormularioSchema>(template.schema)
 
+  const [rascunhoDetectado, setRascunhoDetectado] = useState<TemplateDraftData | null>(null)
+
+  // Detectar rascunho na montagem (precisa de useEffect para acessar localStorage)
+  useEffect(() => {
+    const draft = carregarRascunho()
+    if (draft) setRascunhoDetectado(draft)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Ref com estado atual para uso no visibilitychange (evita closure stale)
+  const estadoAtualRef = useRef({ nome, categoria, descricao, schema })
+  useEffect(() => {
+    estadoAtualRef.current = { nome, categoria, descricao, schema }
+  }, [nome, categoria, descricao, schema])
+
+  // Salvar imediatamente ao ocultar a aba
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'hidden') {
+        salvarAgora(estadoAtualRef.current)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [salvarAgora])
+
+  // Autosave debounced a cada alteração (pula o primeiro render)
+  const montadoRef = useRef(false)
+  useEffect(() => {
+    if (!montadoRef.current) {
+      montadoRef.current = true
+      return
+    }
+    salvarRascunho({ nome, categoria, descricao, schema })
+  }, [nome, categoria, descricao, schema, salvarRascunho])
+
   const totalCampos = schema.secoes.reduce((acc, s) => acc + s.campos.length, 0)
+
+  function restaurarRascunho() {
+    if (!rascunhoDetectado) return
+    setNome(rascunhoDetectado.nome)
+    setCategoria(rascunhoDetectado.categoria)
+    setDescricao(rascunhoDetectado.descricao)
+    setSchema(rascunhoDetectado.schema)
+    setRascunhoDetectado(null)
+    toast.success('Rascunho restaurado')
+  }
+
+  function dispensarRascunho() {
+    descartarRascunho()
+    setRascunhoDetectado(null)
+  }
 
   function handleSalvar() {
     if (!nome.trim()) {
@@ -45,6 +109,7 @@ function EditorForm({ template }: { template: FormularioTemplate }) {
       { id: template.id, nome, categoria, descricao: descricao || undefined, schema },
       {
         onSuccess: () => {
+          descartarRascunho()
           toast.success('Template salvo')
           router.push('/dashboard/formularios')
         },
@@ -94,6 +159,40 @@ function EditorForm({ template }: { template: FormularioTemplate }) {
           </div>
         </div>
       </div>
+
+      {/* Banner de rascunho */}
+      {rascunhoDetectado && (
+        <div className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+              <p className="text-sm text-amber-800">
+                Rascunho não salvo de{' '}
+                <span className="font-medium">{tempoRelativo(rascunhoDetectado.savedAt)}</span>{' '}
+                encontrado. Deseja continuar de onde parou?
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={dispensarRascunho}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+                Descartar
+              </button>
+              <button
+                type="button"
+                onClick={restaurarRascunho}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 transition-colors"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Restaurar rascunho
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Conteúdo */}
       <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 space-y-5">
@@ -149,7 +248,7 @@ function EditorForm({ template }: { template: FormularioTemplate }) {
           </div>
         </div>
 
-        {/* Salvar bottom — conveniência em mobile */}
+        {/* Salvar bottom */}
         <div className="flex justify-end pb-4">
           <button
             type="button"

@@ -151,7 +151,7 @@ export function ModalCriarTemplate({
                 <div>
                   <p className="text-sm font-medium text-gray-900">Gerar com IA</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {arrastando ? 'Solte o arquivo aqui' : 'Suba um PDF ou Word — a IA extrai a estrutura do formulário.'}
+                    {arrastando ? 'Solte o arquivo aqui' : 'Suba um PDF ou Word, uma IA extrairá a estrutura do formulário.'}
                   </p>
                 </div>
                 <input

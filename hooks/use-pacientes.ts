@@ -5,6 +5,7 @@ import type { Paciente } from '@/types'
 export interface PacientesFilter {
   busca?: string
   ativo?: boolean
+  gratuito?: boolean
   page?: number
   page_size?: number
 }
@@ -57,6 +58,7 @@ export function usePacientes(filtros?: PacientesFilter) {
   const params = new URLSearchParams()
   if (filtros?.busca) params.set('busca', filtros.busca)
   if (filtros?.ativo !== undefined) params.set('ativo', String(filtros.ativo))
+  if (filtros?.gratuito !== undefined) params.set('gratuito', String(filtros.gratuito))
   if (filtros?.page) params.set('page', String(filtros.page))
   if (filtros?.page_size) params.set('page_size', String(filtros.page_size))
   const query = params.toString() ? `?${params.toString()}` : ''

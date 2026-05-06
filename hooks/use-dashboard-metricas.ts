@@ -12,19 +12,12 @@ function calcularPeriodos() {
   const hoje = nowSP()
   const hojeStr = isoDate(hoje)
 
-  // Semana atual: segunda → domingo
-  const diaSemana = hoje.getDay() // 0=dom
-  const diffSeg = diaSemana === 0 ? -6 : 1 - diaSemana
-  const seg = new Date(hoje)
-  seg.setDate(hoje.getDate() + diffSeg)
-  const dom = new Date(seg)
-  dom.setDate(seg.getDate() + 6)
-
   // Mês atual
   const ano = hoje.getFullYear()
   const mes = hoje.getMonth() + 1
   const mesStr = `${ano}-${String(mes).padStart(2, '0')}`
   const inicioMes = `${mesStr}-01`
+  const fimMes = isoDate(new Date(ano, mes, 0)) // último dia do mês atual
 
   // Mês passado
   const mpDate = new Date(ano, mes - 2, 1)
@@ -38,10 +31,9 @@ function calcularPeriodos() {
 
   return {
     hojeStr,
-    inicioSemana: isoDate(seg),
-    fimSemana: isoDate(dom),
     mesStr,
     inicioMes,
+    fimMes,
     mesPassadoStr,
     inicioMesPassado,
     fimMesPassado,
@@ -52,18 +44,21 @@ function calcularPeriodos() {
 export function useDashboardMetricas() {
   const p = useMemo(() => calcularPeriodos(), [])
 
-  const { data: agendaSemana, isLoading: l1 } = useAgendamentos({
-    data_inicio: p.inicioSemana,
-    data_fim: p.fimSemana,
+  // Mês atual completo — para contar atendimentos previstos (inclui futuros)
+  const { data: agendaMesTodo, isLoading: l1 } = useAgendamentos({
+    data_inicio: p.inicioMes,
+    data_fim: p.fimMes,
     page_size: 500,
   })
 
+  // Mês passado completo — para deltas de atendimentos e taxa de presença
   const { data: agendaMesPassado, isLoading: l2 } = useAgendamentos({
     data_inicio: p.inicioMesPassado,
     data_fim: p.fimMesPassado,
     page_size: 500,
   })
 
+  // Mês atual até hoje — para taxa de presença (só status definitivos fazem sentido)
   const { data: agendaMesAtual, isLoading: l3 } = useAgendamentos({
     data_inicio: p.inicioMes,
     data_fim: p.hojeStr,
@@ -80,24 +75,26 @@ export function useDashboardMetricas() {
     tipo: 'receita',
   })
 
-  const { data: pacientesAtivos, isLoading: l6 } = usePacientes({
+  const { data: pacientesGratuitos } = usePacientes({
     ativo: true,
-    page_size: 500,
+    gratuito: true,
   })
 
-  const loading = l1 || l2 || l3 || l4 || l5 || l6
+  const loading = l1 || l2 || l3 || l4 || l5
 
-  // Atendimentos da semana
-  const atendimentosSemana = useMemo(
-    () => (agendaSemana?.items ?? []).filter(a => a.status !== 'cancelado').length,
-    [agendaSemana],
+  // Atendimentos do mês: tudo exceto cancelado
+  const contaAtendimento = (status: string) => status !== 'cancelado'
+
+  const atendimentosMesPrevisto = useMemo(
+    () => (agendaMesTodo?.items ?? []).filter(a => contaAtendimento(a.status)).length,
+    [agendaMesTodo],
   )
 
   const deltaAtendimentos = useMemo<number | null>(() => {
     if (!agendaMesPassado) return null
-    const totalMP = (agendaMesPassado.items).filter(a => a.status !== 'cancelado').length
-    return Math.round(atendimentosSemana - totalMP / 4)
-  }, [atendimentosSemana, agendaMesPassado])
+    const totalMP = agendaMesPassado.items.filter(a => contaAtendimento(a.status)).length
+    return atendimentosMesPrevisto - totalMP
+  }, [atendimentosMesPrevisto, agendaMesPassado])
 
   // Faturamento
   const faturamentoMes = financeiroMes?.resumo.receita_mes ?? 0
@@ -105,7 +102,7 @@ export function useDashboardMetricas() {
     ? faturamentoMes - (financeiroMesPassado.resumo.receita_mes ?? 0)
     : null
 
-  // Presença — só conta status definitivos (realizado / falta)
+  // Presença — só conta status definitivos (realizado / falta), até hoje
   const { taxaPresenca, deltaPresenca } = useMemo(() => {
     const definitivos = (agendaMesAtual?.items ?? []).filter(
       a => a.status === 'realizado' || a.status === 'falta',
@@ -127,15 +124,12 @@ export function useDashboardMetricas() {
     }
   }, [agendaMesAtual, agendaMesPassado])
 
-  // Gratuitos
-  const gratuitos = useMemo(
-    () => (pacientesAtivos?.items ?? []).filter(p => p.gratuito).length,
-    [pacientesAtivos],
-  )
+  // Gratuitos — query dedicada ao backend com filtro gratuito=true; total vem direto do banco
+  const gratuitos = pacientesGratuitos?.total ?? 0
 
   return {
     loading,
-    atendimentosSemana,
+    atendimentosMesPrevisto,
     deltaAtendimentos,
     faturamentoMes,
     deltaFaturamento,

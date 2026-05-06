@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Menu, X, Home, Users, ClipboardList, CalendarDays,
   DollarSign, BarChart2, Settings, LogOut, Package, UserCog, ChevronRight,
-  Building2, FolderOpen, Shield,
+  Building2, NotepadText, Shield,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -314,7 +314,7 @@ export function AppNav() {
     { title: 'Agenda',      href: '/dashboard/agenda',                 icon: CalendarDays, show: can('agenda') },
     { title: 'Relatórios',  href: '/dashboard/relatorios',             icon: BarChart2,    show: can('relatorios') },
     { title: 'Financeiro',  href: '/dashboard/financeiro',             icon: DollarSign,   show: can('financeiro') && financeiroGate.allowed },
-    { title: 'Formulários', href: '/dashboard/formularios',            icon: FolderOpen,   show: formulariosGate.allowed },
+    { title: 'Formulários', href: '/dashboard/formularios',            icon: NotepadText,   show: formulariosGate.allowed },
     { title: 'Pacotes',    href: '/dashboard/pacotes',                icon: Package,      show: isSuperAdmin },
   ].filter(i => i.show)
 

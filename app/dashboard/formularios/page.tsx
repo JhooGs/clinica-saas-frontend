@@ -14,6 +14,7 @@ import {
   Sparkles,
   Trash2,
   Info,
+  ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, isThisMonth } from 'date-fns'
@@ -59,6 +60,7 @@ export default function FormulariosPage() {
   const [filtro, setFiltro] = useState<FiltroHistorico>('todos')
   const [excluindoTemplate, setExcluindoTemplate] = useState<{ id: string; nome: string } | null>(null)
   const [excluindoForm, setExcluindoForm] = useState<{ id: string; pacienteId: string; nome: string } | null>(null)
+  const [historicoAberto, setHistoricoAberto] = useState(false)
 
   const { data: templates = [], isLoading: loadingTemplates } = useTemplates()
   const { data: formularios = [], isLoading: loadingForms } = useFormulariosClinica({ tipo: 'formulario', limit: 100 })
@@ -148,27 +150,16 @@ export default function FormulariosPage() {
           <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Formulários</h1>
           <p className="text-sm text-gray-500 mt-0.5">Templates e histórico de preenchimentos</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setModalTemplate(true)}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Novo template</span>
-            <span className="sm:hidden">Template</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setModalFormulario({})}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white transition-all hover:brightness-110"
-            style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
-          >
-            <FilePlus2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Novo formulário</span>
-            <span className="sm:hidden">Formulário</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setModalTemplate(true)}
+          className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white transition-all hover:brightness-110"
+          style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+        >
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Novo template</span>
+          <span className="sm:hidden">Template</span>
+        </button>
       </div>
 
       {/* Stats */}
@@ -234,9 +225,9 @@ export default function FormulariosPage() {
             {templates.slice(0, 6).map(t => (
               <div
                 key={t.id}
-                className="rounded-2xl border border-gray-100 bg-white p-4 flex flex-col gap-3 hover:border-[#04c2fb]/40 hover:shadow-sm transition-all"
+                className="group rounded-2xl border border-gray-100 bg-white overflow-hidden hover:border-[#04c2fb]/40 hover:shadow-sm transition-all"
               >
-                <div className="flex items-start gap-3">
+                <div className="p-4 flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#04c2fb]/10">
                     <FileText className="h-5 w-5 text-[#04c2fb]" />
                   </div>
@@ -252,30 +243,32 @@ export default function FormulariosPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2 pt-2 border-t border-gray-50 mt-auto">
-                  <button
-                    type="button"
-                    onClick={() => setModalFormulario({ templateId: t.id, templateNome: t.nome })}
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-white transition-all hover:brightness-110"
-                    style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 100%)' }}
-                  >
-                    <FilePlus2 className="h-3.5 w-3.5" />
-                    Usar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/dashboard/formularios/templates/${t.id}/editar`)}
-                    className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition-colors"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExcluindoTemplate({ id: t.id, nome: t.nome })}
-                    className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                <div className="max-h-0 group-hover:max-h-14 overflow-hidden transition-all duration-200 ease-out">
+                  <div className="flex gap-2 px-4 pb-3 border-t border-gray-50 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setModalFormulario({ templateId: t.id, templateNome: t.nome })}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-white transition-all hover:brightness-110"
+                      style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 100%)' }}
+                    >
+                      <FilePlus2 className="h-3.5 w-3.5" />
+                      Usar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/dashboard/formularios/templates/${t.id}/editar`)}
+                      className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExcluindoTemplate({ id: t.id, nome: t.nome })}
+                      className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -284,126 +277,163 @@ export default function FormulariosPage() {
       </div>
 
       {/* Histórico */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">Histórico de formulários</h2>
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
 
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {FILTROS.map(f => (
-            <button
-              key={f.valor}
-              type="button"
-              onClick={() => setFiltro(f.valor)}
-              className={cn(
-                'shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all',
-                filtro === f.valor
-                  ? 'bg-[#04c2fb] text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+        {/* Header colapsável */}
+        <button
+          type="button"
+          onClick={() => setHistoricoAberto(v => !v)}
+          className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-muted/20 transition-colors select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#04c2fb]/10">
+              <FileText className="h-4 w-4 text-[#04c2fb]" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-gray-900">Histórico de formulários</p>
+              {!historicoAberto && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formularios.length} {formularios.length === 1 ? 'formulário' : 'formulários'} preenchidos
+                </p>
               )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {loadingForms ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-[#04c2fb]" />
-          </div>
-        ) : formulariosFiltrados.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-gray-200 p-10 text-center">
-            <FileText className="h-10 w-10 text-gray-200 mx-auto mb-3" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-gray-500">
-              {filtro === 'todos' ? 'Nenhum formulário criado ainda' : `Nenhum formulário ${filtro}`}
-            </p>
-            {filtro === 'todos' && (
-              <p className="text-xs text-gray-400 mt-1">
-                Use &ldquo;Novo formulário&rdquo; para preencher um template para um paciente.
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/60">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Paciente</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Formulário</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Data</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-3 py-3 w-10" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {formulariosFiltrados.map(doc => (
-                    <tr
-                      key={doc.id}
-                      className="hover:bg-[#04c2fb]/5 transition-colors"
-                    >
-                      <td
-                        className="px-4 py-3 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/10 text-[#04c2fb] text-xs font-semibold">
-                            {doc.paciente_nome.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{doc.paciente_nome}</p>
-                            <p className="text-xs text-gray-400 sm:hidden truncate">{doc.nome}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td
-                        className="px-4 py-3 hidden sm:table-cell cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm text-gray-700 truncate max-w-[200px]">{doc.nome}</p>
-                          {doc.template_nome && doc.template_nome !== doc.nome && (
-                            <p className="text-xs text-gray-400 truncate max-w-[200px]">{doc.template_nome}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td
-                        className="px-4 py-3 hidden md:table-cell cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
-                      >
-                        <span className="text-xs text-gray-500">
-                          {format(new Date(doc.criado_em), "dd 'de' MMM, yyyy", { locale: ptBR })}
-                        </span>
-                      </td>
-                      <td
-                        className="px-4 py-3 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
-                      >
-                        <span
-                          className={cn(
-                            'inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-semibold',
-                            doc.status === 'finalizado'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-amber-100 text-amber-700',
-                          )}
-                        >
-                          {doc.status === 'finalizado' ? 'Finalizado' : 'Rascunho'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <button
-                          type="button"
-                          onClick={() => setExcluindoForm({ id: doc.id, pacienteId: doc.paciente_id, nome: doc.nome })}
-                          className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
-        )}
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground/60 transition-transform duration-200 shrink-0', historicoAberto && 'rotate-180')} />
+        </button>
+
+        {/* Conteúdo colapsável */}
+        <div className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          historicoAberto ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}>
+          <div className="overflow-hidden min-h-0">
+            <div className="border-t border-gray-100">
+
+              {/* Filtros */}
+              <div className="flex gap-2 overflow-x-auto px-4 sm:px-5 pt-4 pb-3 scrollbar-none">
+                {FILTROS.map(f => (
+                  <button
+                    key={f.valor}
+                    type="button"
+                    onClick={() => setFiltro(f.valor)}
+                    className={cn(
+                      'shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
+                      filtro === f.valor
+                        ? 'text-white'
+                        : 'border bg-background text-muted-foreground hover:bg-muted',
+                    )}
+                    style={filtro === f.valor ? { background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' } : undefined}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Conteúdo da tabela */}
+              {loadingForms ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#04c2fb]" />
+                </div>
+              ) : formulariosFiltrados.length === 0 ? (
+                <div className="px-4 sm:px-5 pb-8 pt-4 text-center">
+                  <FileText className="h-10 w-10 text-gray-200 mx-auto mb-3" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-gray-500">
+                    {filtro === 'todos' ? 'Nenhum formulário criado ainda' : `Nenhum formulário ${filtro}`}
+                  </p>
+                  {filtro === 'todos' && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Use o botão &ldquo;Usar&rdquo; em um template para preencher um formulário com um paciente.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Paciente</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Formulário</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground hidden md:table-cell">Data</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Status</th>
+                        <th className="px-3 py-3 w-10" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {formulariosFiltrados.map(doc => (
+                        <tr
+                          key={doc.id}
+                          className="hover:bg-muted/20 transition-colors"
+                        >
+                          <td
+                            className="px-4 py-3 cursor-pointer"
+                            onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/10 text-[#04c2fb] text-xs font-semibold">
+                                {doc.paciente_nome.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-800 truncate">{doc.paciente_nome}</p>
+                                <p className="text-xs text-muted-foreground sm:hidden truncate">{doc.nome}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td
+                            className="px-4 py-3 hidden sm:table-cell cursor-pointer"
+                            onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm text-gray-700 truncate max-w-[200px]">{doc.nome}</p>
+                              {doc.template_nome && doc.template_nome !== doc.nome && (
+                                <p className="text-xs text-muted-foreground truncate max-w-[200px]">{doc.template_nome}</p>
+                              )}
+                            </div>
+                          </td>
+                          <td
+                            className="px-4 py-3 hidden md:table-cell cursor-pointer"
+                            onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
+                          >
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(doc.criado_em), "dd 'de' MMM, yyyy", { locale: ptBR })}
+                            </span>
+                          </td>
+                          <td
+                            className="px-4 py-3 cursor-pointer"
+                            onClick={() => router.push(`/dashboard/pacientes/${doc.paciente_id}/formularios/${doc.id}`)}
+                          >
+                            <div className="flex justify-end">
+                              <span
+                                className={cn(
+                                  'inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-semibold',
+                                  doc.status === 'finalizado'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-amber-100 text-amber-700',
+                                )}
+                              >
+                                {doc.status === 'finalizado' ? 'Finalizado' : 'Rascunho'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <button
+                              type="button"
+                              onClick={() => setExcluindoForm({ id: doc.id, pacienteId: doc.paciente_id, nome: doc.nome })}
+                              className="rounded-lg p-1.5 text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* Modais */}

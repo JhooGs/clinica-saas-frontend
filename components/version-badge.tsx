@@ -24,6 +24,11 @@ const CHANGELOG: VersionEntry[] = [
     version: 'v1.1.3',
     date: '06 de maio de 2026',
     changes: [
+      { category: 'Fixed', description: 'Painel da Home foi ajustado para mostrar corretamente os dados.'},
+      { category: 'Fixed', description: 'Ajuste financeiro que não atualizava o valor das sessões gratuitas corretamente.'},
+      { category: 'Fixed', description: 'Número do atendimento foi retirado quando não deveria ser exibido.'},
+      { category: 'Changed', description: 'Refeito a página de formulários.'},
+      { category: 'Changed', description: 'A edição de formulários foi melhorada.'},
       { category: 'Changed', description: 'Agora Documentos se chama Formulários, deixa tudo mais claro e organizado.'},
     ],
   },

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { FieldEditor } from '@/components/formularios/field-editor'
 import { FieldRenderer } from '@/components/formularios/field-renderer'
 import type { FormularioSchema, Secao, Campo } from '@/types'
@@ -15,6 +15,8 @@ export function TemplateFormBuilder({ schema, onChange }: TemplateFormBuilderPro
   const [preview, setPreview] = useState(false)
   const [colapsadas, setColapsadas] = useState<Set<string>>(new Set())
 
+  const todasColapsadas = schema.secoes.length > 0 && colapsadas.size === schema.secoes.length
+
   const toggleColapsada = (id: string) => {
     setColapsadas(prev => {
       const next = new Set(prev)
@@ -22,6 +24,14 @@ export function TemplateFormBuilder({ schema, onChange }: TemplateFormBuilderPro
       else next.add(id)
       return next
     })
+  }
+
+  const alternarTodasSecoes = () => {
+    if (todasColapsadas) {
+      setColapsadas(new Set())
+    } else {
+      setColapsadas(new Set(schema.secoes.map(s => s.id)))
+    }
   }
 
   const adicionarSecao = () => {
@@ -41,6 +51,11 @@ export function TemplateFormBuilder({ schema, onChange }: TemplateFormBuilderPro
 
   const removerSecao = (secaoId: string) => {
     onChange({ secoes: schema.secoes.filter(s => s.id !== secaoId) })
+    setColapsadas(prev => {
+      const next = new Set(prev)
+      next.delete(secaoId)
+      return next
+    })
   }
 
   const adicionarCampo = (secaoId: string) => {
@@ -72,8 +87,20 @@ export function TemplateFormBuilder({ schema, onChange }: TemplateFormBuilderPro
 
   return (
     <div className="space-y-4">
-      {/* Toggle preview */}
-      <div className="flex justify-end">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-2">
+        {!preview && schema.secoes.length > 1 ? (
+          <button
+            type="button"
+            onClick={alternarTodasSecoes}
+            className="flex items-center gap-1.5 text-xs rounded-lg border border-gray-200 px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <ChevronsUpDown className="h-3.5 w-3.5" />
+            {todasColapsadas ? 'Expandir todas' : 'Recolher todas'}
+          </button>
+        ) : (
+          <span />
+        )}
         <button
           type="button"
           onClick={() => setPreview(v => !v)}
@@ -106,60 +133,79 @@ export function TemplateFormBuilder({ schema, onChange }: TemplateFormBuilderPro
         </div>
       ) : (
         // ── Editor ───────────────────────────────────────────────────────────
-        <div className="space-y-4">
-          {schema.secoes.map(secao => (
-            <div key={secao.id} className="rounded-xl border border-gray-200 bg-gray-50/50">
-              {/* Cabeçalho da seção */}
-              <div className="flex items-center gap-2 p-3 border-b border-gray-200">
-                <button
-                  type="button"
+        <div className="space-y-3">
+          {schema.secoes.map(secao => {
+            const colapsada = colapsadas.has(secao.id)
+            return (
+              <div
+                key={secao.id}
+                className={`rounded-xl border overflow-hidden transition-colors ${
+                  colapsada ? 'border-[#04c2fb]/40 bg-white' : 'border-gray-200 bg-gray-50/50'
+                }`}
+              >
+                {/* Cabeçalho da seção — clicável para colapsar */}
+                <div
+                  className={`flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none transition-colors ${
+                    colapsada ? 'bg-[#04c2fb]/5' : 'bg-transparent hover:bg-gray-100/60 border-b border-gray-200'
+                  }`}
                   onClick={() => toggleColapsada(secao.id)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  {colapsadas.has(secao.id)
-                    ? <ChevronRight className="h-4 w-4" />
-                    : <ChevronDown className="h-4 w-4" />
-                  }
-                </button>
-                <input
-                  type="text"
-                  value={secao.titulo}
-                  onChange={e => atualizarSecao(secao.id, { titulo: e.target.value })}
-                  className="flex-1 bg-transparent text-sm font-medium text-gray-800 focus:outline-none"
-                  placeholder="Nome da seção"
-                />
-                <button
-                  type="button"
-                  onClick={() => removerSecao(secao.id)}
-                  className="text-gray-300 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Campos */}
-              {!colapsadas.has(secao.id) && (
-                <div className="p-3 space-y-2">
-                  {secao.campos.map(campo => (
-                    <FieldEditor
-                      key={campo.id}
-                      campo={campo}
-                      onChange={c => atualizarCampo(secao.id, c)}
-                      onRemover={() => removerCampo(secao.id, campo.id)}
-                    />
-                  ))}
+                  <span
+                    className={`flex items-center justify-center h-6 w-6 rounded-md border shrink-0 transition-all ${
+                      colapsada
+                        ? 'border-[#04c2fb] bg-[#04c2fb]/10 text-[#04c2fb]'
+                        : 'border-gray-200 bg-white text-gray-400 group-hover:border-[#04c2fb]'
+                    }`}
+                  >
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${colapsada ? '-rotate-90' : ''}`} />
+                  </span>
+                  <input
+                    type="text"
+                    value={secao.titulo}
+                    onChange={e => atualizarSecao(secao.id, { titulo: e.target.value })}
+                    onClick={e => e.stopPropagation()}
+                    className="flex-1 bg-transparent text-sm font-medium text-gray-800 focus:outline-none min-w-0 cursor-text"
+                    placeholder="Nome da seção"
+                  />
+                  {colapsada && secao.campos.length > 0 && (
+                    <span className="shrink-0 rounded-full bg-[#04c2fb]/10 px-2 py-0.5 text-[10px] font-medium text-[#04c2fb]">
+                      {secao.campos.length} {secao.campos.length === 1 ? 'campo' : 'campos'}
+                    </span>
+                  )}
                   <button
                     type="button"
-                    onClick={() => adicionarCampo(secao.id)}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 py-2 text-xs text-gray-500 hover:border-[#04c2fb] hover:text-[#04c2fb] transition-colors"
+                    onClick={e => { e.stopPropagation(); removerSecao(secao.id) }}
+                    className="text-gray-300 hover:text-red-500 transition-colors shrink-0"
+                    title="Remover seção"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Adicionar campo
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Campos — visíveis apenas quando expandida */}
+                {!colapsada && (
+                  <div className="p-3 space-y-2">
+                    {secao.campos.map(campo => (
+                      <FieldEditor
+                        key={campo.id}
+                        campo={campo}
+                        onChange={c => atualizarCampo(secao.id, c)}
+                        onRemover={() => removerCampo(secao.id, campo.id)}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => adicionarCampo(secao.id)}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 py-2 text-xs text-gray-500 hover:border-[#04c2fb] hover:text-[#04c2fb] transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Adicionar campo
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
           <button
             type="button"
