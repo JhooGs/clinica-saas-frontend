@@ -128,7 +128,7 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
                     {new Date(arq.criado_em).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                   {arq.arquivo_anexo_url && (
                     <a
                       href={arq.arquivo_anexo_url}

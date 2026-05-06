@@ -353,7 +353,7 @@ function TarefasPendentes({ pendentes, loading }: { pendentes: RelatorioPendente
               <button
                 onClick={() => dispensar(item.id)}
                 title="Dispensar"
-                className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
+                className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-muted hover:text-foreground transition-all"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

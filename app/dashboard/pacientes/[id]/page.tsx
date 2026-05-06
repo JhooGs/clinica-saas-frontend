@@ -2660,7 +2660,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                       <button
                         type="button"
                         onClick={() => setExcluindoDocPaciente({ id: doc.id, nome: doc.nome })}
-                        className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                        className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

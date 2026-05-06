@@ -259,7 +259,7 @@ export default function RichEditor({
                   type="button"
                   onClick={() => onRemoveFile(img.url)}
                   title="Remover imagem"
-                  className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                  className="absolute -top-1.5 -right-1.5 hidden group-hover:flex [@media(hover:none)]:flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
                 >
                   <X className="h-2.5 w-2.5" />
                 </button>

@@ -15,11 +15,12 @@ import {
   Trash2,
   Info,
   ChevronDown,
+  CheckCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, isThisMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { useTemplates, useCriarTemplate, useDeletarTemplate } from '@/hooks/use-templates'
+import { useTemplates, useCriarTemplate, useDeletarTemplate, useQuotaIA } from '@/hooks/use-templates'
 import { useFormulariosClinica } from '@/hooks/use-formularios-clinica'
 import { useDeletarFormularioGlobal } from '@/hooks/use-formularios-paciente'
 import { useConfiguracoes } from '@/hooks/use-configuracoes'
@@ -61,15 +62,17 @@ export default function FormulariosPage() {
   const [excluindoTemplate, setExcluindoTemplate] = useState<{ id: string; nome: string } | null>(null)
   const [excluindoForm, setExcluindoForm] = useState<{ id: string; pacienteId: string; nome: string } | null>(null)
   const [historicoAberto, setHistoricoAberto] = useState(false)
+  const [salvandoIA, setSalvandoIA] = useState(false)
 
   const { data: templates = [], isLoading: loadingTemplates } = useTemplates()
   const { data: formularios = [], isLoading: loadingForms } = useFormulariosClinica({ tipo: 'formulario', limit: 100 })
   const { data: config } = useConfiguracoes()
+  const { data: quotaIA } = useQuotaIA()
   const criarTemplate = useCriarTemplate()
   const deletarTemplate = useDeletarTemplate()
   const deletarFormulario = useDeletarFormularioGlobal()
 
-  const planoFree = config?.plano === 'free'
+  const planoSemIA = quotaIA ? !quotaIA.tem_acesso : !['clinica', 'clinica_pro'].includes(config?.plano ?? '')
 
   const stats = useMemo(() => {
     const templateAtivos = templates.length
@@ -128,6 +131,7 @@ export default function FormulariosPage() {
 
   function handleIASuccess(schema: FormularioSchema, arquivoNome: string) {
     setModalTemplate(false)
+    setSalvandoIA(true)
     const nome = arquivoNome.replace(/\.[^.]+$/, '') || 'Template gerado por IA'
     criarTemplate.mutate(
       { nome, categoria: 'outro', schema, origem: 'ia' },
@@ -136,7 +140,10 @@ export default function FormulariosPage() {
           toast.success('Template gerado com IA', { description: 'Revise e ajuste os campos antes de usar.' })
           router.push(`/dashboard/formularios/templates/${t.id}/editar`)
         },
-        onError: () => toast.error('Erro ao salvar template'),
+        onError: () => {
+          setSalvandoIA(false)
+          toast.error('Erro ao salvar template')
+        },
       },
     )
   }
@@ -163,31 +170,31 @@ export default function FormulariosPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-gray-100 bg-white p-4 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center gap-2 text-gray-400">
-            <FolderOpen className="h-4 w-4 shrink-0" />
-            <span className="text-xs truncate">Templates</span>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="rounded-2xl border border-gray-100 bg-white p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <FolderOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="text-[11px] sm:text-xs truncate">Templates</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900">
+          <span className="text-xl sm:text-2xl font-bold text-gray-900">
             {loadingTemplates ? <Loader2 className="h-5 w-5 animate-spin text-gray-300" /> : stats.templateAtivos}
           </span>
         </div>
-        <div className="rounded-2xl border border-gray-100 bg-white p-4 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center gap-2 text-gray-400">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span className="text-xs truncate">Este mês</span>
+        <div className="rounded-2xl border border-gray-100 bg-white p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="text-[11px] sm:text-xs truncate">Este mês</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900">
+          <span className="text-xl sm:text-2xl font-bold text-gray-900">
             {loadingForms ? <Loader2 className="h-5 w-5 animate-spin text-gray-300" /> : stats.formsMes}
           </span>
         </div>
-        <div className="rounded-2xl border border-gray-100 bg-white p-4 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center gap-2 text-gray-400">
-            <Clock className="h-4 w-4 shrink-0" />
-            <span className="text-xs truncate">Rascunhos</span>
+        <div className="rounded-2xl border border-gray-100 bg-white p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="text-[11px] sm:text-xs truncate">Rascunhos</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900">
+          <span className="text-xl sm:text-2xl font-bold text-gray-900">
             {loadingForms ? <Loader2 className="h-5 w-5 animate-spin text-gray-300" /> : stats.rascunhos}
           </span>
         </div>
@@ -243,7 +250,7 @@ export default function FormulariosPage() {
                     </div>
                   </div>
                 </div>
-                <div className="max-h-0 group-hover:max-h-14 overflow-hidden transition-all duration-200 ease-out">
+                <div className="max-h-0 group-hover:max-h-14 [@media(hover:none)]:max-h-14 overflow-hidden transition-all duration-200 ease-out">
                   <div className="flex gap-2 px-4 pb-3 border-t border-gray-50 pt-2">
                     <button
                       type="button"
@@ -436,13 +443,50 @@ export default function FormulariosPage() {
 
       </div>
 
+      {/* Overlay de transição pós-IA: cobre o intervalo entre extrair→salvar→navegar */}
+      {salvandoIA && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)' }}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl border border-white/20 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300"
+              style={{ backgroundColor: 'rgba(255,255,255,0.98)' }}
+            >
+              <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }} />
+              <div className="px-8 py-10 flex flex-col items-center text-center gap-6">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#04c2fb]/20"
+                  style={{ background: 'linear-gradient(135deg, rgba(4,194,251,0.12) 0%, rgba(0,148,200,0.08) 100%)' }}
+                >
+                  <CheckCheck className="h-8 w-8 text-[#04c2fb]" strokeWidth={1.5} />
+                </div>
+                <div className="space-y-1.5">
+                  <h2 className="text-base font-semibold text-gray-900">Análise concluída</h2>
+                  <p className="text-sm text-[#04c2fb] font-medium">Salvando template...</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[0, 1, 2, 3].map(i => (
+                    <div
+                      key={i}
+                      className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] animate-bounce"
+                      style={{ animationDelay: `${i * 0.18}s` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
       {/* Modais */}
       {modalTemplate && (
         <ModalCriarTemplate
           onManual={handleManual}
           onIASuccess={handleIASuccess}
           onFechar={() => setModalTemplate(false)}
-          planoFree={planoFree}
+          planoSemIA={planoSemIA}
         />
       )}
       {modalFormulario && (

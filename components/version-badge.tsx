@@ -25,9 +25,12 @@ const CHANGELOG: VersionEntry[] = [
     date: '06 de maio de 2026',
     changes: [
       { category: 'Fixed', description: 'Painel da Home foi ajustado para mostrar corretamente os dados.'},
+      { category: 'Fixed', description: 'Ajustado erro onde no celular não era possível criar formulários.'},
       { category: 'Fixed', description: 'Ajuste financeiro que não atualizava o valor das sessões gratuitas corretamente.'},
-      { category: 'Fixed', description: 'Número do atendimento foi retirado quando não deveria ser exibido.'},
+      { category: 'Fixed', description: 'Número do atendimento foi retirado do financeiro quando não deveria ser exibido.'},
       { category: 'Changed', description: 'Refeito a página de formulários.'},
+      { category: 'Changed', description: 'Agora é possível retraiseções no formulário enquanto edita ou preenche.'},
+      { category: 'Changed', description: 'Várias melhorias realizadas na IA de formulários.'},
       { category: 'Changed', description: 'A edição de formulários foi melhorada.'},
       { category: 'Changed', description: 'Agora Documentos se chama Formulários, deixa tudo mais claro e organizado.'},
     ],

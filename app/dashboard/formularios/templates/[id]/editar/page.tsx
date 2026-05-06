@@ -56,30 +56,50 @@ function EditorForm({ template }: { template: FormularioTemplate }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Ref com estado atual para uso no visibilitychange (evita closure stale)
+  // Ref com estado atual para uso no visibilitychange/beforeunload (evita closure stale)
   const estadoAtualRef = useRef({ nome, categoria, descricao, schema })
+  const isDirtyRef = useRef(false)
   useEffect(() => {
     estadoAtualRef.current = { nome, categoria, descricao, schema }
   }, [nome, categoria, descricao, schema])
 
-  // Salvar imediatamente ao ocultar a aba
+  // Salvar no backend ao sair da aba ou fechar o navegador (uma única requisição por sessão)
   useEffect(() => {
+    function salvarNoBanco() {
+      if (!isDirtyRef.current) return
+      const { nome: n, categoria: c, descricao: d, schema: s } = estadoAtualRef.current
+      // fetch síncrono via keepalive — funciona mesmo durante beforeunload
+      void fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/formularios/templates/${template.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: n, categoria: c, descricao: d || undefined, schema: s }),
+        keepalive: true,
+      })
+    }
+
     function handleVisibility() {
       if (document.visibilityState === 'hidden') {
-        salvarAgora(estadoAtualRef.current)
+        salvarAgora(estadoAtualRef.current) // localStorage imediato
+        salvarNoBanco()
       }
     }
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [salvarAgora])
 
-  // Autosave debounced a cada alteração (pula o primeiro render)
+    window.addEventListener('beforeunload', salvarNoBanco)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('beforeunload', salvarNoBanco)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [template.id, salvarAgora])
+
+  // Autosave no localStorage a cada alteração (1s debounce)
   const montadoRef = useRef(false)
   useEffect(() => {
     if (!montadoRef.current) {
       montadoRef.current = true
       return
     }
+    isDirtyRef.current = true
     salvarRascunho({ nome, categoria, descricao, schema })
   }, [nome, categoria, descricao, schema, salvarRascunho])
 
@@ -101,6 +121,9 @@ function EditorForm({ template }: { template: FormularioTemplate }) {
   }
 
   function handleSalvar() {
+    // Cancelar autosave pendente para não sobrepor
+    if (backendTimerRef.current) clearTimeout(backendTimerRef.current)
+
     if (!nome.trim()) {
       toast.error('Nome obrigatório')
       return

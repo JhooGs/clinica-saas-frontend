@@ -1,38 +1,68 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { Loader2, Pencil, Sparkles, Upload, X } from 'lucide-react'
+import { useRef, useState, useEffect } from 'react'
+import { Pencil, Sparkles, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalPortal } from '@/components/modal-portal'
 import { useExtrairTemplateIA } from '@/hooks/use-templates'
 import type { FormularioSchema } from '@/types'
 
+const ETAPAS = [
+  'Lendo o documento...',
+  'Identificando perguntas e campos...',
+  'Organizando as seções...',
+  'Estruturando o formulário...',
+  'Finalizando...',
+]
+
 interface ModalCriarTemplateProps {
   onManual: () => void
   onIASuccess: (schema: FormularioSchema, arquivoNome: string) => void
   onFechar: () => void
-  planoFree?: boolean
+  planoSemIA?: boolean
 }
 
 export function ModalCriarTemplate({
   onManual,
   onIASuccess,
   onFechar,
-  planoFree = false,
+  planoSemIA = false,
 }: ModalCriarTemplateProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [arrastando, setArrastando] = useState(false)
+  const [etapaIdx, setEtapaIdx] = useState(0)
 
   const extrair = useExtrairTemplateIA()
+  const carregando = extrair.isPending
+
+  useEffect(() => {
+    if (!carregando) return
+    const id = setInterval(() => {
+      setEtapaIdx(i => Math.min(i + 1, ETAPAS.length - 1))
+    }, 4000)
+    return () => {
+      clearInterval(id)
+      setEtapaIdx(0)
+    }
+  }, [carregando])
 
   async function processarArquivo(file: File) {
-    const allowed = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'text/plain',
+    ]
     if (!allowed.includes(file.type)) {
-      toast.error('Formato inválido', { description: 'Envie um arquivo PDF ou Word (.docx).' })
+      toast.error('Formato inválido', {
+        description: 'Envie um arquivo PDF, Word (.docx), Excel (.xlsx), CSV ou TXT.',
+        duration: Infinity,
+      })
       return
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Arquivo grande demais', { description: 'O limite é 5 MB.' })
+      toast.error('Arquivo grande demais', { description: 'O limite é 5 MB.', duration: Infinity })
       return
     }
 
@@ -40,8 +70,29 @@ export function ModalCriarTemplate({
       const result = await extrair.mutateAsync(file)
       onIASuccess(result.schema as FormularioSchema, result.arquivo_nome)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Tente novamente.'
-      toast.error('Erro ao processar o arquivo', { description: msg })
+      const raw = err instanceof Error ? err.message : 'Tente novamente.'
+      try {
+        const parsed = JSON.parse(raw)
+        const detail = parsed?.detail
+        if (detail?.error === 'feature_gate') {
+          if (detail?.feature === 'FEATURE_AI_FORMS_QUOTA') {
+            toast.error('Cota de IA esgotada', {
+              description: `Você usou ${detail.quota_usado} de ${detail.quota_limite} gerações deste mês.`,
+              duration: Infinity,
+            })
+          } else {
+            toast.error('Recurso indisponível no seu plano', {
+              description: 'A geração por IA está disponível a partir do plano Clínica.',
+              duration: Infinity,
+            })
+          }
+          return
+        }
+        const msg = typeof detail === 'string' ? detail : raw
+        toast.error('Erro ao processar o arquivo', { description: msg, duration: Infinity })
+      } catch {
+        toast.error('Erro ao processar o arquivo', { description: raw, duration: Infinity })
+      }
     }
   }
 
@@ -58,14 +109,96 @@ export function ModalCriarTemplate({
     if (file) processarArquivo(file)
   }
 
-  const carregando = extrair.isPending
+  if (carregando) {
+    return (
+      <ModalPortal>
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)' }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/20 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300"
+            style={{ backgroundColor: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(24px)' }}
+          >
+            {/* Barra de progresso animada no topo */}
+            <div className="h-1 w-full overflow-hidden bg-gray-100">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${((etapaIdx + 1) / ETAPAS.length) * 100}%`,
+                  background: 'linear-gradient(90deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)',
+                  transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+            </div>
+
+            <div className="px-8 py-10 flex flex-col items-center text-center gap-7">
+
+              {/* Ícone pulsante */}
+              <div className="relative flex items-center justify-center">
+                <span
+                  className="absolute h-24 w-24 rounded-full opacity-20"
+                  style={{
+                    background: 'radial-gradient(circle, #04c2fb 0%, transparent 70%)',
+                    animation: 'ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite',
+                  }}
+                />
+                <span
+                  className="absolute h-16 w-16 rounded-full opacity-30"
+                  style={{
+                    background: 'radial-gradient(circle, #04c2fb 0%, transparent 70%)',
+                    animation: 'ping 1.8s cubic-bezier(0, 0, 0.2, 1) 0.4s infinite',
+                  }}
+                />
+                <div
+                  className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-[#04c2fb]/20"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(4,194,251,0.12) 0%, rgba(0,148,200,0.08) 100%)',
+                  }}
+                >
+                  <Sparkles className="h-9 w-9 text-[#04c2fb]" strokeWidth={1.5} />
+                </div>
+              </div>
+
+              {/* Texto principal */}
+              <div className="space-y-2.5">
+                <h2 className="text-base font-semibold text-gray-900">Gerando template com IA</h2>
+                <p
+                  key={etapaIdx}
+                  className="text-sm text-[#04c2fb] font-medium animate-in fade-in slide-in-from-bottom-2 duration-500"
+                >
+                  {ETAPAS[etapaIdx]}
+                </p>
+              </div>
+
+              {/* Dots animados com stagger */}
+              <div className="flex items-center gap-2">
+                {[0, 1, 2, 3].map(i => (
+                  <div
+                    key={i}
+                    className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] animate-bounce"
+                    style={{ animationDelay: `${i * 0.18}s` }}
+                  />
+                ))}
+              </div>
+
+              {/* Rodapé informativo */}
+              <p className="text-xs text-gray-400 leading-relaxed max-w-[220px]">
+                A IA está analisando o documento. Isso pode levar alguns segundos.
+              </p>
+            </div>
+          </div>
+        </div>
+      </ModalPortal>
+    )
+  }
 
   return (
     <ModalPortal>
       <div
         className="fixed inset-0 z-[60] flex items-center justify-center p-4"
         style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
-        onClick={carregando ? undefined : onFechar}
+        onClick={onFechar}
       >
         <div
           className="w-full max-w-sm rounded-2xl border border-white/30 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
@@ -75,23 +208,21 @@ export function ModalCriarTemplate({
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4">
             <h2 className="text-base font-semibold text-gray-900">Novo template</h2>
-            {!carregando && (
-              <button
-                onClick={onFechar}
-                className="rounded-lg p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+            <button
+              onClick={onFechar}
+              className="rounded-lg p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
           <div className="px-6 pb-6 space-y-3">
+
             {/* Manual */}
             <button
               type="button"
               onClick={onManual}
-              disabled={carregando}
-              className="w-full flex items-start gap-4 rounded-xl border border-gray-200 p-4 text-left hover:border-[#04c2fb] hover:bg-[#04c2fb]/5 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-start gap-4 rounded-xl border border-gray-200 p-4 text-left hover:border-[#04c2fb] hover:bg-[#04c2fb]/5 transition-all group"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 group-hover:bg-[#04c2fb]/10 transition-colors">
                 <Pencil className="h-5 w-5 text-gray-500 group-hover:text-[#04c2fb] transition-colors" />
@@ -102,8 +233,8 @@ export function ModalCriarTemplate({
               </div>
             </button>
 
-            {/* IA */}
-            {planoFree ? (
+            {/* IA — bloqueado por plano */}
+            {planoSemIA ? (
               <div className="w-full flex items-start gap-4 rounded-xl border border-gray-100 p-4 opacity-60 cursor-not-allowed">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
                   <Sparkles className="h-5 w-5 text-gray-400" />
@@ -118,17 +249,8 @@ export function ModalCriarTemplate({
                   <p className="text-xs text-gray-500 mt-0.5">Disponível nos planos Clínica e Clínica Pro.</p>
                 </div>
               </div>
-            ) : carregando ? (
-              <div className="w-full flex items-center gap-4 rounded-xl border border-[#04c2fb]/40 bg-[#04c2fb]/5 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#04c2fb]/10">
-                  <Loader2 className="h-5 w-5 text-[#04c2fb] animate-spin" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Processando...</p>
-                  <p className="text-xs text-gray-500 mt-0.5">A IA está lendo o documento.</p>
-                </div>
-              </div>
             ) : (
+              /* IA — upload */
               <div
                 onDragOver={e => { e.preventDefault(); setArrastando(true) }}
                 onDragLeave={() => setArrastando(false)}
@@ -151,13 +273,16 @@ export function ModalCriarTemplate({
                 <div>
                   <p className="text-sm font-medium text-gray-900">Gerar com IA</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {arrastando ? 'Solte o arquivo aqui' : 'Suba um PDF ou Word, uma IA extrairá a estrutura do formulário.'}
+                    {arrastando
+                      ? 'Solte o arquivo aqui'
+                      : 'Formatos aceitos: PDF, Word, Excel, CSV ou TXT. A IA extrai perguntas e campos e monta o formulário automaticamente.'
+                    }
                   </p>
                 </div>
                 <input
                   ref={inputRef}
                   type="file"
-                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".pdf,.docx,.xlsx,.csv,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
                   className="hidden"
                   onChange={handleInputChange}
                 />

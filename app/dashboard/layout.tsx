@@ -9,7 +9,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex overflow-hidden" style={{ height: '100dvh' }}>
       {/* Google Identity Services - carregado apenas quando necessario */}
       <Script src="https://accounts.google.com/gsi/client" strategy="lazyOnload" />
       <DashboardContentShell>{children}</DashboardContentShell>

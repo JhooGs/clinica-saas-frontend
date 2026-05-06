@@ -292,7 +292,7 @@ function NotificacaoItem({
           </p>
           <button
             onClick={(e) => { e.stopPropagation(); onDispensar() }}
-            className="shrink-0 rounded-md p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 transition-all"
+            className="shrink-0 rounded-md p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-gray-200 hover:text-gray-600 transition-all"
             title="Dispensar"
           >
             <X className="h-3 w-3" />

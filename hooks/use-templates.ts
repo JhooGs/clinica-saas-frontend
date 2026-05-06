@@ -71,6 +71,20 @@ export function useDeletarTemplate() {
   })
 }
 
+export interface QuotaIA {
+  uso: number
+  limite: number | null
+  tem_acesso: boolean
+}
+
+export function useQuotaIA() {
+  return useQuery<QuotaIA>({
+    queryKey: ['quota-ia'],
+    queryFn: () => apiFetch<QuotaIA>('/api/v1/formularios/quota-ia'),
+    staleTime: 60_000,
+  })
+}
+
 export interface ExtrairTemplateIAResult {
   schema: object
   arquivo_nome: string

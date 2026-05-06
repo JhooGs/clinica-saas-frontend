@@ -1455,18 +1455,18 @@ export default function FinanceiroPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn(
-                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
                       t.tipo === 'receita' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
                     )}>
-                      {t.tipo === 'receita' ? '↑ Entrada' : '↓ Saída'}
+                      {t.tipo === 'receita' ? 'Entrada' : 'Saída'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className={cn(
-                      'inline-flex items-baseline gap-1 font-semibold tabular-nums',
+                      'whitespace-nowrap font-semibold tabular-nums',
                       t.tipo === 'receita' ? 'text-emerald-600' : 'text-red-500'
                     )}>
-                      <span className="text-[11px] font-normal opacity-70">
+                      <span className="text-[11px] font-normal opacity-70 mr-0.5">
                         {t.tipo === 'receita' ? '+' : '−'} R$
                       </span>
                       {formatValor(t.valor)}
