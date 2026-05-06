@@ -121,9 +121,6 @@ function EditorForm({ template }: { template: FormularioTemplate }) {
   }
 
   function handleSalvar() {
-    // Cancelar autosave pendente para não sobrepor
-    if (backendTimerRef.current) clearTimeout(backendTimerRef.current)
-
     if (!nome.trim()) {
       toast.error('Nome obrigatório')
       return

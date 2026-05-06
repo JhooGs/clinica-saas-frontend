@@ -21,7 +21,7 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
-    version: 'v1.1.3',
+    version: 'v1.2.0',
     date: '06 de maio de 2026',
     changes: [
       { category: 'Fixed', description: 'Painel da Home foi ajustado para mostrar corretamente os dados.'},
