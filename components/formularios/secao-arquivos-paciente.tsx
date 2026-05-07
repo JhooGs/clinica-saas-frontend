@@ -5,6 +5,7 @@ import { Paperclip, Upload, Loader2, FileText, Image as ImageIcon, Trash2, Downl
 import { toast } from 'sonner'
 import { useFormulariosPaciente, useCriarFormulario, useDeletarFormulario } from '@/hooks/use-formularios-paciente'
 import { uploadAnexoPaciente } from '@/lib/formularios-storage'
+import { isVideoFile } from '@/lib/registro-storage'
 import { createClient } from '@/lib/supabase'
 import { ConfirmDelete } from '@/components/confirm-delete'
 
@@ -33,6 +34,11 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
     const file = e.target.files?.[0]
     if (!inputRef.current) inputRef.current!.value = ''
     if (!file) return
+
+    if (isVideoFile(file)) {
+      toast.error('Formato não permitido', { description: 'Vídeos não podem ser anexados. Use imagens, PDF, MP3 ou documentos.' })
+      return
+    }
 
     if (file.size > MAX_MB * 1024 * 1024) {
       toast.error(`Arquivo muito grande`, { description: `Máximo ${MAX_MB} MB por arquivo.` })
@@ -94,7 +100,7 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
           ref={inputRef}
           type="file"
           className="hidden"
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp3,.gif,.txt"
           onChange={handleFileChange}
         />
       </div>
@@ -108,7 +114,7 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
         >
           <Upload className="h-7 w-7 text-gray-300 mb-2" />
           <p className="text-sm text-gray-400">Envie fotos, documentos e registros antigos</p>
-          <p className="text-xs text-gray-300 mt-1">PDF, imagens, Word, Excel — até {MAX_MB} MB</p>
+          <p className="text-xs text-gray-300 mt-1">PDF, imagens, Word, Excel, MP3 — até {MAX_MB} MB</p>
         </button>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

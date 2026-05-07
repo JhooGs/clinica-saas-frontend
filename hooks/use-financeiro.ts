@@ -33,6 +33,7 @@ export interface FinanceiroUpdatePayload {
   data_referencia?: string // YYYY-MM
   data_pagamento?: string  // YYYY-MM-DD
   forma_pagamento?: FormaPagamento
+  comprovante_url?: string | null
 }
 
 export function useTransacoes(filtros?: TransacoesFilter) {
