@@ -1669,38 +1669,47 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
           </p>
         </div>
 
-        {/* Toggle ativo / inativo */}
-        <button
-          type="button"
-          onClick={toggleAtivo}
-          title={paciente.ativo ? 'Desativar paciente' : 'Reativar paciente'}
-          className="group flex items-center gap-2.5 rounded-xl border px-3 py-2 transition-all duration-200 shrink-0 hover:shadow-sm"
-          style={{
-            borderColor: paciente.ativo ? 'rgba(34,197,94,0.3)' : 'rgba(156,163,175,0.4)',
-            backgroundColor: paciente.ativo ? 'rgba(240,253,244,0.8)' : 'rgba(249,250,251,0.8)',
-          }}
-        >
-          {/* Pill switch */}
-          <div
-            className={cn(
-              'relative h-5 w-9 rounded-full transition-colors duration-300 shrink-0',
-              paciente.ativo ? 'bg-emerald-500' : 'bg-gray-300',
-            )}
+        {/* Toggle ativo / inativo — oculto para pacientes anonimizados */}
+        {paciente.anonimizado_em ? (
+          <span
+            title={`Dados anonimizados em ${new Date(paciente.anonimizado_em).toLocaleDateString('pt-BR')}`}
+            className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 shrink-0 select-none"
           >
-            <span
-              className={cn(
-                'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-md transition-all duration-300 ease-in-out',
-                paciente.ativo ? 'left-[18px]' : 'left-0.5',
-              )}
-            />
-          </div>
-          <span className={cn(
-            'text-xs font-semibold tracking-wide transition-colors duration-200 select-none',
-            paciente.ativo ? 'text-emerald-700' : 'text-gray-400',
-          )}>
-            {paciente.ativo ? 'Ativo' : 'Inativo'}
+            Anonimizado
           </span>
-        </button>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleAtivo}
+            title={paciente.ativo ? 'Desativar paciente' : 'Reativar paciente'}
+            className="group flex items-center gap-2.5 rounded-xl border px-3 py-2 transition-all duration-200 shrink-0 hover:shadow-sm"
+            style={{
+              borderColor: paciente.ativo ? 'rgba(34,197,94,0.3)' : 'rgba(156,163,175,0.4)',
+              backgroundColor: paciente.ativo ? 'rgba(240,253,244,0.8)' : 'rgba(249,250,251,0.8)',
+            }}
+          >
+            {/* Pill switch */}
+            <div
+              className={cn(
+                'relative h-5 w-9 rounded-full transition-colors duration-300 shrink-0',
+                paciente.ativo ? 'bg-emerald-500' : 'bg-gray-300',
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-md transition-all duration-300 ease-in-out',
+                  paciente.ativo ? 'left-[18px]' : 'left-0.5',
+                )}
+              />
+            </div>
+            <span className={cn(
+              'text-xs font-semibold tracking-wide transition-colors duration-200 select-none',
+              paciente.ativo ? 'text-emerald-700' : 'text-gray-400',
+            )}>
+              {paciente.ativo ? 'Ativo' : 'Inativo'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── Cards de resumo ──────────────────────── */}

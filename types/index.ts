@@ -20,6 +20,7 @@ export interface Paciente {
   gratuito_fim?: string | null     // YYYY-MM-DD
   ativo: boolean
   criado_em: string
+  anonimizado_em?: string | null
 }
 
 export interface Registro {
