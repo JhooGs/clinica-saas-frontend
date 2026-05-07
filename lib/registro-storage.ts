@@ -3,6 +3,18 @@ import type { UploadedFile } from '@/components/editor/rich-editor'
 
 const BUCKET = 'registros'
 
+const VIDEO_EXTENSIONS = new Set([
+  'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v',
+  '3gp', '3g2', 'ogv', 'ts', 'm2ts', 'mts', 'vob', 'rm',
+  'rmvb', 'asf', 'divx', 'xvid', 'mpeg', 'mpg', 'f4v',
+])
+
+export function isVideoFile(file: File): boolean {
+  if (file.type.startsWith('video/')) return true
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return VIDEO_EXTENSIONS.has(ext)
+}
+
 // ---------------------------------------------------------------------------
 // Upload de imagem — retorna metadados para a lista de anexos (igual a arquivo)
 // ---------------------------------------------------------------------------
@@ -41,6 +53,9 @@ export async function uploadArquivo(
   file: File,
   agendamentoId: string,
 ): Promise<UploadedFile> {
+  if (isVideoFile(file)) {
+    throw new Error('Vídeos não são permitidos como anexo de registro.')
+  }
   const supabase = createClient()
 
   const ext  = file.name.split('.').pop()

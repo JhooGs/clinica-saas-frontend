@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { TrendingUp, TrendingDown, Clock, AlertCircle, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Loader2, Receipt, User, CalendarDays, Banknote, Info, FileText, Trash2, QrCode, CreditCard, ArrowLeftRight, Building2, ChevronDown, Check, Search, RotateCcw } from 'lucide-react'
+import { TrendingUp, TrendingDown, Clock, AlertCircle, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle, Loader2, Receipt, User, CalendarDays, Banknote, Info, FileText, Trash2, QrCode, CreditCard, ArrowLeftRight, Building2, ChevronDown, Check, Search, RotateCcw, Paperclip, ExternalLink, ImageIcon, FileIcon, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ModalPortal } from '@/components/modal-portal'
 import { DatePicker } from '@/components/ui/date-picker'
 import { MonthYearPicker } from '@/components/ui/month-year-picker'
 import { toast } from 'sonner'
-import { useTransacoes, useCriarTransacao, useAtualizarTransacao, useExcluirTransacao } from '@/hooks/use-financeiro'
+import { useTransacoes, useCriarTransacao, useAtualizarTransacao, useExcluirTransacao, useUploadComprovante, useRemoverComprovante } from '@/hooks/use-financeiro'
+import { validarArquivoComprovante } from '@/lib/comprovante-storage'
 import { usePacientes } from '@/hooks/use-pacientes'
 import type { Financeiro, FormaPagamento } from '@/types'
 import { PageLoader } from '@/components/ui/page-loader'
@@ -241,6 +242,199 @@ function TrashCanButton({ onClick }: { onClick: (e: React.MouseEvent) => void })
   )
 }
 
+function ComprovanteSection({ transacao }: { transacao: Financeiro }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [drag, setDrag] = useState(false)
+  const [expandido, setExpandido] = useState(false)
+  const uploadComprovante = useUploadComprovante()
+  const removerComprovante = useRemoverComprovante()
+
+  const temComprovante = Boolean(transacao.comprovante_url)
+  const isPdf = transacao.comprovante_url?.toLowerCase().includes('.pdf')
+  const isImg = !isPdf && temComprovante
+  const isPending = uploadComprovante.isPending || removerComprovante.isPending
+
+  async function handleFile(file: File) {
+    const erro = validarArquivoComprovante(file)
+    if (erro) { toast.error(erro); return }
+    try {
+      await uploadComprovante.mutateAsync({ transacao, file })
+      toast.success('Comprovante anexado')
+      setExpandido(false)
+    } catch {
+      toast.error('Erro ao enviar comprovante', { description: 'Tente novamente.' })
+    }
+  }
+
+  async function handleRemover() {
+    try {
+      await removerComprovante.mutateAsync(transacao)
+      toast.success('Comprovante removido')
+    } catch {
+      toast.error('Erro ao remover comprovante')
+    }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDrag(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }
+
+  return (
+    <div className="border-t border-gray-100">
+      {temComprovante ? (
+        /* ── Comprovante existente — linha compacta + preview expandível ── */
+        <div>
+          {/* Linha de resumo */}
+          <div className="flex items-center gap-3 px-6 py-3">
+            <div className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+              isImg ? 'bg-[#04c2fb]/10' : 'bg-red-50'
+            )}>
+              {isImg
+                ? <ImageIcon className="h-4 w-4 text-[#04c2fb]" />
+                : <FileIcon className="h-4 w-4 text-red-400" />
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-700 leading-none">
+                {isImg ? 'Imagem anexada' : 'PDF anexado'}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Comprovante de pagamento</p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <a
+                href={transacao.comprovante_url!}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[#04c2fb] hover:bg-[#04c2fb]/8 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Ver
+              </a>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isPending}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Trocar
+              </button>
+              <button
+                onClick={handleRemover}
+                disabled={isPending}
+                className="rounded-lg p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                title="Remover comprovante"
+              >
+                {isPending
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Trash2 className="h-3.5 w-3.5" />
+                }
+              </button>
+            </div>
+          </div>
+
+          {/* Thumbnail de imagem — revelada abaixo da linha */}
+          {isImg && (
+            <div className="px-6 pb-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={transacao.comprovante_url!}
+                alt="Comprovante"
+                className="w-full max-h-40 object-cover rounded-xl border border-gray-100"
+              />
+            </div>
+          )}
+        </div>
+      ) : expandido ? (
+        /* ── Zona de upload expandida ── */
+        <div className="px-6 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <Paperclip className="h-3 w-3" /> Comprovante
+            </span>
+            <button
+              onClick={() => setExpandido(false)}
+              className="rounded-md p-1 text-muted-foreground hover:bg-gray-100 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div
+            onDragOver={e => { e.preventDefault(); setDrag(true) }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={onDrop}
+            onClick={() => !isPending && fileInputRef.current?.click()}
+            className={cn(
+              'flex items-center gap-3 rounded-xl border-2 border-dashed px-4 py-3.5 cursor-pointer transition-all',
+              drag
+                ? 'border-[#04c2fb] bg-[#04c2fb]/5'
+                : 'border-gray-200 hover:border-[#04c2fb]/50 hover:bg-gray-50/80',
+              isPending && 'pointer-events-none opacity-60'
+            )}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin text-[#04c2fb] shrink-0" />
+                <span className="text-sm font-medium text-[#04c2fb]">Enviando...</span>
+              </>
+            ) : (
+              <>
+                <div className={cn(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors',
+                  drag ? 'bg-[#04c2fb]/15' : 'bg-gray-100'
+                )}>
+                  {drag
+                    ? <Upload className="h-4.5 w-4.5 text-[#04c2fb]" />
+                    : <ImageIcon className="h-4 w-4 text-gray-400" />
+                  }
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">
+                    {drag ? 'Solte para anexar' : 'Arraste ou clique para selecionar'}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">JPG, PNG, WebP ou PDF — máx. 10 MB</p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ── Gatilho compacto ── */
+        <button
+          onClick={() => setExpandido(true)}
+          className="w-full flex items-center gap-2.5 px-6 py-3 text-left hover:bg-gray-50/80 transition-colors group"
+        >
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-100 group-hover:bg-[#04c2fb]/10 transition-colors">
+            <Paperclip className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#04c2fb] transition-colors" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground group-hover:text-[#04c2fb] transition-colors">
+            Anexar comprovante
+          </span>
+          <span className="ml-auto text-[10px] text-muted-foreground/50 group-hover:text-[#04c2fb]/50 transition-colors">
+            JPG · PNG · PDF
+          </span>
+        </button>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,application/pdf"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleFile(file)
+          e.target.value = ''
+        }}
+      />
+    </div>
+  )
+}
+
 function ModalDetalheTransacao({
   transacao,
   onFechar,
@@ -249,7 +443,9 @@ function ModalDetalheTransacao({
   onFechar: () => void
 }) {
   const [dataPagamento, setDataPagamento] = useState(hoje())
-  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('pix')
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>(
+    (transacao.forma_pagamento as FormaPagamento) ?? 'pix'
+  )
   const atualizarTransacao = useAtualizarTransacao()
 
   const eReceita = transacao.tipo === 'receita'
@@ -280,7 +476,7 @@ function ModalDetalheTransacao({
         onClick={onFechar}
       >
         <div
-          className="w-full max-w-md rounded-2xl border border-white/30 shadow-2xl"
+          className="w-full max-w-md rounded-2xl border border-white/30 shadow-2xl overflow-y-auto max-h-[90dvh]"
           style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.97)' }}
           onClick={e => e.stopPropagation()}
         >
@@ -353,10 +549,6 @@ function ModalDetalheTransacao({
               <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Referência</span>
               <span className="text-sm font-medium text-gray-800">{formatReferencia(transacao.data_referencia)}</span>
             </div>
-            <div className="flex items-center justify-between py-2.5">
-              <span className="text-xs text-muted-foreground flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Criado em</span>
-              <span className="text-sm text-gray-700">{formatData(transacao.criado_em)}</span>
-            </div>
             {transacao.data_vencimento && (
               <div className="flex items-center justify-between py-2.5">
                 <span className="text-xs text-muted-foreground flex items-center gap-2"><Clock className="h-3.5 w-3.5" /> Vencimento</span>
@@ -371,9 +563,12 @@ function ModalDetalheTransacao({
             )}
           </div>
 
+          {/* Seção de comprovante — sempre visível */}
+          <ComprovanteSection transacao={transacao} />
+
           {/* Seção de pagamento — receitas e despesas não canceladas */}
           {transacao.status !== 'cancelado' && (
-            <div className="px-6 pt-4 pb-5 border-t border-gray-100 mt-1">
+            <div className="px-6 pt-4 pb-5 border-t border-gray-100">
               {jaPago ? (
                 /* Já pago */
                 <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3.5 flex items-start gap-3">
@@ -402,18 +597,41 @@ function ModalDetalheTransacao({
                     </span>
                     <div className="h-px flex-1 bg-gray-100" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        {eReceita ? 'Data do recebimento' : 'Data do pagamento'}
-                      </label>
-                      <DatePicker value={dataPagamento} onChange={v => setDataPagamento(v)} placeholder="Selecionar data" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Forma de pagamento</label>
-                      <FormaPagamentoDropdown value={formaPagamento} onChange={setFormaPagamento} />
+
+                  {/* Data */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {eReceita ? 'Data do recebimento' : 'Data do pagamento'}
+                    </label>
+                    <DatePicker value={dataPagamento} onChange={v => setDataPagamento(v)} placeholder="Selecionar data" />
+                  </div>
+
+                  {/* Forma de pagamento — chips horizontais */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Forma de pagamento</label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {FORMAS_PAGAMENTO.map(fp => {
+                        const ativo = formaPagamento === fp.value
+                        return (
+                          <button
+                            key={fp.value}
+                            type="button"
+                            onClick={() => setFormaPagamento(fp.value)}
+                            className={cn(
+                              'flex flex-col items-center gap-1 rounded-xl border py-2.5 px-1 text-[11px] font-semibold transition-all',
+                              ativo
+                                ? 'border-[#04c2fb] bg-[#04c2fb]/8 text-[#04c2fb] shadow-sm shadow-[#04c2fb]/20'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-[#04c2fb]/40 hover:text-[#04c2fb] hover:bg-[#04c2fb]/4'
+                            )}
+                          >
+                            <fp.Icon className={cn('h-4 w-4', ativo ? 'text-[#04c2fb]' : 'text-gray-400')} />
+                            {fp.short}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
+
                   <button
                     onClick={darBaixa}
                     disabled={atualizarTransacao.isPending}
@@ -501,19 +719,36 @@ function ModalExclusaoTransacao({
 
 const STORAGE_KEY_VENCIMENTO = 'clinitra:dia_vencimento'
 
-function calcularVencimentoPadrao(): { iso: string; display: string; dia: number } | null {
+/**
+ * Vencimento = dia configurado no mês SEGUINTE ao mês de referência.
+ * Ex: referência 05/2025, dia 9 → vencimento 09/06/2025.
+ * Se o dia não existir no mês alvo (ex: dia 31 em fevereiro), usa o último dia do mês.
+ */
+function calcularVencimentoPadrao(dataReferencia: string): { iso: string; display: string; dia: number } | null {
   if (typeof window === 'undefined') return null
   const stored = localStorage.getItem(STORAGE_KEY_VENCIMENTO)
   if (!stored) return null
   const dia = Number(stored)
   if (!dia || isNaN(dia)) return null
 
-  const hoje = new Date()
-  const candidato = new Date(hoje.getFullYear(), hoje.getMonth(), dia)
-  const alvo = candidato > hoje ? candidato : new Date(hoje.getFullYear(), hoje.getMonth() + 1, dia)
+  const [anoStr, mesStr] = dataReferencia.split('-')
+  if (!anoStr || !mesStr) return null
+  const ano = Number(anoStr)
+  const mes = Number(mesStr) // 1-12
+
+  // Mês seguinte (JavaScript Date: mês 0-based)
+  const mesSeguinte = mes === 12 ? 0 : mes
+  const anoSeguinte = mes === 12 ? ano + 1 : ano
+
+  // Usar dia 0 do mês seguinte+1 para obter último dia do mês seguinte
+  const ultimoDia = new Date(anoSeguinte, mesSeguinte + 1, 0).getDate()
+  const diaAlvo = Math.min(dia, ultimoDia)
+  const alvo = new Date(anoSeguinte, mesSeguinte, diaAlvo)
+
+  const iso = `${String(alvo.getFullYear())}-${String(alvo.getMonth() + 1).padStart(2, '0')}-${String(alvo.getDate()).padStart(2, '0')}`
 
   return {
-    iso: alvo.toISOString().slice(0, 10),
+    iso,
     display: alvo.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
     dia,
   }
@@ -557,7 +792,7 @@ function ModalNovaTransacao({
     return () => document.removeEventListener('mousedown', handleFora)
   }, [])
 
-  const vencimentoPadrao = useMemo(() => calcularVencimentoPadrao(), [])
+  const vencimentoPadrao = useMemo(() => calcularVencimentoPadrao(form.dataReferencia), [form.dataReferencia])
 
   function f(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -1030,6 +1265,163 @@ function AnoSelect({ value, onChange }: { value: string; onChange: (yyyy: string
   )
 }
 
+function FiltroPacienteDropdown({
+  value,
+  onChange,
+}: {
+  value: string | null
+  onChange: (id: string | null, nome: string | null) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [busca, setBusca] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { data: pacientesData } = usePacientes({ ativo: true, page_size: 500 })
+  const pacientes = pacientesData?.items ?? []
+
+  const selecionado = pacientes.find(p => p.id === value) ?? null
+
+  useEffect(() => {
+    function handleFora(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false)
+        setBusca('')
+      }
+    }
+    document.addEventListener('mousedown', handleFora)
+    return () => document.removeEventListener('mousedown', handleFora)
+  }, [])
+
+  function abrir() {
+    setAberto(true)
+    setBusca('')
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  function limpar(e: React.MouseEvent) {
+    e.stopPropagation()
+    onChange(null, null)
+    setAberto(false)
+    setBusca('')
+  }
+
+  const filtrados = busca
+    ? pacientes.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()))
+    : pacientes
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Trigger */}
+      {selecionado ? (
+        <div
+          onClick={abrir}
+          className={cn(
+            'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all bg-[#04c2fb]/8 border-[#04c2fb]/40 cursor-pointer',
+            aberto && 'ring-2 ring-[#04c2fb]/20'
+          )}
+        >
+          <User className="h-4 w-4 text-[#04c2fb] shrink-0" />
+          <span className="text-[#04c2fb] font-semibold max-w-[140px] truncate">{selecionado.nome}</span>
+          <button
+            type="button"
+            onClick={limpar}
+            className="ml-0.5 rounded-full p-0.5 text-[#04c2fb]/70 hover:text-[#04c2fb] hover:bg-[#04c2fb]/10 transition-colors"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={abrir}
+          className={cn(
+            'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all bg-white',
+            aberto
+              ? 'border-[#04c2fb]/60 ring-2 ring-[#04c2fb]/20'
+              : 'border-gray-200 hover:border-[#04c2fb]/30 hover:bg-gray-50/50'
+          )}
+        >
+          <User className="h-4 w-4 text-[#04c2fb] shrink-0" />
+          <span className="text-gray-600 font-medium">Paciente</span>
+          <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ml-0.5', aberto && 'rotate-180')} />
+        </button>
+      )}
+
+      {/* Painel dropdown */}
+      {aberto && (
+        <div
+          className="absolute left-0 top-full z-30 mt-1.5 w-64 rounded-2xl border border-gray-200 shadow-xl overflow-hidden"
+          style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(255,255,255,0.98)' }}
+        >
+          {/* Campo de busca */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
+              <input
+                ref={inputRef}
+                value={busca}
+                onChange={e => setBusca(e.target.value)}
+                placeholder="Buscar paciente..."
+                className="w-full rounded-lg border border-gray-200 bg-white/80 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#04c2fb]/40"
+              />
+            </div>
+          </div>
+
+          {/* Opção "Todos os pacientes" */}
+          <div className="pt-1 pb-0.5">
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); onChange(null, null); setAberto(false); setBusca('') }}
+              className={cn(
+                'w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors',
+                !value
+                  ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
+                  : 'text-muted-foreground hover:bg-gray-50'
+              )}
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 shrink-0">
+                <User className="h-3 w-3 text-gray-400" />
+              </span>
+              Todos os pacientes
+              {!value && <Check className="h-3.5 w-3.5 ml-auto text-[#04c2fb] shrink-0" />}
+            </button>
+          </div>
+
+          {/* Lista de pacientes */}
+          <div className="max-h-52 overflow-y-auto pb-1.5">
+            {filtrados.length === 0 ? (
+              <p className="px-3 py-4 text-center text-xs italic text-muted-foreground">Nenhum paciente encontrado</p>
+            ) : (
+              filtrados.slice(0, 20).map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); onChange(p.id, p.nome); setAberto(false); setBusca('') }}
+                  className={cn(
+                    'w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors',
+                    value === p.id
+                      ? 'bg-[#04c2fb]/8 text-[#04c2fb] font-medium'
+                      : 'text-gray-700 hover:bg-[#04c2fb]/5 hover:text-[#04c2fb]'
+                  )}
+                >
+                  <span className={cn(
+                    'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold shrink-0',
+                    value === p.id ? 'bg-[#04c2fb]/15 text-[#04c2fb]' : 'bg-gray-100 text-gray-500'
+                  )}>
+                    {p.nome.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="truncate">{p.nome}</span>
+                  {value === p.id && <Check className="h-3.5 w-3.5 ml-auto text-[#04c2fb] shrink-0" />}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FiltroPeriodoDropdown({
   modoFiltro, setModoFiltro,
   filtroMes, setFiltroMes,
@@ -1201,6 +1593,8 @@ export default function FinanceiroPage() {
   const [filtroAno, setFiltroAno] = useState<number>(ANO_ATUAL)
   const [filtroInicio, setFiltroInicio] = useState<string>(mesAtualYYYYMM())
   const [filtroFim, setFiltroFim] = useState<string>(mesAtualYYYYMM())
+  const [filtroPacienteId, setFiltroPacienteId] = useState<string | null>(null)
+  const [filtroPacienteNome, setFiltroPacienteNome] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('data_referencia')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -1210,12 +1604,14 @@ export default function FinanceiroPage() {
     periodo_inicio: modoFiltro === 'periodo' ? filtroInicio || undefined : undefined,
     periodo_fim: modoFiltro === 'periodo' ? filtroFim || undefined : undefined,
     tipo: filtroTipo !== 'todos' ? filtroTipo : undefined,
+    paciente_id: filtroPacienteId ?? undefined,
   })
   const excluirTransacao = useExcluirTransacao()
 
   const labelPeriodo = modoFiltro === 'mes' ? 'do Mês' : modoFiltro === 'ano' ? `de ${filtroAno}` : 'do Período'
   const isFiltered =
     filtroTipo !== 'todos' ||
+    filtroPacienteId !== null ||
     (modoFiltro === 'mes' && filtroMes !== mesAtualYYYYMM()) ||
     modoFiltro === 'ano' ||
     modoFiltro === 'periodo'
@@ -1224,6 +1620,8 @@ export default function FinanceiroPage() {
     setModoFiltro('mes')
     setFiltroMes(mesAtualYYYYMM())
     setFiltroTipo('todos')
+    setFiltroPacienteId(null)
+    setFiltroPacienteNome(null)
   }
 
   async function confirmarExclusao() {
@@ -1308,52 +1706,96 @@ export default function FinanceiroPage() {
         </button>
       </div>
 
+      {/* Banner de contexto — paciente filtrado */}
+      {filtroPacienteNome && (
+        <div className="flex items-center gap-3 rounded-xl border border-[#04c2fb]/30 bg-gradient-to-r from-[#04c2fb]/8 to-[#04c2fb]/4 px-4 py-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#04c2fb]/15 text-sm font-bold text-[#04c2fb]">
+            {filtroPacienteNome.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-[#04c2fb] uppercase tracking-wide leading-none mb-0.5">Visão do paciente</p>
+            <p className="text-sm font-semibold text-gray-800 truncate">{filtroPacienteNome}</p>
+          </div>
+          <button
+            onClick={resetarFiltros}
+            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-[#04c2fb] bg-[#04c2fb]/10 hover:bg-[#04c2fb]/20 transition-colors flex items-center gap-1.5"
+          >
+            <X className="h-3 w-3" />
+            Limpar
+          </button>
+        </div>
+      )}
+
       {/* Cards resumo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div className={cn(
+          'rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all',
+          filtroPacienteId && 'border-emerald-200 ring-1 ring-emerald-100'
+        )}>
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Faturamento {labelPeriodo}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">
+                Faturamento {labelPeriodo}
+              </p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-600">{formatBRL(resumo?.receita_mes ?? 0)}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">total de entradas</p>
+              <p className="mt-1 text-[11px] text-muted-foreground truncate">
+                {filtroPacienteNome ? `entradas de ${filtroPacienteNome.split(' ')[0]}` : 'total de entradas'}
+              </p>
             </div>
-            <div className="rounded-lg p-2.5 bg-emerald-500/10">
+            <div className="rounded-lg p-2.5 bg-emerald-500/10 shrink-0">
               <TrendingUp className="h-4 w-4 text-emerald-500" />
             </div>
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div className={cn(
+          'rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all',
+          filtroPacienteId && 'border-red-200 ring-1 ring-red-100'
+        )}>
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Despesa {labelPeriodo}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">
+                Despesa {labelPeriodo}
+              </p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-red-500">{formatBRL(resumo?.despesa_mes ?? 0)}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">total de saídas</p>
+              <p className="mt-1 text-[11px] text-muted-foreground truncate">
+                {filtroPacienteNome ? `saídas de ${filtroPacienteNome.split(' ')[0]}` : 'total de saídas'}
+              </p>
             </div>
-            <div className="rounded-lg p-2.5 bg-red-500/10">
+            <div className="rounded-lg p-2.5 bg-red-500/10 shrink-0">
               <TrendingDown className="h-4 w-4 text-red-500" />
             </div>
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div className={cn(
+          'rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all',
+          filtroPacienteId && 'border-amber-200 ring-1 ring-amber-100'
+        )}>
           <div className="flex items-start justify-between">
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-muted-foreground">A Receber</p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-amber-600">{formatBRL(resumo?.a_receber ?? 0)}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">dentro do prazo</p>
+              <p className="mt-1 text-[11px] text-muted-foreground truncate">
+                {filtroPacienteNome ? `pendente de ${filtroPacienteNome.split(' ')[0]}` : 'dentro do prazo'}
+              </p>
             </div>
-            <div className="rounded-lg p-2.5 bg-amber-500/10">
+            <div className="rounded-lg p-2.5 bg-amber-500/10 shrink-0">
               <Clock className="h-4 w-4 text-amber-500" />
             </div>
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div className={cn(
+          'rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all',
+          filtroPacienteId && 'border-red-200 ring-1 ring-red-100'
+        )}>
           <div className="flex items-start justify-between">
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-muted-foreground">Atrasado</p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-red-600">{formatBRL(resumo?.atrasado ?? 0)}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">prazo expirado</p>
+              <p className="mt-1 text-[11px] text-muted-foreground truncate">
+                {filtroPacienteNome ? `vencido de ${filtroPacienteNome.split(' ')[0]}` : 'prazo expirado'}
+              </p>
             </div>
-            <div className="rounded-lg p-2.5 bg-red-500/10">
+            <div className="rounded-lg p-2.5 bg-red-500/10 shrink-0">
               <AlertCircle className="h-4 w-4 text-red-500" />
             </div>
           </div>
@@ -1370,6 +1812,12 @@ export default function FinanceiroPage() {
           filtroAno={filtroAno} setFiltroAno={setFiltroAno}
           filtroInicio={filtroInicio} setFiltroInicio={setFiltroInicio}
           filtroFim={filtroFim} setFiltroFim={setFiltroFim}
+        />
+
+        {/* Filtro por paciente */}
+        <FiltroPacienteDropdown
+          value={filtroPacienteId}
+          onChange={(id, nome) => { setFiltroPacienteId(id); setFiltroPacienteNome(nome) }}
         />
 
         {/* Filtro por tipo */}
@@ -1398,7 +1846,7 @@ export default function FinanceiroPage() {
             className="flex items-center gap-1.5 rounded-full border border-[#04c2fb]/35 bg-[#04c2fb]/6 px-3.5 py-1.5 text-xs font-semibold text-[#04c2fb] hover:bg-[#04c2fb]/12 hover:border-[#04c2fb]/55 transition-all"
           >
             <RotateCcw className="h-3 w-3" />
-            Mês atual
+            Limpar filtros
           </button>
         )}
 
@@ -1481,8 +1929,15 @@ export default function FinanceiroPage() {
                       {statusLabel(t.status)}
                     </span>
                   </td>
-                  <td className="w-14 px-4 py-3 text-center">
-                    <TrashCanButton onClick={e => { e.stopPropagation(); setExcluindoTransacao(t) }} />
+                  <td className="w-20 px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {t.comprovante_url && (
+                        <span title="Tem comprovante" className="flex h-6 w-6 items-center justify-center rounded-full bg-[#04c2fb]/10 text-[#04c2fb]">
+                          <Paperclip className="h-3 w-3" />
+                        </span>
+                      )}
+                      <TrashCanButton onClick={e => { e.stopPropagation(); setExcluindoTransacao(t) }} />
+                    </div>
                   </td>
                 </tr>
               ))}

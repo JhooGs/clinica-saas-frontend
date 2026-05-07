@@ -21,6 +21,14 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v1.2.1',
+    date: '06 de maio de 2026',
+    changes: [
+      { category: 'Added', description: 'Agora é possível filtrar por paciente o financeiro.'},
+      { category: 'Added', description: 'Agora é possível adicionar comprovante de pagamento no financeiro.'},
+    ],
+  },
+  {
     version: 'v1.2.0',
     date: '06 de maio de 2026',
     changes: [
@@ -29,7 +37,7 @@ const CHANGELOG: VersionEntry[] = [
       { category: 'Fixed', description: 'Ajuste financeiro que não atualizava o valor das sessões gratuitas corretamente.'},
       { category: 'Fixed', description: 'Número do atendimento foi retirado do financeiro quando não deveria ser exibido.'},
       { category: 'Changed', description: 'Refeito a página de formulários.'},
-      { category: 'Changed', description: 'Agora é possível retraiseções no formulário enquanto edita ou preenche.'},
+      { category: 'Changed', description: 'Agora é possível retrair seções no formulário enquanto edita ou preenche.'},
       { category: 'Changed', description: 'Várias melhorias realizadas na IA de formulários.'},
       { category: 'Changed', description: 'A edição de formulários foi melhorada.'},
       { category: 'Changed', description: 'Agora Documentos se chama Formulários, deixa tudo mais claro e organizado.'},

@@ -307,18 +307,22 @@ export default function RichEditor({
         className="hidden"
         onChange={async e => {
           const file = e.target.files?.[0]
-          if (file && onUploadFile) await onUploadFile(file)
+          if (file && onUploadFile) {
+            try { await onUploadFile(file) } catch { /* toast já exibido pelo caller */ }
+          }
           e.target.value = ''
         }}
       />
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx,.xls,.xlsx,.mp3,.mp4,.txt"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.mp3,.gif,.txt"
         className="hidden"
         onChange={async e => {
           const file = e.target.files?.[0]
-          if (file && onUploadFile) await onUploadFile(file)
+          if (file && onUploadFile) {
+            try { await onUploadFile(file) } catch { /* toast já exibido pelo caller */ }
+          }
           e.target.value = ''
         }}
       />

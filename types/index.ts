@@ -66,6 +66,7 @@ export interface Financeiro {
   criado_em: string
   paciente_nome?: string
   origem_cobranca?: 'pacote' | 'avulso' | 'mensalidade' | 'falta' | 'gratuito'
+  comprovante_url?: string
 }
 
 export interface FinanceiroResumo {

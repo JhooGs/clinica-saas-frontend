@@ -7,7 +7,7 @@ import { cn, hoje, tiptapToHtml } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
 import RichEditor, { type UploadedFile } from '@/components/editor/rich-editor'
-import { uploadImagem, uploadArquivo, removerArquivo } from '@/lib/registro-storage'
+import { uploadImagem, uploadArquivo, removerArquivo, isVideoFile } from '@/lib/registro-storage'
 import { useRegistroDraft } from '@/hooks/use-registro-draft'
 import { ConfirmDiscard } from '@/components/confirm-discard'
 import { ConfirmDelete } from '@/components/confirm-delete'
@@ -431,6 +431,10 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
   }
 
   async function handleUploadArquivo(file: File): Promise<UploadedFile> {
+    if (isVideoFile(file)) {
+      toast.error('Formato não permitido', { description: 'Vídeos não podem ser anexados. Use imagens, PDF, MP3 ou documentos.' })
+      throw new Error('video_not_allowed')
+    }
     const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
     const uploaded = await fn(file, id)
     setArquivos(prev => [...prev, uploaded])
@@ -884,6 +888,10 @@ function FormularioAtendimento({ id }: { id: string }) {
   }
 
   async function handleUploadArquivo(file: File): Promise<UploadedFile> {
+    if (isVideoFile(file)) {
+      toast.error('Formato não permitido', { description: 'Vídeos não podem ser anexados. Use imagens, PDF, MP3 ou documentos.' })
+      throw new Error('video_not_allowed')
+    }
     const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
     const uploaded = await fn(file, id)
     setArquivos(prev => [...prev, uploaded])

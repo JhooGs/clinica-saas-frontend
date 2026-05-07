@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { uploadComprovante, removerComprovante } from '@/lib/comprovante-storage'
 import type { Financeiro, FinanceiroListResponse, FormaPagamento } from '@/types'
 
 export interface TransacoesFilter {
@@ -87,6 +88,49 @@ export function useExcluirTransacao() {
   return useMutation<void, Error, string>({
     mutationFn: (id) =>
       apiFetch(`/api/v1/financeiro/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeiro'] })
+    },
+  })
+}
+
+export function useUploadComprovante() {
+  const queryClient = useQueryClient()
+  const atualizarTransacao = useAtualizarTransacao()
+  return useMutation<
+    Financeiro,
+    Error,
+    { transacao: Financeiro; file: File }
+  >({
+    mutationFn: async ({ transacao, file }) => {
+      if (transacao.comprovante_url) {
+        await removerComprovante(transacao.comprovante_url)
+      }
+      const url = await uploadComprovante(transacao.id, transacao.clinica_id, file)
+      return atualizarTransacao.mutateAsync({
+        id: transacao.id,
+        payload: { comprovante_url: url },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeiro'] })
+    },
+  })
+}
+
+export function useRemoverComprovante() {
+  const queryClient = useQueryClient()
+  const atualizarTransacao = useAtualizarTransacao()
+  return useMutation<Financeiro, Error, Financeiro>({
+    mutationFn: async (transacao) => {
+      if (transacao.comprovante_url) {
+        await removerComprovante(transacao.comprovante_url)
+      }
+      return atualizarTransacao.mutateAsync({
+        id: transacao.id,
+        payload: { comprovante_url: '' },
+      })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financeiro'] })
     },
