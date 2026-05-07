@@ -19,9 +19,10 @@ function iconeArquivo(url: string) {
 
 interface SecaoArquivosPacienteProps {
   pacienteId: string
+  readOnly?: boolean
 }
 
-export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps) {
+export function SecaoArquivosPaciente({ pacienteId, readOnly = false }: SecaoArquivosPacienteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; nome: string } | null>(null)
@@ -87,35 +88,46 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
           <Paperclip className="h-4 w-4 text-[#04c2fb]" />
           Arquivos
         </h2>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50"
-        >
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          Enviar arquivo
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp3,.gif,.txt"
-          onChange={handleFileChange}
-        />
+        {!readOnly && (
+          <>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              Enviar arquivo
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp3,.gif,.txt"
+              onChange={handleFileChange}
+            />
+          </>
+        )}
       </div>
 
       {arquivos.length === 0 ? (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="w-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 py-8 text-center hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 transition-all disabled:opacity-50"
-        >
-          <Upload className="h-7 w-7 text-gray-300 mb-2" />
-          <p className="text-sm text-gray-400">Envie fotos, documentos e registros antigos</p>
-          <p className="text-xs text-gray-300 mt-1">PDF, imagens, Word, Excel, MP3 — até {MAX_MB} MB</p>
-        </button>
+        readOnly ? (
+          <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
+            <Paperclip className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-400">Nenhum arquivo.</p>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="w-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 py-8 text-center hover:border-[#04c2fb]/40 hover:bg-[#04c2fb]/5 transition-all disabled:opacity-50"
+          >
+            <Upload className="h-7 w-7 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-400">Envie fotos, documentos e registros antigos</p>
+            <p className="text-xs text-gray-300 mt-1">PDF, imagens, Word, Excel, MP3 — até {MAX_MB} MB</p>
+          </button>
+        )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {arquivos.map(arq => {
@@ -146,14 +158,16 @@ export function SecaoArquivosPaciente({ pacienteId }: SecaoArquivosPacienteProps
                       <Download className="h-4 w-4" />
                     </a>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete({ id: arq.id, nome: arq.nome })}
-                    className="rounded-lg p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    title="Remover"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete({ id: arq.id, nome: arq.nome })}
+                      className="rounded-lg p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      title="Remover"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             )

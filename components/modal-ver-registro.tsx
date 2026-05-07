@@ -12,6 +12,7 @@ interface ModalVerRegistroProps {
   registro: Registro | null
   horario?: string | null
   onClose: () => void
+  readOnly?: boolean
 }
 
 function formatDataBR(iso: string | null | undefined): string {
@@ -27,7 +28,7 @@ function formatBRL(valor: number | string | null | undefined): string {
   return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistroProps) {
+export function ModalVerRegistro({ registro, horario, onClose, readOnly = false }: ModalVerRegistroProps) {
   const router = useRouter()
   const [imagemLightboxUrl, setImagemLightboxUrl] = useState<string | null>(null)
 
@@ -204,17 +205,19 @@ export function ModalVerRegistro({ registro, horario, onClose }: ModalVerRegistr
               )}
 
               {/* Rodapé com botão Editar */}
-              <div className={cn("flex items-center justify-end px-6 py-4", registro.presenca && "border-t border-gray-100")}>
-                <button
-                  onClick={abrirEditor}
-                  title="Abrir editor completo"
-                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all"
-                  style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
-                >
-                  <Pencil className="h-4 w-4" />
-                  Editar registro
-                </button>
-              </div>
+              {!readOnly && (
+                <div className={cn("flex items-center justify-end px-6 py-4", registro.presenca && "border-t border-gray-100")}>
+                  <button
+                    onClick={abrirEditor}
+                    title="Abrir editor completo"
+                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all"
+                    style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Editar registro
+                  </button>
+                </div>
+              )}
             </>
           )}
         </DialogContent>

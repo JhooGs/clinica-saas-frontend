@@ -1209,6 +1209,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
   const { isAdmin, isSuperAdmin } = usePermissions()
 
   const [paciente, setPaciente] = useState(pacienteInicial)
+  const isAnonimizado = !!paciente.anonimizado_em || paciente.nome === '[DADOS ANONIMIZADOS]'
   const [modalExclusaoAberto, setModalExclusaoAberto] = useState(false)
   const [textoExclusao, setTextoExclusao] = useState('')
   const [mfaExclusaoAberto, setMfaExclusaoAberto] = useState(false)
@@ -1672,14 +1673,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         </div>
 
         {/* Toggle ativo / inativo — oculto para pacientes anonimizados */}
-        {paciente.anonimizado_em ? (
-          <span
-            title={`Dados anonimizados em ${new Date(paciente.anonimizado_em).toLocaleDateString('pt-BR')}`}
-            className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 shrink-0 select-none"
-          >
-            Anonimizado
-          </span>
-        ) : (
+        {!paciente.anonimizado_em && paciente.nome !== '[DADOS ANONIMIZADOS]' && (
           <button
             type="button"
             onClick={toggleAtivo}
@@ -1755,7 +1749,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 : 'Nome, contato e endereço'}
             </p>
           </div>
-          {secaoAberta === 'informacoes' && (
+          {secaoAberta === 'informacoes' && !isAnonimizado && (
             <div onClick={e => e.stopPropagation()} className="flex items-center gap-2 shrink-0">
               {!editando ? (
                 <button
@@ -2315,7 +2309,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                     return { cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', label: 'Pendente' }
                   })()
 
-                  const destinoNovo = !reg && ehPassado && !ehCancelado
+                  const destinoNovo = !reg && ehPassado && !ehCancelado && !isAnonimizado
                     ? `/dashboard/registros/${ag.id}`
                     : null
                   const clicavel = !!reg || !!destinoNovo
@@ -2601,7 +2595,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                 : 'Formulários e registros clínicos'}
             </p>
           </div>
-          {secaoAberta === 'formularios' && formTemplatesGate.allowed && (
+          {secaoAberta === 'formularios' && formTemplatesGate.allowed && !isAnonimizado && (
             <div onClick={e => e.stopPropagation()}>
               <button
                 type="button"
@@ -2668,13 +2662,15 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
                           </div>
                         </div>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setExcluindoDocPaciente({ id: doc.id, nome: doc.nome })}
-                        className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {!isAnonimizado && (
+                        <button
+                          type="button"
+                          onClick={() => setExcluindoDocPaciente({ id: doc.id, nome: doc.nome })}
+                          className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2751,7 +2747,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         )}>
         <div className={cn('overflow-hidden min-h-0', secaoAberta === 'arquivos' && 'border-t')}>
           {attachmentsGate.allowed ? (
-            <SecaoArquivosPaciente pacienteId={paciente.id} />
+            <SecaoArquivosPaciente pacienteId={paciente.id} readOnly={isAnonimizado} />
           ) : (
             <div className="p-4">
               <LockedFeatureBlock
@@ -2766,7 +2762,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
       </div>
 
       {/* Dados do paciente — direitos LGPD */}
-      {(isAdmin || isSuperAdmin) && (
+      {(isAdmin || isSuperAdmin) && !isAnonimizado && (
         <div className="mt-8 space-y-3">
           {/* Exportação (LGPD Art. 18 II e IV) */}
           <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
@@ -2939,6 +2935,7 @@ function PacienteDetalheContent({ pacienteInicial }: { pacienteInicial: Paciente
         registro={registroModal}
         horario={horarioModal}
         onClose={() => { setRegistroModal(null); setHorarioModal(null) }}
+        readOnly={isAnonimizado}
       />
     </div>
   )

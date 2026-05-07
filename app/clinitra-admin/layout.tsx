@@ -9,7 +9,7 @@ export default function ClintraAdminLayout({
     <div className="flex h-screen overflow-hidden">
       <AdminNav />
       {/* Offset da sidebar fixa no desktop (56px colapsada) */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-background md:pl-14">
+      <div className="flex flex-1 flex-col overflow-hidden bg-background pt-14 md:pt-0 md:pl-14">
         <main className="flex-1 overflow-y-auto p-3 sm:p-6">
           {children}
         </main>

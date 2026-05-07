@@ -166,7 +166,7 @@ export function AdminNav() {
   return (
     <>
       {/* ═══════════════════ MOBILE topbar ═══════════════════ */}
-      <header className="md:hidden shrink-0 flex items-center justify-between px-4 h-14 border-b bg-background">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 h-14 border-b bg-background">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMobileOpen(true)}

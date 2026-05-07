@@ -24,6 +24,7 @@ const CHANGELOG: VersionEntry[] = [
     version: 'v1.2.1',
     date: '06 de maio de 2026',
     changes: [
+      { category: 'Fixed', description: 'Vários ajustes e correções quando um paciente tem seus dados sensíveis deletados.'},
       { category: 'Added', description: 'Agora é possível filtrar por paciente o financeiro.'},
       { category: 'Added', description: 'Agora é possível adicionar comprovante de pagamento no financeiro.'},
     ],
