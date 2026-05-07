@@ -194,6 +194,7 @@ type PacienteCompleto = {
   bairro: string
   cidade: string
   estado: string
+  anonimizado_em: string | null
 }
 
 /* ── Helpers ───────────────────────────────────────── */
@@ -262,6 +263,7 @@ function apiParaCompleto(p: import('@/types').Paciente): PacienteCompleto {
     bairro: end.bairro ?? '',
     cidade: end.cidade ?? '',
     estado: end.estado ?? '',
+    anonimizado_em: p.anonimizado_em ?? null,
   }
 }
 
