@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { ArrowRight, Eye, EyeOff, Mail, Lock } from 'lucide-react'
 import Image from 'next/image'
@@ -11,11 +11,21 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [showSenha, setShowSenha] = useState(false)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('motivo') === 'sessao_expirada') {
+      toast.warning('Sessão encerrada', {
+        description: 'Sua sessão expirou. Faça login novamente.',
+        id: 'sessao-expirada',
+      })
+    }
+  }, [searchParams])
 
   const emailInvalido = email.length > 0 && !email.includes('@')
   const camposComErro = !!erro

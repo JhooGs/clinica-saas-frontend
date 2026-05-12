@@ -69,6 +69,8 @@ type PlanoAtendimento = {
   vigenciaInicio?: string | null  // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
   vigenciaFim?: string | null     // ISO YYYY-MM-DD, exclusivo do Pacote Gratuito
   terapeutaId?: string | null     // UUID do terapeuta logado no momento do save
+  tipoAtendimentoId?: string | null   // UUID do tipo selecionado no modal de horário
+  tipoAtendimentoNome?: string | null // nome cacheado para o worker Celery
 }
 
 const RECORRENCIAS: { id: Recorrencia; label: string; desc: string }[] = [
@@ -447,7 +449,9 @@ function CardPlano({
         recorrencia: formComTerapeuta.recorrencia!,
         vezes_por_semana: formComTerapeuta.vezesPorSemana,
         atendimento_em_grupo: formComTerapeuta.atendimentoEmGrupo,
-        tipo_atendimento: formComTerapeuta.atendimentoEmGrupo ? 'Atendimento em grupo' : 'Atendimento',
+        tipo_atendimento: formComTerapeuta.atendimentoEmGrupo
+          ? 'Atendimento em grupo'
+          : (formComTerapeuta.tipoAtendimentoNome ?? 'Atendimento'),
         pacientes_ids: formComTerapeuta.atendimentoEmGrupo ? [pacienteId] : undefined,
         slots: formComTerapeuta.agenda!.slots.map(s => ({
           dia_semana: s.diaSemana,
@@ -678,12 +682,27 @@ function CardPlano({
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {pacote.tipos.filter(t => t.incluido).map(t => (
-                          <span key={t.tipo_atendimento_id} className="inline-flex items-center gap-1 rounded-md bg-[#04c2fb]/8 border border-[#04c2fb]/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                            <span className="h-1 w-1 rounded-full bg-[#04c2fb] shrink-0" />
-                            {nomeTipo(t.tipo_atendimento_id)}
-                          </span>
-                        ))}
+                        {pacote.tipos.filter(t => t.incluido).map(t => {
+                          const isRecorrente = t.tipo_atendimento_id === form.tipoAtendimentoId
+                          return (
+                            <span
+                              key={t.tipo_atendimento_id}
+                              title={isRecorrente ? 'Tipo usado na recorrência' : undefined}
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+                                isRecorrente
+                                  ? 'bg-[#04c2fb] border border-[#04c2fb] text-white'
+                                  : 'bg-[#04c2fb]/8 border border-[#04c2fb]/15 text-slate-600',
+                              )}
+                            >
+                              {isRecorrente
+                                ? <Repeat2 className="h-2.5 w-2.5 shrink-0" />
+                                : <span className="h-1 w-1 rounded-full bg-[#04c2fb] shrink-0" />
+                              }
+                              {nomeTipo(t.tipo_atendimento_id)}
+                            </span>
+                          )
+                        })}
                       </div>
                     </div>
                     {selecionado && (
@@ -986,12 +1005,27 @@ function CardPlano({
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {pacoteSelecionado.tipos.filter(t => t.incluido).map(t => (
-                      <span key={t.tipo_atendimento_id} className="inline-flex items-center gap-1 rounded-md bg-white border border-[#04c2fb]/20 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
-                        {nomeTipo(t.tipo_atendimento_id)}
-                      </span>
-                    ))}
+                    {pacoteSelecionado.tipos.filter(t => t.incluido).map(t => {
+                      const isRecorrente = t.tipo_atendimento_id === planoInicial.tipoAtendimentoId
+                      return (
+                        <span
+                          key={t.tipo_atendimento_id}
+                          title={isRecorrente ? 'Tipo usado na recorrência' : undefined}
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium',
+                            isRecorrente
+                              ? 'bg-[#04c2fb] border border-[#04c2fb] text-white'
+                              : 'bg-white border border-[#04c2fb]/20 text-slate-600',
+                          )}
+                        >
+                          {isRecorrente
+                            ? <Repeat2 className="h-2.5 w-2.5 shrink-0" />
+                            : <span className="h-1.5 w-1.5 rounded-full bg-[#04c2fb] shrink-0" />
+                          }
+                          {nomeTipo(t.tipo_atendimento_id)}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
@@ -1129,14 +1163,23 @@ function CardPlano({
         <ModalHorarioRecorrente
           open={modalHorarioAberto}
           onClose={() => setModalHorarioAberto(false)}
-          onConfirmar={(slots, atendimentoEmGrupo) => {
-            setForm(prev => ({ ...prev, agenda: { slots }, atendimentoEmGrupo }))
+          onConfirmar={(slots, atendimentoEmGrupo, tipoAtendimentoId) => {
+            const tipoAtendimentoNome = tiposDisponiveis.find(t => t.id === tipoAtendimentoId)?.nome ?? null
+            setForm(prev => ({
+              ...prev,
+              agenda: { slots },
+              atendimentoEmGrupo,
+              tipoAtendimentoId: tipoAtendimentoId ?? null,
+              tipoAtendimentoNome: tipoAtendimentoNome,
+            }))
             setModalHorarioAberto(false)
           }}
           pacienteId={pacienteId}
           pacienteNome={pacienteNome}
           planoAtual={form}
           agendamentosBase={agendamentosBase}
+          tiposAtendimento={tiposDisponiveis}
+          tipoAtendimentoIdInicial={form.tipoAtendimentoId}
         />
       )}
     </div>

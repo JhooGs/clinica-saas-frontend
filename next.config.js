@@ -5,6 +5,10 @@ const withPWA = require("next-pwa")({
   disable: process.env.NODE_ENV === "development",
   register: true,
   skipWaiting: true,
+  // Novo SW assume controle das abas abertas imediatamente após ativar.
+  // Sem isso, abas existentes continuam com o SW antigo mesmo após novo deploy,
+  // servindo chunks JS obsoletos que causam travamento total da PWA.
+  clientsClaim: true,
   runtimeCaching: [
     {
       // Chamadas ao backend FastAPI — network-first (sempre tenta API, fallback para cache)

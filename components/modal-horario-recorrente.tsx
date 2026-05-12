@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   X, ChevronDown, CalendarDays, Clock, Sparkles,
-  AlertTriangle, Users, User, Check,
+  AlertTriangle, Users, User, Check, Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ModalPortal } from '@/components/modal-portal'
@@ -201,11 +201,13 @@ function StyledSelect({
 interface ModalHorarioRecorrenteProps {
   open: boolean
   onClose: () => void
-  onConfirmar: (slots: SlotAgendamento[], atendimentoEmGrupo: boolean) => void
+  onConfirmar: (slots: SlotAgendamento[], atendimentoEmGrupo: boolean, tipoAtendimentoId: string | null) => void
   pacienteId?: string  // UUID
   pacienteNome: string
   planoAtual: PlanoAtendimento
   agendamentosBase: AgendamentoComSource[]
+  tiposAtendimento: { id: string; nome: string }[]
+  tipoAtendimentoIdInicial?: string | null
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
@@ -215,6 +217,8 @@ export function ModalHorarioRecorrente({
   pacienteId,
   pacienteNome,
   planoAtual, agendamentosBase,
+  tiposAtendimento,
+  tipoAtendimentoIdInicial,
 }: ModalHorarioRecorrenteProps) {
   const recorrencia = planoAtual.recorrencia
   const vezesPorSemana = planoAtual.vezesPorSemana ?? 1
@@ -233,6 +237,9 @@ export function ModalHorarioRecorrente({
 
   const [slots, setSlots] = useState<SlotAgendamento[]>(initSlots)
   const [atendimentoEmGrupo, setAtendimentoEmGrupo] = useState(planoAtual.atendimentoEmGrupo)
+  const [tipoAtendimentoId, setTipoAtendimentoId] = useState<string | null>(
+    tipoAtendimentoIdInicial ?? tiposAtendimento[0]?.id ?? null
+  )
   const [gruposExpandidos, setGruposExpandidos] = useState<Set<string>>(new Set())
 
   // Reinicia quando o modal abre + limpa cache legado de localStorage
@@ -240,6 +247,7 @@ export function ModalHorarioRecorrente({
     if (open) {
       setSlots(initSlots())
       setAtendimentoEmGrupo(planoAtual.atendimentoEmGrupo)
+      setTipoAtendimentoId(tipoAtendimentoIdInicial ?? tiposAtendimento[0]?.id ?? null)
       // Limpa o cache antigo de atendimentos recorrentes (substituído pela API)
       try { localStorage.removeItem('clinitra_agenda_recorrentes') } catch {}
     }
@@ -594,6 +602,22 @@ export function ModalHorarioRecorrente({
                   </p>
                 </div>
 
+                {/* Tipo de atendimento */}
+                {!atendimentoEmGrupo && tiposAtendimento.length > 0 && (
+                  <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+                    <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Tipo de atendimento</span>
+                    <div className="flex-1">
+                      <StyledSelect
+                        value={tipoAtendimentoId ?? ''}
+                        onChange={setTipoAtendimentoId}
+                        options={tiposAtendimento.map(t => ({ value: t.id, label: t.nome }))}
+                        placeholder="Selecionar..."
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Slots de horário */}
                 <div className="space-y-3">
                   {slots.map((slot, i) => {
@@ -845,7 +869,7 @@ export function ModalHorarioRecorrente({
             <button
               type="button"
               disabled={temBloqueante || semAlteracao}
-              onClick={() => onConfirmar(slots, atendimentoEmGrupo)}
+              onClick={() => onConfirmar(slots, atendimentoEmGrupo, atendimentoEmGrupo ? null : tipoAtendimentoId)}
               className={cn(
                 'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
                 (temBloqueante || semAlteracao) ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110',

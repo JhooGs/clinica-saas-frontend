@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, startTransition } from 'react'
-import { X, AlertTriangle, Search, Users, Info, User, ChevronDown, Check, Clock } from 'lucide-react'
+import { X, AlertTriangle, Search, Users, Info, User, ChevronDown, Check, Clock, Loader2 } from 'lucide-react'
 import { cn, proximaHoraCheia } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ModalPortal } from '@/components/modal-portal'
@@ -715,7 +715,10 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
     form.horarioFim.trim() !== '' &&
     conflitos.length === 0
 
+  const salvando = criarAgendamento.isPending || atualizarAgendamento.isPending
+
   function tentarSalvar() {
+    if (salvando) return
     setTentouSalvar(true)
     if (!formularioValido) return
 
@@ -1027,10 +1030,12 @@ export function ModalNovoAgendamento({ open, onClose, onSave, agendamento, agend
             </button>
             <button
               onClick={tentarSalvar}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all"
+              disabled={salvando}
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >
-              {modoEdicao ? 'Salvar alterações' : 'Criar agendamento'}
+              {salvando && <Loader2 className="h-4 w-4 animate-spin" />}
+              {salvando ? 'Salvando...' : modoEdicao ? 'Salvar alterações' : 'Criar agendamento'}
             </button>
           </div>
         </div>

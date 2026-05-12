@@ -340,7 +340,7 @@ export function AppNav() {
               className="flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden shrink-0"
               style={{ background: 'linear-gradient(135deg, #0094c8, #04c2fb)' }}
             >
-              <Image src="/logo.png" alt="Clinitra" width={18} height={18} className="object-contain brightness-0 invert" />
+              <Image src="/logo.png" alt="Clinitra" width={18} height={18} className="object-contain brightness-0 invert" style={{ width: 18, height: 18 }} />
             </div>
             <span className="text-sm font-bold tracking-widest uppercase text-[#04c2fb]">Clinitra</span>
           </div>
@@ -398,7 +398,7 @@ export function AppNav() {
                 style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
               >
                 <div className="flex items-center gap-2.5">
-                  <Image src="/logo.png" alt="Clinitra" width={26} height={26} className="object-contain brightness-0 invert" />
+                  <Image src="/logo.png" alt="Clinitra" width={26} height={26} className="object-contain brightness-0 invert" style={{ width: 26, height: 26 }} />
                   <span className="text-[15px] font-bold text-white tracking-widest uppercase">Clinitra</span>
                 </div>
                 <button
@@ -492,6 +492,7 @@ export function AppNav() {
             width={22}
             height={22}
             className="object-contain brightness-0 invert shrink-0"
+            style={{ width: 22, height: 22 }}
           />
           <motion.span
             animate={{ opacity: desktopExpanded ? 1 : 0 }}

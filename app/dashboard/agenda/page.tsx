@@ -271,7 +271,7 @@ export default function AgendaPage() {
     return limitesSemana(iso)
   }, [semanaOffset, HOJE])
 
-  const { data: apiData } = useAgendamentos({ data_inicio: semana.inicio, data_fim: semana.fim })
+  const { data: apiData, isLoading: loadingAgendamentos } = useAgendamentos({ data_inicio: semana.inicio, data_fim: semana.fim })
   const cancelarAgendamento = useCancelarAgendamento()
 
   const [exportedIds, setExportedIds] = useState<Set<string>>(() => loadExportedIds())
@@ -908,8 +908,15 @@ export default function AgendaPage() {
 
       {/* Lista */}
       <div className="space-y-6">
+        {/* Carregando */}
+        {loadingAgendamentos && (
+          <div className="flex items-center justify-center py-14">
+            <Loader2 className="h-6 w-6 animate-spin text-[#04c2fb]" />
+          </div>
+        )}
+
         {/* Estado vazio */}
-        {grupos.length === 0 && (
+        {!loadingAgendamentos && grupos.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card py-14 text-center">
             <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
             <div>

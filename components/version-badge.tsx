@@ -21,6 +21,18 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v1.3.2',
+    date: '11 de maio de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Corrigido um erro onde atendimentos agendados paravam de aparecer depois de 1 mês.'},
+      { category: 'Fixed', description: 'Otimizado velocidade para salvar determinados dados.'},
+      { category: 'Fixed', description: 'Corrigido travamentos do sistema.'},
+      { category: 'Fixed', description: 'Adicionado interface de carregamento em determinadas interfaces.'},
+      { category: 'Added', description: 'Módulo de relatórios foi inserido.'},
+      { category: 'Changed', description: 'Agora é necessário informar o tipo de atendimento recorrente.'},
+    ],
+  },
+  {
     version: 'v1.2.1',
     date: '06 de maio de 2026',
     changes: [

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, startTransition } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, User, Users, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, Pencil } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, User, Users, FileText, Save, ExternalLink, CheckCircle2, XCircle, X, Link2, Trash2, Tag, ChevronDown, Pencil, Loader2 } from 'lucide-react'
 import { cn, hoje, tiptapToHtml } from '@/lib/utils'
 import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
@@ -722,6 +722,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
               )}
               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >
+              {salvando && <Loader2 className="h-4 w-4 animate-spin" />}
               {salvando ? 'Salvando...' : 'Salvar Alterações'}
             </button>
           </div>
@@ -1368,6 +1369,7 @@ function FormularioAtendimento({ id }: { id: string }) {
               )}
               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >
+              {salvando && <Loader2 className="h-4 w-4 animate-spin" />}
               {salvando ? 'Salvando...' : 'Salvar Registro'}
             </button>
           </div>

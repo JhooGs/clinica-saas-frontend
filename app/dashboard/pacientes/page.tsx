@@ -96,9 +96,11 @@ function maskTelefone(v: string): string {
 function ModalNovoPaciente({
   onSalvar,
   onFechar,
+  salvando = false,
 }: {
   onSalvar: (f: FormState) => void
   onFechar: () => void
+  salvando?: boolean
 }) {
   const [form, setForm] = useState<FormState>(formInicial)
   const [confirmarSair, setConfirmarSair] = useState(false)
@@ -200,6 +202,7 @@ function ModalNovoPaciente({
     : []
 
   function tentarSalvar() {
+    if (salvando) return
     setTentouSalvar(true)
     if (formularioValido) onSalvar(form)
   }
@@ -476,10 +479,12 @@ function ModalNovoPaciente({
             </button>
             <button
               onClick={tentarSalvar}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors hover:brightness-110"
+              disabled={salvando}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #0094c8 0%, #04c2fb 60%, #00d5f5 100%)' }}
             >
-              Salvar Paciente
+              {salvando && <Loader2 className="h-4 w-4 animate-spin" />}
+              {salvando ? 'Salvando...' : 'Salvar Paciente'}
             </button>
           </div>
         </div>
@@ -646,6 +651,39 @@ function PacientesContent() {
   }, [pacientes, filtroAtivo, sortKey, sortDir, busca])
 
   function salvar(form: FormState) {
+    // Verificação de duplicatas usando dados já carregados em memória (zero queries extras)
+    const nomeLower = form.nome.trim().toLowerCase()
+    const telefoneDigitos = form.telefone.replace(/\D/g, '')
+    const responsavelLower = form.responsavel.trim().toLowerCase()
+
+    const duplicata = pacientes.find(p => {
+      const mesmoNome = p.nome.toLowerCase() === nomeLower
+      const mesmoTel = telefoneDigitos.length >= 8 && p.telefone?.replace(/\D/g, '') === telefoneDigitos
+      const mesmoResponsavel = responsavelLower && p.responsavel.toLowerCase() === responsavelLower && p.responsavel !== '-'
+      return mesmoNome || mesmoTel || mesmoResponsavel
+    })
+
+    if (duplicata) {
+      const campo = duplicata.nome.toLowerCase() === nomeLower
+        ? 'nome'
+        : telefoneDigitos.length >= 8 && duplicata.telefone?.replace(/\D/g, '') === telefoneDigitos
+          ? 'telefone'
+          : 'responsável'
+      toast.warning('Possível duplicata', {
+        description: `Já existe um paciente com o mesmo ${campo}: "${duplicata.nome}". Verifique antes de continuar.`,
+        duration: 6000,
+        action: {
+          label: 'Cadastrar mesmo assim',
+          onClick: () => _enviarCriacao(form),
+        },
+      })
+      return
+    }
+
+    _enviarCriacao(form)
+  }
+
+  function _enviarCriacao(form: FormState) {
     const temEndereco = [form.logradouro, form.bairro, form.cidade].some(Boolean)
     criarPaciente.mutate(
       {
@@ -697,7 +735,7 @@ function PacientesContent() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
 
-      {abrirModal && <ModalNovoPaciente onSalvar={salvar} onFechar={() => setAbrirModal(false)} />}
+      {abrirModal && <ModalNovoPaciente onSalvar={salvar} onFechar={() => setAbrirModal(false)} salvando={criarPaciente.isPending} />}
 
       {/* Cabeçalho */}
       <div className="flex items-start justify-between">

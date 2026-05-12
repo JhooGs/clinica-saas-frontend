@@ -64,6 +64,9 @@ export type PlanoAtendimentoPayload = {
   atendimentoEmGrupo: boolean
   vigenciaInicio?: string | null
   vigenciaFim?: string | null
+  terapeutaId?: string | null
+  tipoAtendimentoId?: string | null
+  tipoAtendimentoNome?: string | null
 }
 
 // ---------------------------------------------------------------------------
