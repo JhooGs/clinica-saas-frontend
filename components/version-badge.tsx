@@ -29,7 +29,7 @@ const CHANGELOG: VersionEntry[] = [
       { category: 'Fixed', description: 'Corrigido travamentos do sistema.'},
       { category: 'Fixed', description: 'Adicionado interface de carregamento em determinadas interfaces.'},
       { category: 'Added', description: 'Módulo de relatórios foi inserido.'},
-      { category: 'Changed', description: 'Agora é necessário informar o tipo de atendimento recorrente.'},
+      { category: 'Changed', description: 'Agora é necessário informar o tipo de atendimento nas configurações de atendimento recorrente.'},
     ],
   },
   {
