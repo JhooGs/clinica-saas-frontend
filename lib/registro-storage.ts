@@ -22,12 +22,13 @@ export function isVideoFile(file: File): boolean {
 export async function uploadImagem(
   file: File,
   agendamentoId: string,
+  clinicaId: string,
 ): Promise<UploadedFile> {
   const supabase = createClient()
 
   const ext  = file.name.split('.').pop()
   const nome = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-  const path = `agendamento-${agendamentoId}/imagens/${nome}`
+  const path = `clinica-${clinicaId}/agendamento-${agendamentoId}/imagens/${nome}`
 
   const { error } = await supabase.storage
     .from(BUCKET)
@@ -52,6 +53,7 @@ export async function uploadImagem(
 export async function uploadArquivo(
   file: File,
   agendamentoId: string,
+  clinicaId: string,
 ): Promise<UploadedFile> {
   if (isVideoFile(file)) {
     throw new Error('Vídeos não são permitidos como anexo de registro.')
@@ -60,7 +62,7 @@ export async function uploadArquivo(
 
   const ext  = file.name.split('.').pop()
   const nome = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-  const path = `agendamento-${agendamentoId}/arquivos/${nome}`
+  const path = `clinica-${clinicaId}/agendamento-${agendamentoId}/arquivos/${nome}`
 
   const { error } = await supabase.storage
     .from(BUCKET)

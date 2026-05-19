@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { createClient } from '@/lib/supabase'
 
 export type NotificacaoUrgencia = 'alta' | 'media' | 'baixa' | 'informacao'
 
@@ -30,12 +32,36 @@ type NotificacoesListResponse = {
 
 const QK = ['notificacoes'] as const
 
+function useHasSession() {
+  const [hasSession, setHasSession] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    supabase.auth.getSession().then(({ data }) => {
+      setHasSession(!!data.session)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasSession(!!session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  return hasSession
+}
+
 export function useNotificacoes() {
+  const hasSession = useHasSession()
+
   return useQuery<NotificacoesListResponse>({
     queryKey: QK,
     queryFn: () => apiFetch<NotificacoesListResponse>('/api/v1/notificacoes'),
-    refetchInterval: 60_000,
+    enabled: hasSession,
+    refetchInterval: hasSession ? 60_000 : false,
     staleTime: 30_000,
+    retry: false,
   })
 }
 

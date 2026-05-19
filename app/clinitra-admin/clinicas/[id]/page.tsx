@@ -5,7 +5,8 @@ import Link from 'next/link'
 import {
   ArrowLeft, Building2, Calendar, Power, Edit3, Users, Puzzle,
   Plus, Trash2, Loader2, ToggleLeft, ToggleRight, Pencil, FileText,
-  FolderOpen, Clock, HardDrive, X,
+  FolderOpen, Clock, HardDrive, X, CheckCircle2, Circle, SkipForward,
+  MinusCircle, PackageOpen, ChevronRight, Import,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
-import { useAdminClinicaDetalhe, useAdminAtualizarClinica } from '@/hooks/use-admin-clinicas'
+import { useAdminClinicaDetalhe, useAdminAtualizarClinica, type OnboardingDetalhe, type OnboardingStepStatus } from '@/hooks/use-admin-clinicas'
 import { useAdminPlanos } from '@/hooks/use-admin-planos'
 import {
   useAdminAddonsClinica, useAdminAddonsCatalogo,
@@ -593,6 +594,229 @@ function SecaoAddons({ clinicaId }: { clinicaId: string }) {
   )
 }
 
+// ── Seção Onboarding ──────────────────────────────────────────────────────────
+
+const STEP_CONFIG: Record<string, { label: string; sub: string }> = {
+  import_pacientes:   { label: 'Importar pacientes',             sub: 'CSV/XLSX com histórico de pacientes' },
+  import_financeiro:  { label: 'Importar financeiro',            sub: 'Histórico de transações e recebimentos' },
+  import_registros:   { label: 'Importar registros clínicos',    sub: 'Atendimentos e anotações anteriores' },
+  planos:             { label: 'Criar plano de atendimento',      sub: 'Tipos de atendimento e pacotes' },
+  adicionar_paciente: { label: 'Cadastrar primeiro paciente',     sub: 'Paciente inicial para começar a usar' },
+}
+
+function StepStatusIcon({ status }: { status: OnboardingStepStatus }) {
+  if (status === 'completed')   return <CheckCircle2  className="h-5 w-5 text-emerald-500 shrink-0" />
+  if (status === 'skipped')     return <SkipForward   className="h-5 w-5 text-amber-400 shrink-0" />
+  if (status === 'pending')     return <Circle        className="h-5 w-5 text-blue-400 shrink-0" />
+  return                               <MinusCircle   className="h-5 w-5 text-gray-300 shrink-0" />
+}
+
+function StepStatusBadge({ status }: { status: OnboardingStepStatus }) {
+  const map: Record<OnboardingStepStatus, { label: string; cls: string }> = {
+    completed:   { label: 'Concluído',     cls: 'bg-emerald-100 text-emerald-700' },
+    skipped:     { label: 'Pulado',        cls: 'bg-amber-100   text-amber-700'   },
+    pending:     { label: 'Pendente',      cls: 'bg-blue-100    text-blue-700'    },
+    unavailable: { label: 'N/A',           cls: 'bg-gray-100    text-gray-400'    },
+  }
+  const { label, cls } = map[status]
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide', cls)}>
+      {label}
+    </span>
+  )
+}
+
+function SecaoOnboarding({ onboarding }: { onboarding: OnboardingDetalhe | null }) {
+  if (!onboarding) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <PackageOpen className="h-4 w-4" /> Jornada de onboarding
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Nenhum registro de onboarding encontrado para esta clínica.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const decisaoLabel = onboarding.decisao === 'importar'
+    ? 'Importar dados históricos'
+    : onboarding.decisao === 'sem_importacao'
+      ? 'Começar do zero'
+      : null
+
+  const decisaoCor = onboarding.decisao === 'importar'
+    ? 'bg-violet-100 text-violet-700 border-violet-200'
+    : onboarding.decisao === 'sem_importacao'
+      ? 'bg-sky-100 text-sky-700 border-sky-200'
+      : 'bg-gray-100 text-gray-500 border-gray-200'
+
+  const stepsOrdenados = [
+    'import_pacientes',
+    'import_financeiro',
+    'import_registros',
+    'planos',
+    'adicionar_paciente',
+  ] as const
+
+  const totalRelevantes = stepsOrdenados.filter(
+    s => onboarding.steps[s] !== 'unavailable'
+  ).length
+  const concluidos = stepsOrdenados.filter(
+    s => onboarding.steps[s] === 'completed' || onboarding.steps[s] === 'skipped'
+  ).length
+  const progresso = totalRelevantes > 0 ? Math.round((concluidos / totalRelevantes) * 100) : 0
+
+  return (
+    <Card className="overflow-hidden">
+      {/* Header colorido */}
+      <div className={cn(
+        'px-5 py-4 border-b flex items-start justify-between gap-4',
+        onboarding.concluido ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100',
+      )}>
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            onboarding.concluido ? 'bg-emerald-500' : 'bg-amber-400',
+          )}>
+            <PackageOpen className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-bold text-gray-900">Jornada de onboarding</p>
+              {onboarding.concluido ? (
+                <span className="text-[10px] font-bold bg-emerald-500 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                  Concluído
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold bg-amber-400 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                  Em andamento
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {onboarding.criado_em
+                ? `Iniciado em ${new Date(onboarding.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                : 'Data de início não registrada'}
+              {onboarding.concluido_em && (
+                <> · Concluído em {new Date(onboarding.concluido_em).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}</>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Progresso circular compacto */}
+        <div className="shrink-0 flex flex-col items-center gap-0.5">
+          <div className="relative flex items-center justify-center">
+            <svg width="46" height="46" className="-rotate-90">
+              <circle cx="23" cy="23" r="18" fill="none" stroke="#e2e8f0" strokeWidth="4" />
+              <circle
+                cx="23" cy="23" r="18" fill="none"
+                stroke={onboarding.concluido ? '#10b981' : '#f59e0b'}
+                strokeWidth="4"
+                strokeDasharray={`${(progresso / 100) * 2 * Math.PI * 18} ${2 * Math.PI * 18}`}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              />
+            </svg>
+            <p className="absolute text-[11px] font-bold tabular-nums">{progresso}%</p>
+          </div>
+          <p className="text-[9px] text-muted-foreground font-medium">{concluidos}/{totalRelevantes} etapas</p>
+        </div>
+      </div>
+
+      <CardContent className="p-5 space-y-5">
+        {/* Decisão tomada */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            Decisão de importação
+          </p>
+          {decisaoLabel ? (
+            <div className={cn(
+              'inline-flex items-center gap-2 rounded-xl border px-3 py-2',
+              decisaoCor,
+            )}>
+              <Import className="h-4 w-4 shrink-0" />
+              <span className="text-sm font-semibold">{decisaoLabel}</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-gray-400">
+              <Circle className="h-4 w-4 shrink-0" />
+              <span className="text-sm font-medium italic">Ainda não decidiu</span>
+            </div>
+          )}
+        </div>
+
+        {/* Timeline de etapas */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            Etapas do fluxo
+          </p>
+          <div className="relative">
+            {/* Linha vertical */}
+            <div className="absolute left-[10px] top-3 bottom-3 w-px bg-gray-100" />
+
+            <div className="space-y-1">
+              {stepsOrdenados.map((stepKey, idx) => {
+                const status = onboarding.steps[stepKey]
+                const cfg = STEP_CONFIG[stepKey]
+                const isLast = idx === stepsOrdenados.length - 1
+                const isUnavailable = status === 'unavailable'
+
+                return (
+                  <div
+                    key={stepKey}
+                    className={cn(
+                      'relative flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors',
+                      isUnavailable ? 'opacity-40' : 'bg-muted/30 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="relative z-10 mt-0.5">
+                      <StepStatusIcon status={status} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={cn(
+                          'text-sm font-semibold',
+                          isUnavailable ? 'text-muted-foreground' : 'text-gray-900',
+                        )}>
+                          {cfg.label}
+                        </p>
+                        <StepStatusBadge status={status} />
+                      </div>
+                      {!isUnavailable && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{cfg.sub}</p>
+                      )}
+                    </div>
+                    {!isLast && !isUnavailable && status !== 'unavailable' && (
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0 mt-1" />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Rodapé: última atualização */}
+        {onboarding.atualizado_em && (
+          <p className="text-[11px] text-muted-foreground text-right">
+            Última atualização:{' '}
+            {new Date(onboarding.atualizado_em).toLocaleDateString('pt-BR', {
+              day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            })}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function PageSkeleton() {
@@ -868,6 +1092,9 @@ export default function ClinicaDetalhePage({ params }: { params: Promise<{ id: s
           <InfoField label="Stripe Subscription" value={clinica.stripe_subscription_id} mono />
         </CardContent>
       </Card>
+
+      {/* Onboarding */}
+      <SecaoOnboarding onboarding={clinica.onboarding} />
 
       {/* Add-ons */}
       <SecaoAddons clinicaId={id} />

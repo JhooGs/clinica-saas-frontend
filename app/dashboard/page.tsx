@@ -389,8 +389,10 @@ export default function DashboardPage() {
   const [comPauta, setComPauta] = useState<Set<string>>(new Set())
 
   // Relógio que re-avalia a cada 30s quais sessões já começaram
-  const [currentTime, setCurrentTime] = useState(() => new Date())
+  const [currentTime, setCurrentTime] = useState<Date | null>(null)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCurrentTime(new Date())
     const id = setInterval(() => setCurrentTime(new Date()), 30_000)
     return () => clearInterval(id)
   }, [])
@@ -421,6 +423,7 @@ export default function DashboardPage() {
     sem_registro: true,
   })
   const pendentesHoje = useMemo<RelatorioPendente[]>(() => {
+    if (!currentTime) return []
     return (agendaPendenteHoje?.items ?? [])
       .filter(a => {
         const [h, m] = a.horario.split(':').map(Number)

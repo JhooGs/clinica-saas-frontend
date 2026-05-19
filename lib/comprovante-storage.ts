@@ -22,7 +22,7 @@ export async function uploadComprovante(
 ): Promise<string> {
   const supabase = createClient()
   const ext = file.name.split('.').pop() ?? 'bin'
-  const path = `${clinicaId}/${financeiroId}/${Date.now()}.${ext}`
+  const path = `clinica-${clinicaId}/${financeiroId}/${Date.now()}.${ext}`
 
   const { error } = await supabase.storage
     .from(BUCKET)

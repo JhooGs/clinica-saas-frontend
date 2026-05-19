@@ -31,6 +31,24 @@ export interface ClinicaListResponse {
   per_page: number
 }
 
+export type OnboardingStepStatus = 'pending' | 'completed' | 'skipped' | 'unavailable'
+export type OnboardingDecisao = 'importar' | 'sem_importacao' | null
+
+export interface OnboardingDetalhe {
+  concluido: boolean
+  concluido_em: string | null
+  criado_em: string | null
+  atualizado_em: string | null
+  decisao: OnboardingDecisao
+  steps: {
+    import_pacientes: OnboardingStepStatus
+    import_financeiro: OnboardingStepStatus
+    import_registros: OnboardingStepStatus
+    planos: OnboardingStepStatus
+    adicionar_paciente: OnboardingStepStatus
+  }
+}
+
 export interface ClinicaDetalhe extends ClinicaListItem {
   cnpj: string | null
   stripe_customer_id: string | null
@@ -45,6 +63,7 @@ export interface ClinicaDetalhe extends ClinicaListItem {
   storage_bytes_used: number
   storage_bytes_limite: number
   storage_uso_pct: number | null
+  onboarding: OnboardingDetalhe | null
   usuarios: {
     id: string
     nome: string

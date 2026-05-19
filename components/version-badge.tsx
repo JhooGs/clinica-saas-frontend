@@ -21,6 +21,18 @@ interface VersionEntry {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: 'v1.3.3',
+    date: '18 de maio de 2026',
+    changes: [
+      { category: 'Fixed', description: 'Corrigido um bug onde não era possível criar grupos em horários recorrentes.'},
+      { category: 'Fixed', description: 'Ajuste um bug que impedia o uso do botão sair da plataforma.'},
+      { category: 'Added', description: 'Adicionado menu de contato para futuras dúvidas.'},
+      { category: 'Changed', description: 'Barra lateral foi modificada para ficar um pouco menor.'},
+      { category: 'Added', description: 'Agora é possível deixar fixo a barra lateral por um pin no topo.'},
+
+    ],
+  },
+  {
     version: 'v1.3.2',
     date: '11 de maio de 2026',
     changes: [

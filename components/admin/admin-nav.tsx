@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Menu, X, LayoutDashboard, Building2, Settings2, LogOut, ClipboardList, DollarSign,
@@ -127,7 +127,6 @@ export function AdminNav() {
   const [email, setEmail] = useState('')
 
   const pathname    = usePathname()
-  const router      = useRouter()
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -154,8 +153,7 @@ export function AdminNav() {
     const supabase = createClient()
     await supabase.auth.signOut()
     queryClient.clear()
-    router.push('/auth/login')
-    router.refresh()
+    window.location.href = '/auth/login'
   }
 
   function isActive(href: string) {

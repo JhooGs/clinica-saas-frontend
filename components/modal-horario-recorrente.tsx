@@ -348,20 +348,31 @@ export function ModalHorarioRecorrente({
   const conflitos = useMemo((): ConflitoCandidato[] => {
     return sessoesCandidatas.flatMap<ConflitoCandidato>(cand => {
       const ocupados = ocupadosPorData.get(cand.data) ?? []
-      const colisao = ocupados.find(o => overlapHorario(
+      // Coleta TODAS as colisões — não apenas a primeira (find mascarava grupo+grupo
+      // quando o próprio paciente já estava no slot como membro do grupo)
+      const colisoes = ocupados.filter(o => overlapHorario(
         { horario: cand.horario },
         { horario: o.horario, horarioFim: o.horarioFim },
       ))
-      if (!colisao) return []
-      const nomesColisao = colisao.pacientes && colisao.pacientes.length > 1
-        ? colisao.pacientes.join(', ')
-        : colisao.paciente
-      // Colisão com o próprio agendamento do paciente que está sendo reconfigurado
-      if (pacienteId && colisao.paciente_id === pacienteId) {
-        return [{ data: cand.data, horario: cand.horario, tipo: 'mesmo-paciente' as const, pacienteConflito: nomesColisao }]
+      if (colisoes.length === 0) return []
+
+      // Separa: colisões com outros pacientes vs. agendamento do próprio paciente
+      const outrasPessoas = colisoes.filter(o => !(pacienteId && o.paciente_id === pacienteId))
+
+      if (outrasPessoas.length === 0) {
+        // Apenas o próprio agendamento existente no slot
+        const c = colisoes[0]
+        const nomes = c.pacientes.length > 1 ? c.pacientes.join(', ') : c.paciente
+        return [{ data: cand.data, horario: cand.horario, tipo: 'mesmo-paciente' as const, pacienteConflito: nomes }]
       }
-      const tipo: ConflitoCandidato['tipo'] = atendimentoEmGrupo && colisao.ehGrupo ? 'aviso' : 'bloqueante'
-      return [{ data: cand.data, horario: cand.horario, tipo, pacienteConflito: nomesColisao }]
+
+      // Há colisões com outros pacientes — determina se é aviso ou bloqueante
+      const nomes = [...new Set(
+        outrasPessoas.flatMap(o => o.pacientes.length > 1 ? o.pacientes : [o.paciente])
+      )].join(', ')
+      const tipo: ConflitoCandidato['tipo'] =
+        atendimentoEmGrupo && outrasPessoas.every(o => o.ehGrupo) ? 'aviso' : 'bloqueante'
+      return [{ data: cand.data, horario: cand.horario, tipo, pacienteConflito: nomes }]
     })
   }, [sessoesCandidatas, ocupadosPorData, atendimentoEmGrupo, pacienteId])
 

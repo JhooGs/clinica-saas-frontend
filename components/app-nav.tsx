@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Menu, X, Home, Users, ClipboardList, CalendarDays,
   DollarSign, BarChart2, Settings, LogOut, Package, UserCog, ChevronRight,
-  Building2, NotepadText, Shield,
+  Building2, NotepadText, Shield, MessageCircle, Pin, PinOff,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -25,10 +25,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useConfiguracoes } from '@/hooks/use-configuracoes'
 import { useFeatureGate } from '@/hooks/use-feature-gate'
+import { useSidebarPin } from '@/contexts/sidebar-context'
 import { cn } from '@/lib/utils'
 
 const COLLAPSED_W = 56
-const EXPANDED_W  = 288
+const EXPANDED_W  = 248
 
 // ── Variantes mobile ──────────────────────────────────────────────────────────
 
@@ -245,11 +246,13 @@ function ClinicaAvatarDropdown({
 
 export function AppNav() {
   const [mobileOpen,      setMobileOpen]      = useState(false)
-  const [desktopExpanded, setDesktopExpanded] = useState(false)
+  const [desktopHovered,  setDesktopHovered]  = useState(false)
   const [email, setEmail] = useState('')
 
+  const { pinned, togglePin } = useSidebarPin()
+  const desktopExpanded = desktopHovered || pinned
+
   const pathname    = usePathname()
-  const router      = useRouter()
   const queryClient = useQueryClient()
   const { can, isSuperAdmin, isAdmin } = usePermissions()
   const { data: clinicaConfig } = useConfiguracoes()
@@ -296,8 +299,7 @@ export function AppNav() {
     const supabase = createClient()
     await supabase.auth.signOut()
     queryClient.clear()
-    router.push('/auth/login')
-    router.refresh()
+    window.location.href = '/auth/login'
   }
 
   function isActive(href: string) {
@@ -456,6 +458,16 @@ export function AppNav() {
                   <Settings className="h-4 w-4 shrink-0 text-gray-400" />
                   <span>Configurações</span>
                 </Link>
+                <a
+                  href="https://wa.me/5541996400257?text=Oi%2C%20estou%20usando%20a%20Clinitra%20e%20preciso%20de%20ajuda"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4 shrink-0 text-gray-400" />
+                  <span>Ajuda</span>
+                </a>
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors"
@@ -474,8 +486,8 @@ export function AppNav() {
         className="hidden md:flex fixed top-0 left-0 bottom-0 z-30 flex-col bg-white border-r overflow-hidden"
         animate={{ width: desktopExpanded ? EXPANDED_W : COLLAPSED_W }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        onMouseEnter={() => setDesktopExpanded(true)}
-        onMouseLeave={() => setDesktopExpanded(false)}
+        onMouseEnter={() => setDesktopHovered(true)}
+        onMouseLeave={() => setDesktopHovered(false)}
         style={{
           boxShadow: desktopExpanded ? '4px 0 24px -4px rgba(10,25,41,0.12)' : 'none',
           transition: 'box-shadow 0.3s ease',
@@ -501,6 +513,27 @@ export function AppNav() {
           >
             Clinitra
           </motion.span>
+
+          {/* Botão de fixar sidebar */}
+          <motion.button
+            animate={{ opacity: desktopExpanded ? 1 : 0 }}
+            transition={{ duration: 0.15 }}
+            style={{ pointerEvents: desktopExpanded ? 'auto' : 'none', marginLeft: 'auto' }}
+            onClick={e => { e.stopPropagation(); togglePin() }}
+            aria-label={pinned ? 'Desafixar menu lateral' : 'Fixar menu lateral'}
+            title={pinned ? 'Desafixar' : 'Fixar'}
+            className={cn(
+              'flex h-6 w-6 items-center justify-center rounded-md transition-colors duration-150 shrink-0',
+              pinned
+                ? 'bg-white/25 text-white hover:bg-white/35'
+                : 'text-white/60 hover:text-white hover:bg-white/15',
+            )}
+          >
+            {pinned
+              ? <PinOff className="h-3.5 w-3.5" />
+              : <Pin className="h-3.5 w-3.5" />
+            }
+          </motion.button>
         </div>
 
         {/* Perfil */}
@@ -538,13 +571,28 @@ export function AppNav() {
           )}
         </nav>
 
-        {/* Rodapé — Configurações + Sair */}
+        {/* Rodapé — Configurações + Ajuda + Sair */}
         <div className="shrink-0 border-t px-2 py-3 space-y-0.5">
           <DesktopNavItem
             item={{ title: 'Configurações', href: '/dashboard/configuracoes', icon: Settings }}
             active={isActive('/dashboard/configuracoes')}
             expanded={desktopExpanded}
           />
+          <a
+            href="https://wa.me/5541996400257?text=Oi%2C%20estou%20usando%20a%20Clinitra%20e%20preciso%20de%20ajuda"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-150"
+          >
+            <MessageCircle className="h-5 w-5 shrink-0 text-gray-400" />
+            <motion.span
+              animate={{ opacity: desktopExpanded ? 1 : 0 }}
+              transition={{ duration: desktopExpanded ? 0.12 : 0.05, delay: desktopExpanded ? 0.08 : 0 }}
+              className="whitespace-nowrap overflow-hidden"
+            >
+              Ajuda
+            </motion.span>
+          </a>
           <DesktopNavItem
             item={{ title: 'Sair', href: '#logout', icon: LogOut }}
             active={false}

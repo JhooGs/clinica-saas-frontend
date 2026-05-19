@@ -436,7 +436,7 @@ function RegistroEditMode({ id, registro }: { id: string; registro: Registro }) 
       throw new Error('video_not_allowed')
     }
     const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
-    const uploaded = await fn(file, id)
+    const uploaded = await fn(file, id, registro.clinica_id)
     setArquivos(prev => [...prev, uploaded])
     setTemAlteracoes(true)
     return uploaded
@@ -894,7 +894,7 @@ function FormularioAtendimento({ id }: { id: string }) {
       throw new Error('video_not_allowed')
     }
     const fn = file.type.startsWith('image/') ? uploadImagem : uploadArquivo
-    const uploaded = await fn(file, id)
+    const uploaded = await fn(file, id, agendamento!.clinica_id)
     setArquivos(prev => [...prev, uploaded])
     return uploaded
   }

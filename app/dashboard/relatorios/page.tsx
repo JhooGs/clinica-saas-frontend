@@ -27,6 +27,7 @@ import {
   Banknote,
   Loader2,
   TriangleAlert,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -163,6 +164,7 @@ function MetricCard({
   gradTo,
   loading = false,
   onInfoClick,
+  ouro = false,
 }: {
   icon: React.ElementType
   label: string
@@ -172,10 +174,27 @@ function MetricCard({
   gradTo: string
   loading?: boolean
   onInfoClick?: () => void
+  ouro?: boolean
 }) {
   return (
-    <div className="rounded-xl border bg-card shadow-sm p-4 sm:p-5">
-      <div className="flex items-start gap-3">
+    <div
+      className={cn(
+        'rounded-xl border bg-card shadow-sm p-4 sm:p-5 relative overflow-hidden transition-shadow',
+        ouro && 'border-yellow-400/50 shadow-[0_0_22px_rgba(234,179,8,0.18)]',
+      )}
+      style={ouro ? { background: 'linear-gradient(135deg, #fffbeb 0%, #ffffff 55%, #fef9ec 100%)' } : undefined}
+    >
+      {/* Shimmer dourado discreto */}
+      {ouro && (
+        <div
+          className="pointer-events-none absolute inset-0 rounded-xl"
+          style={{
+            background: 'linear-gradient(105deg, transparent 30%, rgba(250,204,21,0.12) 50%, transparent 70%)',
+            animation: 'shimmer-gold 3s ease-in-out infinite',
+          }}
+        />
+      )}
+      <div className="flex items-start gap-3 relative">
         <div
           className="rounded-xl p-2.5 shrink-0"
           style={{ background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})` }}
@@ -185,6 +204,11 @@ function MetricCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-0.5">
             <p className="text-xs text-muted-foreground">{label}</p>
+            {ouro && (
+              <span className="text-[10px] font-bold text-yellow-600 bg-yellow-100 border border-yellow-300/60 rounded-full px-1.5 py-0.5 leading-none whitespace-nowrap shrink-0">
+                este mês
+              </span>
+            )}
             {onInfoClick && (
               <button
                 type="button"
@@ -199,7 +223,12 @@ function MetricCard({
           {loading ? (
             <div className="h-7 w-24 rounded bg-muted animate-pulse mt-1" />
           ) : (
-            <p className="text-2xl font-bold tabular-nums tracking-tight leading-tight">{value}</p>
+            <p className={cn(
+              'text-2xl font-bold tabular-nums tracking-tight leading-tight',
+              ouro && 'text-yellow-700',
+            )}>
+              {value}
+            </p>
           )}
           {sub && !loading && (
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{sub}</p>
@@ -632,6 +661,32 @@ export default function RelatoriosPage() {
   // Modal detalhamento receita
   const [modalDetalhamento, setModalDetalhamento] = useState(false)
 
+  // Visibilidade dos cards da Visão do Mês Atual (sessionStorage — por sessão, sem banco)
+  type CardKey = 'atendimentos' | 'receita_prevista' | 'a_receber' | 'melhor_mes'
+  const SESSION_KEY = 'relatorios_cards_visiveis'
+  const CARDS_CONFIG: { key: CardKey; label: string }[] = [
+    { key: 'atendimentos',    label: 'Atendimentos previstos' },
+    { key: 'receita_prevista', label: 'Receita prevista do mês' },
+    { key: 'a_receber',       label: 'A receber' },
+    { key: 'melhor_mes',      label: 'Melhor mês histórico' },
+  ]
+  const [cardsVisiveis, setCardsVisiveis] = useState<Record<CardKey, boolean>>(() => {
+    if (typeof window === 'undefined') return { atendimentos: true, receita_prevista: true, a_receber: true, melhor_mes: true }
+    try {
+      const saved = localStorage.getItem(SESSION_KEY)
+      if (saved) return JSON.parse(saved)
+    } catch { /* ignora */ }
+    return { atendimentos: true, receita_prevista: true, a_receber: true, melhor_mes: true }
+  })
+
+  function toggleCard(key: CardKey) {
+    setCardsVisiveis(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify(next)) } catch { /* ignora */ }
+      return next
+    })
+  }
+
   // Dados
   const { data: visaoGeral, isLoading: loadingVisao } = useVisaoGeral()
   const { data: transacoesMes } = useTransacoes({ mes: mesAtual })
@@ -796,44 +851,87 @@ export default function RelatoriosPage() {
 
       {/* ── Visão do Mês Atual ──────────────────────────── */}
       <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Visão do Mês Atual
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Visão do Mês Atual
+          </h2>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:bg-muted/30 transition-colors"
+                title="Personalizar cards"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Personalizar
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-3" align="end">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Exibir cards
+              </p>
+              <div className="space-y-1.5">
+                {CARDS_CONFIG.map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-2.5 cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={cardsVisiveis[key]}
+                      onChange={() => toggleCard(key)}
+                      className="accent-[#04c2fb] h-3.5 w-3.5 cursor-pointer"
+                    />
+                    <span className="text-sm leading-tight">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <MetricCard
-            icon={CalendarDays}
-            label="Atendimentos previstos"
-            value={String(visaoGeral?.projecao_atendimentos_mes ?? '—')}
-            gradFrom="#0094c8"
-            gradTo="#04c2fb"
-            loading={loadingVisao}
-          />
-          <MetricCard
-            icon={TrendingUp}
-            label="Receita prevista do mês"
-            value={visaoGeral ? formatBRL(visaoGeral.receita_prevista_mes) : '—'}
-            loading={loadingVisao}
-            gradFrom="#059669"
-            gradTo="#10b981"
-            onInfoClick={() => setModalDetalhamento(true)}
-          />
-          <MetricCard
-            icon={Clock}
-            label="A receber"
-            value={resumo ? formatBRL(resumo.a_receber) : '—'}
-            sub={resumo?.atrasado ? `${formatBRL(resumo.atrasado)} em atraso` : 'sem inadimplência'}
-            gradFrom="#d97706"
-            gradTo="#f59e0b"
-          />
-          <MetricCard
-            icon={Award}
-            label="Melhor mês histórico"
-            value={visaoGeral?.melhor_mes ? formatBRL(visaoGeral.melhor_mes.receita) : '—'}
-            sub={visaoGeral?.melhor_mes ? formatMesLongo(visaoGeral.melhor_mes.mes) : 'sem histórico'}
-            gradFrom="#7c3aed"
-            gradTo="#8b5cf6"
-            loading={loadingVisao}
-          />
+          {cardsVisiveis.atendimentos && (
+            <MetricCard
+              icon={CalendarDays}
+              label="Atendimentos previstos"
+              value={String(visaoGeral?.projecao_atendimentos_mes ?? '—')}
+              gradFrom="#0094c8"
+              gradTo="#04c2fb"
+              loading={loadingVisao}
+            />
+          )}
+          {cardsVisiveis.receita_prevista && (
+            <MetricCard
+              icon={TrendingUp}
+              label="Receita prevista do mês"
+              value={visaoGeral ? formatBRL(visaoGeral.receita_prevista_mes) : '—'}
+              loading={loadingVisao}
+              gradFrom="#059669"
+              gradTo="#10b981"
+              onInfoClick={() => setModalDetalhamento(true)}
+            />
+          )}
+          {cardsVisiveis.a_receber && (
+            <MetricCard
+              icon={Clock}
+              label="A receber"
+              value={resumo ? formatBRL(resumo.a_receber) : '—'}
+              sub={resumo?.atrasado ? `${formatBRL(resumo.atrasado)} em atraso` : 'sem inadimplência'}
+              gradFrom="#d97706"
+              gradTo="#f59e0b"
+            />
+          )}
+          {cardsVisiveis.melhor_mes && (
+            <MetricCard
+              icon={Award}
+              label="Melhor mês histórico"
+              value={visaoGeral?.melhor_mes ? formatBRL(visaoGeral.melhor_mes.receita) : '—'}
+              sub={visaoGeral?.melhor_mes ? formatMesLongo(visaoGeral.melhor_mes.mes) : 'sem histórico'}
+              gradFrom="#7c3aed"
+              gradTo="#8b5cf6"
+              loading={loadingVisao}
+              ouro={visaoGeral?.melhor_mes?.mes === mesAtual}
+            />
+          )}
         </div>
 
         {/* Média mensal */}

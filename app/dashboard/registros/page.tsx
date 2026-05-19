@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, Fragment } from 'react'
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
 import type { DateRange } from 'react-day-picker'
 import { ClipboardList, ExternalLink, FileText, Search, X, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Paperclip, BookOpen, Image as ImageIcon, Columns3, Check } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -96,17 +96,19 @@ export default function RegistrosPage() {
   const COLUNAS_REG_PADRAO: ColReg[] = ['data_atendimento', 'tipo_atendimento', 'presenca', 'valor', 'notas']
   const COLUNAS_REG_LS_KEY = 'clinitra_reg_colunas'
 
-  const [colunasVisiveis, setColunasVisiveis] = useState<ColReg[]>(() => {
+  const [colunasVisiveis, setColunasVisiveis] = useState<ColReg[]>(COLUNAS_REG_PADRAO)
+
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(COLUNAS_REG_LS_KEY)
       if (saved) {
         const parsed = JSON.parse(saved) as ColReg[]
         const validas = COLUNAS_REG_OCULTAVEIS.map(c => c.key).filter(c => parsed.includes(c))
-        if (validas.length > 0) return validas
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (validas.length > 0) setColunasVisiveis(validas)
       }
     } catch { /* ignore */ }
-    return COLUNAS_REG_PADRAO
-  })
+  }, [])
 
   const toggleColuna = (col: ColReg) => {
     setColunasVisiveis(prev => {
