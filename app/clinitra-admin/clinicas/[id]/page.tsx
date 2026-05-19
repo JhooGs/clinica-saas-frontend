@@ -793,7 +793,7 @@ function SecaoOnboarding({ onboarding }: { onboarding: OnboardingDetalhe | null 
                         <p className="text-xs text-muted-foreground mt-0.5">{cfg.sub}</p>
                       )}
                     </div>
-                    {!isLast && !isUnavailable && status !== 'unavailable' && (
+                    {!isLast && !isUnavailable && (
                       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0 mt-1" />
                     )}
                   </div>
